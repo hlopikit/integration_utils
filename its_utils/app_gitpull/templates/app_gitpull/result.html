@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+    <title>GITPULL {{ pull_code }} {{ update_submodules_code }} {{ touch_code }}</title>
+    <style>
+        .status {
+            width: 100%;
+            height: 25px;
+            margin-bottom: 10px;
+        }
+
+        .fail {
+            background-color: #ff8aa2;
+        }
+
+        .success {
+            background-color: #bcff87;
+        }
+
+        .check-header {
+            font-size: 16px;
+            line-height: 20px;
+            font-weight: bold;
+        }
+
+        .check-message {
+            margin-left: 10px;
+        }
+        .ifeame-holder {
+            height: 50%;
+            overflow: auto;
+        }
+        .gitpull-holder {
+            height: 50%;
+            overflow: auto;
+            padding: 0 0 0 5px ;
+        }
+        .content {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+    </style>
+</head>
+<body>
+<div class="content">
+<div class="gitpull-holder">
+    {% if pull_code == 0 and update_submodules_code == 0 and touch_code == 0 %}
+        <div class="status success"></div>
+    {% else %}
+        <div class="status fail"></div>
+    {% endif %}
+    <a href="/its/gitpull/">Вернуться</a>
+    {% if pull_code != None %}
+        <h3>Gitpull: {{ pull_code }}</h3>
+        <pre><code><em>$ {{ pull_command }}</em>\n{{ pull_output }}</code></pre>
+    {% endif %}
+    {% if update_submodules_code != None %}
+        <h3>Update submodules: {{ update_submodules_code }}</h3>
+        <pre><code><em>$ {{ update_submodules_command }}</em>\n{{ update_submodules_output }}</code></pre>
+    {% endif %}
+
+{% if test_code != None %}
+    <h3>Testfile: {{ test_code }}</h3>
+    <p> cmd {{ cmd }}</p>
+    <pre><code><em>$ {{ test_command }}</em>\n{{ test_output }}</code></pre>
+{% endif %}
+{% if touch_code != None %}
+    <h3>Touch restart: {{ touch_code }}</h3>
+    <pre><code><em>$ {{ touch_command }}</em>\n{{ touch_output  }}</code></pre>
+{% endif %}
+
+<h3>Environ</h3>
+<span>{{ env }}</span>
+
+<h3>Linux <code>$ id</code></h3>
+<span>{{ sys_call_id }}</span>
+
+
+{% if its_collect_static %}
+    <h3>Collect static: {{ collect_static_success }}</h3>
+    {% if collect_static_output %}
+        <pre><code style="color: {% if collect_static_success %}green{% else %}red{% endif %}">{{ collect_static_output }}</code></pre>
+    {% endif %}
+{% endif %}
+{% if warnings %}<p><b>Предупреждения:</b> {% for warning in warnings %}{{ warning }}<br/>{% endfor %}</p>{% endif %}
+{% if errors %}<p><b>Ошибки:</b> {% for error in errors %}{{ error }}<br/>{% endfor %}</p>{% endif %}
+<!--
+<h3>System Checks</h3>
+{#{% for check, v in system_check_messages %}#}
+{#    <div {% if v.critical %} style="color: #ff456b" {% endif %}>#}
+{#        <div class="check-header">{% if v.critical %}[CRITICAL] {% endif %}{{ check }}</div>#}
+{#        {% for message in v.messages %}#}
+{#            <div class="check-message">{{ message }}</div>#}
+{#        {% endfor %}#}
+{#    </div>#}
+{#{% endfor %}#}
+-->
+
+</div>
+<div class="ifeame-holder">
+    <iframe src="/its/gitpull/system_checks/" width="100%" height="500px"></iframe>
+</div>
+</div>
+</body>
+</html>

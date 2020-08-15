@@ -1,0 +1,59 @@
+from django.db import models
+from django.utils import timezone
+
+
+class BitrixUser(models.Model):
+
+    bitrix_id = models.IntegerField(blank=True, null=True, unique=True)  # ID
+
+    first_name = models.CharField(max_length=255, blank=True, default='')  # NAME
+    last_name = models.CharField(max_length=255, blank=True, default='')  # LAST_NAME
+
+    # Контакты
+    email = models.CharField(max_length=255)
+    work_phone = models.CharField(max_length=100, blank=True, default='')  # WORK_PHONE
+    personal_mobile = models.CharField(max_length=100, blank=True, default='')  # PERSONAL_MOBILE
+
+    extranet = models.NullBooleanField(default=None)
+
+    is_admin = models.BooleanField(blank=True, default=False)
+
+    user_created = models.DateTimeField(null=True, default=timezone.now)
+
+    user_is_active = models.BooleanField(default=True)  # ACTIVE
+
+    def __str__(self):
+        return "#{} {} {}".format(self.pk, self.last_name, self.first_name)
+
+    def update_from_bitrix_response(self, user, save=True):
+        """Принимает словарь - данные пользователя от user.get/user.current
+        и обновляет данные этого (self) пользователя
+        """
+
+        if self.bitrix_id is None:
+            self.bitrix_id = int(user['ID'])
+        elif int(self.bitrix_id) != int(user['ID']):
+            t = 'User mismatch: local #{self.bitrix_id} user_info#{info[ID]}'
+            raise RuntimeError(t.format(self=self, info=user))
+
+        def _f(field_name, default='', max_length=255):
+            value = user.get(field_name) or default
+            if max_length is not None:
+                value = str(value)[:max_length]
+            return value
+
+        # Обновление основных полей
+        self.first_name = _f('NAME')
+        self.last_name = _f('LAST_NAME')
+        self.email = _f('EMAIL')
+
+        self.work_phone = _f('WORK_PHONE', max_length=100)
+        self.personal_mobile = _f('PERSONAL_MOBILE', max_length=100)
+
+        self.linkedin = _f('UF_LINKEDIN')
+        self.facebook = _f('UF_FACEBOOK')
+        self.twitter = _f('UF_TWITTER')
+        self.skype = _f('UF_SKYPE')
+
+        if save:
+            self.save()

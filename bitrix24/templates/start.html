@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ура я приложение для Битрикс24</title>
+</head>
+<body>
+    <h1>Ура я приложение для Битрикс24</h1>
+    <h2>Добрый день {{ request.bx_user.first_name }}</h2>
+</body>
+<script>
+    location.pathname = '{{ index_path }}'
+</script>
+</html>

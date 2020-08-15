@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+        .status {
+            width: 100%;
+            height: 25px;
+            margin-bottom: 10px;
+        }
+
+        .fail {
+            background-color: #ff6b89;
+        }
+
+        .warning {
+            background-color: #fff494;
+
+        }
+
+        .success {
+            background-color: #bcff87;
+        }
+    </style>
+</head>
+<body>
+{% if critical %}
+    <div class="status fail"></div>
+{% elif messages %}
+    <div class="status warning"></div>
+{% else %}
+    <div class="status success"></div>
+{% endif %}
+<h3>System Checks</h3>
+{% for k, v in messages %}
+    <div {% if v.critical %} style="color: #ff456b" {% endif %}>
+        <h3>
+            {% if v.critical %}[CRITICAL] {% endif %}{{ k }}
+        </h3>
+        {% for m in v.messages %}
+            <p>{{ m }}</p>
+        {% endfor %}
+    </div>
+    <hr>
+{% endfor %}
+{% if not messages %}
+    <h2>Ok</h2>
+{% endif %}
+</body>
+</html>

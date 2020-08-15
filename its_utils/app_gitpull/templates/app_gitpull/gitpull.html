@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head><title>GITPULL</title></head>
+<style>
+    form {
+        display: inline-block;
+    }
+
+    input[type="submit"] {
+        -webkit-border-radius: 0;
+        -moz-border-radius: 0;
+        border-radius: 0;
+        font-family: "Open Sans", sans-serif;
+        color: #ffffff;
+        font-size: 35px;
+        background: #C43149;
+        padding: 9px 20px 10px 20px;
+        border: 0;
+        text-decoration: none;
+    }
+
+    input[type="submit"]:hover {
+        cursor: pointer;
+        background: #ED3B59;
+        text-decoration: none;
+    }
+
+    input[type="submit"]:active {
+        background: #8C2334;
+    }
+
+    input[type="submit"].system-check-btn {
+        background-color: #F3C500;
+    }
+
+    input[type="submit"].system-check-btn:hover {
+        background-color: #e3b800;
+    }
+
+    input[type="submit"].system-check-btn:active {
+        background-color: #d3ab00;
+    }
+
+    h3 {
+        text-align: center;
+    }
+
+    table {
+        margin: 0 auto;
+    }
+    td, th {
+        padding: 10px 5px;
+        border: 1px solid #DDDDDD;
+        border-collapse: collapse;
+    }
+
+</style>
+<body>
+<div>
+<form method="post" action=".">
+    <input type="submit" value="Git Pull">
+</form>
+
+<form method="get" action="{% url 'make_system_checks' %}">
+    <input type="submit" class="system-check-btn" value="System check">
+</form>
+
+</div>
+<div>
+
+<table>
+    <tr>
+        <th>Repo</th>
+        <th>Commit</th>
+        <th>Comment</th>
+    </tr>
+{% for git in git_info %}
+    <tr>
+        <td>
+            <a href="{{ git.origin }}" target="_blank">{{ git.origin }}</a>
+        </td>
+        <td>
+            <a href="{{ git.url }}" target="_blank">{{ git.commit }}</a>
+        </td>
+        <td>
+            {{ git.commit_comment }}
+        </td>
+    </tr>
+{% endfor %}
+</table>
+<div></div>
+<h3>PIP freeze</h3>
+<table>
+    <tr>
+        <th>Module</th>
+        <th>Version</th>
+    </tr>
+     {% for module in pip_freeze %}
+         <tr>
+            <td>{{ module.0 }}</td>
+            <td>{{ module.1 }}</td>
+         </tr>
+     {% endfor %}
+
+</table>
+
+</div>
+
+{% for info in debug_info %}
+    <hr>
+    {{ info }}
+{% endfor %}
+</body>
+</html>
