@@ -12,7 +12,6 @@ from django.utils.http import urlquote
 from django.utils.encoding import force_text
 
 from settings import ilogger
-from ._log import log_bitrix_request, log_bitrix_response
 
 
 # Таймаут запроса по-умолчанию:
