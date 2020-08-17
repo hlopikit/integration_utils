@@ -1,17 +1,21 @@
 # -*- coding: utf-8 -*-
-from django.http import JsonResponse
+from __future__ import division
+from collections import OrderedDict
+
 from django.http import JsonResponse
 from django.utils import timezone
 import six
 
-from ..functions.api_call import DEFAULT_TIMEOUT
-from ..functions.batch_api_call3 import BatchResultDict
+from bitrix_utils.bitrix_auth.functions.api_call2 import DEFAULT_TIMEOUT
+from bitrix_utils.bitrix_auth.functions.batch_api_call3 import BatchResultDict
+from settings import ilogger
 
 if not six.PY2:  # type hints
     from typing import Optional, Union, Any, Tuple
 
 if False:  # type hints
     from ..models import BitrixUserToken
+
 
 ALLOWABLE_TIME = 2000
 MICROSECONDS_TO_MILLISECONDS = 1000
@@ -23,6 +27,7 @@ METHOD_WRAPPERS = {
     'tasks.task.getFields': 'fields',
     'tasks.task.getaccess': 'allowedActions',
 }
+
 
 class CallListException(Exception):
     def __init__(self, *args):
@@ -40,6 +45,7 @@ class CallListException(Exception):
             # skip django reports for 5xx responses
             json_error_response._has_been_logged = True
         return json_error_response
+
 
 def unwrap_batch_res(batch_res, result=None, wrapper=None):
     # type: (BatchResultDict, Union[list, dict], Optional[str]) -> Union[list, dict]
@@ -67,6 +73,152 @@ def unwrap_batch_res(batch_res, result=None, wrapper=None):
         (result[wrapper] if wrapper else result).extend(chunk)
 
     return result
+
+
+WEIRD_PAGINATION_METHODS = set([
+    'task.item.list',
+    'task.items.getlist',
+    'task.elapseditem.getlist',
+])
+
+
+def next_params(method, params, next_step, page_size=50):
+    # type: (str, dict, int, int) -> dict
+    """Конструирует параметры для следующего запроса,
+    для большинства методов просто устанавливает ?start=next_step,
+    для нескольких стремных методов происходит магия:
+
+    например: https://dev.1c-bitrix.ru/rest_help/tasks/task/elapseditem/getlist.php
+    """
+    if method.lower() not in WEIRD_PAGINATION_METHODS:
+        return dict(params, start=next_step)
+
+    # iNumPage, 1 - первая страница (начало), 2 - вторая и т.д.
+    # next_step при этом возвращается у первой страницы - 50, у второй 100 и т.д.
+
+    # Таблица преобразования:
+    # | next_step | start | iNumPage |
+    # | ==== | ===== | ======== |
+    # |    0 |     0 |        1 |
+    # |   50 |    50 |        2 |
+    # |  100 |   100 |        3 |
+    # |  150 |   150 |        4 |
+
+    i_num_page = next_step // page_size + 1
+    nav_params = OrderedDict([
+        ('nPageSize', page_size),
+        ('iNumPage', i_num_page),
+    ])
+
+    # Убедимся, что работаем с OrderedDict
+    if not isinstance(params, OrderedDict):
+        params = OrderedDict(params)
+    else:
+        params = params.copy()
+
+    # Удаляем пагинацию с первого шага
+    params.pop('PARAMS', None)
+
+    # Подсчет кол-ва обязательных параметров
+    def _count_required_params(optional_params_n=0):
+        return len(params) - optional_params_n
+
+    if method.lower() == 'task.item.list':
+        # 4 параметра: ORDER, FILTER, PARAMS, SELECT
+        if _count_required_params() < 1:
+            params['ORDER'] = {}
+        if _count_required_params() < 2:
+            params['FILTER'] = {}
+        # Тут проблемка, что навигация торчит в середине
+        if _count_required_params() > 3:
+            raise ValueError(
+                'Передано слишком много параметров, пожалуйста, ознакомьтесь '
+                'с докумментацией https://dev.1c-bitrix.ru/rest_help/tasks/task/item/list.php '
+                'и передавайте не более 3 параметров (PARAMS проставляется'
+                'автоматически данным методом)'
+            )
+
+        # Если передан SELECT, временно его убираем
+        select = None
+        if _count_required_params() == 3:
+            _, select = params.popitem()
+
+        params['PARAMS'] = {'NAV_PARAMS': nav_params}
+        if select is not None:  # ставим SELECT после постранички
+            params['SELECT'] = select
+        return params
+
+    if method.lower() == 'task.items.getlist':
+        # 4 параметра: ORDER, FILTER, TASKDATA, NAV_PARAMS
+        if _count_required_params() < 1:
+            params['ORDER'] = {'ID': 'asc'}
+        if _count_required_params() < 2:
+            params['FILTER'] = {}
+        if _count_required_params() < 3:
+            # Ругается на ['*'] почему-то
+            params['TASKDATA'] = ['ID', 'TITLE']
+        while _count_required_params() > 3:
+            params.popitem()
+
+        params['NAV_PARAMS'] = {'NAV_PARAMS': nav_params}
+        return params
+
+    assert method.lower() == 'task.elapseditem.getlist', \
+        'unknown method %s' % method
+    # Убервсратый метод, первый параметр опционален, пример вызова с
+    # первым (опциональным) параметром - ID задачи
+    # params = OrderedDict([
+    #     ('TASKID', 8),
+    #     ('ORDER', {'ID': 'ASC'}),
+    #     ('FILTER', {}),
+    #     ('SELECT', ['*']),
+    #     ('PARAMS', {'NAV_PARAMS': {'iNumPage': 2}},)
+    # ])
+    # Пример вызова без опционального параметра
+    # params = OrderedDict([
+    #     ('ORDER', {'ID': 'ASC'}),
+    #     ('FILTER', {}),
+    #     ('SELECT', ['*']),
+    #     ('PARAMS', {'NAV_PARAMS': {'iNumPage': 2}},)
+    # ])
+
+    # Если первый параметр - строка или число, видимо передан TASKID
+    optional_params = 0
+    if params and isinstance(next(iter(params.values())), (int, str)):
+        optional_params = 1
+
+    # пустые параметры, надо заполнить дефолтными значениями
+    if _count_required_params(optional_params) < 1:
+        params['ORDER'] = {'ID': 'ASC'}
+    if _count_required_params(optional_params) < 2:
+        params['FILTER'] = {}
+    if _count_required_params(optional_params) < 3:
+        params['SELECT'] = ['*']
+    while _count_required_params(optional_params) > 3:
+        params.popitem()
+
+    params['PARAMS'] = {'NAV_PARAMS': nav_params}
+    return params
+
+
+def check_params(method, params):
+    if method.lower() == 'task.ctasks.getlist':
+        raise ValueError(
+            'Нестандартный коробочный метод %s, не работает в облаке, '
+            'не поддерживает пагинацию, пожалуйста воспользуйтесь '
+            'нормальным методом, например tasks.task.list' % method)
+    if isinstance(params, (list, tuple)):
+        params = OrderedDict((str(i), value) for i, value in enumerate(params))
+    if (
+        # TODO: хорошо бы проверить все методы с позиционными параметрами,
+        # сейчас проверяются 3 особо странных
+        method.lower() in WEIRD_PAGINATION_METHODS and
+        params and
+        not isinstance(params, OrderedDict)
+    ):
+        raise ValueError(u'Надо использовать OrderedDict с %s' % method)
+    return params
+
 
 def call_list_method(
         bx_token,  # type: BitrixUserToken
@@ -115,10 +267,16 @@ def call_list_method(
     """
 
     if force_total:
+        ilogger.warning('deprecated_force_total', 'deprecated_force_total')
         limit = force_total
 
-    assert 1 <= batch_size <= 50, 'check: 1 <= batch_size <= 50'
+    if v == 0:
+        ilogger.warning('call_list_method_incorrect_using', 'use BitrixUserToken.call_list_method instead')
 
+    assert 1 <= batch_size <= 50, 'check: 1 <= batch_size <= 50'
+    fields = check_params(method, fields)
+
+    # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
     # ЕСЛИ ПЕРЕДАНЫ ТОЛКО СПИСОК ID, то тормозит если их мног,
     # в каждый батч метод суем огромынй список, например 5000 айдишников
     # Альтернативное исполнение для таких ситуаций
@@ -149,12 +307,26 @@ def call_list_method(
         result = unwrap_batch_res_method(batch,
                                          wrapper=METHOD_WRAPPERS.get(method))
         return result, None
+    # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
 
     start = timezone.now()
     time_log = ['list method %s' % method, 'function started: %s' % start]
     batch_start = None
 
-    response = bx_token.call_api_method(method, params=fields, timeout=timeout)
+    if method.lower() in WEIRD_PAGINATION_METHODS:
+        # Есть корнер-кейс при котором надо проставить "странную пагинацию"
+        # >>> tok.call_list_method_v2('task.item.List', OrderedDict([
+        # ...     ('ORDER', {'ID': 'DESC'}),
+        # ...     ('FILTER', {'<=ID': 10000}),
+        # ...     ('SELECT', ['ID']), # <- надо зафорсить этот параметр на четвертое место
+        # ... ]))
+        fields = next_params(method, fields or {}, 0)
+
+    # NB! fields.copy() защищает оригинал от изменения
+    # (api_call2 добавляет туда auth)
+    response = bx_token.call_api_method_v2(
+        method, params=fields and fields.copy(), timeout=timeout,
+    )
 
     result = unwrap_batch_res_method(BatchResultDict(), response.get('result'),
                                      wrapper=METHOD_WRAPPERS.get(method))
@@ -170,12 +342,12 @@ def call_list_method(
         if fields is None:
             fields = {}
 
+        # fixme: с batch_api_call_v3 можно не нарезать вручную по 50 запросов
         reqs = []
         step = 50
         while next_step < total:
             # Строим список методов для batch call: {"метод": {параметры}, ...}
-            new_fields = fields.copy()
-            new_fields['start'] = next_step
+            new_fields = next_params(method, fields, next_step, page_size=step)
             reqs.append((method, new_fields))
             next_step += step
 
@@ -200,10 +372,17 @@ def call_list_method(
     time_log.append('function finished: %s' % end)
     time_log.append('time spent: %s milliseconds' % time_spent)
 
+    if batch_start and time_spent > ALLOWABLE_TIME:
+        # записать время выполнения в лог, если batch_api_call был вызван и выполнялся дольше 2 секунд
+        ilogger.info('call_bx_list_method_time_log=> %s' % '\n'.join(time_log))
+
     if allowable_error is not None and not limit:
         result_length = len(result)
         length_error = abs(result_length - total_param)
         if length_error > allowable_error:
+            ilogger.warning(u'%scall_bx_list_method_length_error' % log_prefix,
+                            u'total: %s, result length: %s, allowable_error: %s'
+                            % (total_param, result_length, allowable_error))
 
             return None, u'Количество элементов изменилось за время выполнения запроса на %s (допустимо %s)' % (
                 length_error, allowable_error

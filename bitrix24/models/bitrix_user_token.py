@@ -16,7 +16,7 @@ from django.db import models
 from django.http import JsonResponse
 from django.utils import timezone
 
-from bitrix_utils.bitrix_auth.functions.call_list_method import call_list_method, CallListException
+from integration_utils.bitrix24.functions.call_list_method import call_list_method, CallListException
 from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixTimeout
 from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
 

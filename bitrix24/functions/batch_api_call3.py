@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
-from django.utils.http import urlquote
 from collections import OrderedDict
+
+from django.utils.http import urlquote
 import six
-from ..functions.api_call import DEFAULT_TIMEOUT
+
+from settings import ilogger
 from .api_call2 import (
     api_call2,
     convert_params,
     RawStringParam,
+    DEFAULT_TIMEOUT,
 )
 
 # typing
@@ -14,6 +17,7 @@ if not six.PY2:
     from typing import Union, Optional, List, Sequence, Tuple, Any, Iterable, Dict
 if False:
     from ..models import BitrixUserToken
+
 
 if not six.PY2:
     # Параметры для метода - всегда словарь или None
@@ -31,8 +35,10 @@ if not six.PY2:
     # Параметр methods как список:
     Methods = Sequence[Union[ApiMethodAndParams, NamedMethodAndParams]]
 
+
 # лучше показать реплейсы, чем просто отбрасывать непонятные символы
 DECODE_ERRORS = 'replace' if six.PY2 else 'backslashreplace'
+
 
 class BatchResultDict(OrderedDict):
     @property
@@ -64,9 +70,11 @@ class BatchResultDict(OrderedDict):
             self.all_ok,
         )
 
+
 class BatchApiCallError(Exception):
     def __init__(self, reason=None):
         self.reason = reason
+
 
 def convert_methods(methods):
     # type: (List[Tuple[str, str, ApiParams]]) -> List[Tuple[str, RawStringParam]]
@@ -125,6 +133,7 @@ def convert_methods(methods):
 
     return cmd
 
+
 def to_chunks(lst, chunk_size=50):
     # type: (list, int) -> List[list]
     """Разрезает список на чанки
@@ -141,6 +150,7 @@ def to_chunks(lst, chunk_size=50):
     assert chunk_size > 0
 
     return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+
 
 def _batch_api_call3(
             methods,  # type: Methods
@@ -317,6 +327,7 @@ def _batch_api_call3(
             except UnicodeError:
                 response_text = response.content \
                     .decode(response.apparent_encoding, errors=DECODE_ERRORS)
+            ilogger.error(u'%sbitrix_api_error' % log_prefix, response_text)
 
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет оошибка в бизнес-логике

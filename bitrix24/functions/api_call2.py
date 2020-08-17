@@ -11,7 +11,38 @@ from django.conf import settings
 from django.utils.http import urlquote
 from django.utils.encoding import force_text
 
-from ..functions.api_call import DEFAULT_TIMEOUT
+from settings import ilogger
+from ._log import log_bitrix_request, log_bitrix_response
+
+
+# Таймаут запроса по-умолчанию:
+# 1 минута, потому что наш nginx все равно отрубает обработчики после 1 минуты,
+# если все-таки нужно выполнить ожидаемо очень долгий запрос,
+# например в кроне, можно явно передать большее значение или даже None.
+DEFAULT_TIMEOUT = 60
+
+
+class ConnectionToBitrixError(Exception):
+    pass
+
+
+@six.python_2_unicode_compatible
+class BitrixTimeout(Exception):
+    def __init__(self, requests_timeout, timeout):
+        self.request_timeout = requests_timeout
+        self.timeout = timeout
+
+    def __str__(self):
+        return '[{self.timeout} sec.] ' \
+               'requests_timeout={self.request_timeout!r} ' \
+               'request={self.request_timeout.request!r}'.format(self=self)
+
+    def __repr__(self):
+        rv = '<BitrixTimeout {!s}>'.format(self)
+        if six.PY2:
+            return rv.encode('utf8')
+        return rv
+
 
 class RawStringParam:
     # Параметр, к которому не нужно применять urlquote
@@ -21,6 +52,58 @@ class RawStringParam:
 
     __unicode__ = __str__ = lambda self: self.value
     __repr__ = lambda self: '<RawStringParam %r>' % self.value
+
+
+def call_with_retries(url, converted_params, retry_http=False,
+                      retries_on_503=20, sleep_on_503_time=0.5,
+                      timeout=DEFAULT_TIMEOUT, files=None):
+
+    response = None
+
+    try:
+        response = requests.post(
+            url,
+            converted_params,
+            auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
+            timeout=timeout,
+            files=files,
+        )
+    except requests.exceptions.SSLError as e:
+        raise ConnectionToBitrixError()
+    except requests.Timeout as e:
+        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+    except requests.ConnectionError as e:
+        raise ConnectionToBitrixError()
+    else:
+        if response.status_code == 503:
+            if retries_on_503 > 0:
+                ilogger.debug('retry_on_503=>{}'.format(pformat(dict(
+                    retries_left=retries_on_503,
+                    url=url,
+                    sleep_on_503_time=sleep_on_503_time,
+                    response=response,
+                ))))
+                if sleep_on_503_time:
+                    time.sleep(sleep_on_503_time)
+                return call_with_retries(
+                    url=url,
+                    converted_params=converted_params,
+                    retries_on_503=retries_on_503 - 1,
+                    sleep_on_503_time=sleep_on_503_time,
+                )
+            else:
+                ilogger.warn('retry_503_exceeded=>{}'.format(pformat(dict(
+                    url=url,
+                    sleep_on_503_time=sleep_on_503_time,
+                    response=response,
+                ))))
+
+    return response
+
+
+# compat
+call_with_fall_to_http = call_with_retries
+
 
 def convert_params(form_data):
     """
@@ -116,59 +199,6 @@ def convert_params(form_data):
 
     return u'&'.join(recursive_traverse(form_data))
 
-class ConnectionToBitrixError(Exception):
-    pass
-
-@six.python_2_unicode_compatible
-class BitrixTimeout(Exception):
-    def __init__(self, requests_timeout, timeout):
-        self.request_timeout = requests_timeout
-        self.timeout = timeout
-
-    def __str__(self):
-        return '[{self.timeout} sec.] ' \
-               'requests_timeout={self.request_timeout!r} ' \
-               'request={self.request_timeout.request!r}'.format(self=self)
-
-    def __repr__(self):
-        rv = '<BitrixTimeout {!s}>'.format(self)
-        if six.PY2:
-            return rv.encode('utf8')
-        return rv
-
-def call_with_retries(url, converted_params, retry_http=False,
-                      retries_on_503=20, sleep_on_503_time=0.5,
-                      timeout=DEFAULT_TIMEOUT, files=None):
-
-    response = None
-
-    try:
-        response = requests.post(
-            url,
-            converted_params,
-            auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
-            timeout=timeout,
-            files=files,
-        )
-    except requests.exceptions.SSLError as e:
-        raise ConnectionToBitrixError()
-    except requests.Timeout as e:
-        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
-    except requests.ConnectionError as e:
-        raise ConnectionToBitrixError()
-    else:
-        if response.status_code == 503:
-            if retries_on_503 > 0:
-                if sleep_on_503_time:
-                    time.sleep(sleep_on_503_time)
-                return call_with_retries(
-                    url=url,
-                    converted_params=converted_params,
-                    retries_on_503=retries_on_503 - 1,
-                    sleep_on_503_time=sleep_on_503_time,
-                )
-
-    return response
 
 def api_call2(domain, api_method, auth_token, params=None, webhook=False, timeout=DEFAULT_TIMEOUT):
     """POST-запрос к Bitrix24 api
@@ -207,5 +237,16 @@ def api_call2(domain, api_method, auth_token, params=None, webhook=False, timeou
     response = call_with_retries(url, converted_params, timeout=timeout)
 
     t = time.time()
+
+    ilogger.info('bitrix_request', '{}\n{} "{}"'.format(t, url, converted_params))
+    try:
+        ilogger.info('bitrix_response', '{}\n{}'.format(t, response.text.encode().decode('unicode_escape')))
+
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        try:
+            ilogger.info('bitrix_response', '{}\n{}'.format(t, response.text))
+
+        except Exception as exc:
+            ilogger.info('bitrix_response', '{}\n decode_error: {}'.format(t, exc))
 
     return response
