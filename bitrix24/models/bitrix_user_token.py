@@ -1,24 +1,15 @@
 # -*- coding: UTF-8 -*-
 
 import hashlib
-import logging
-import six
-import sys
-import time
-import traceback
-from datetime import datetime
 
 import requests
 from django.conf import settings
-from django.contrib.postgres.fields import JSONField
-from django.core.exceptions import ValidationError
 from django.db import models
-from django.http import JsonResponse
+
 from django.utils import timezone
 
 from integration_utils.bitrix24.functions.call_list_method import call_list_method, CallListException
 from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixTimeout
-from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
 
 if False:
     from typing import Optional, Sequence, Iterable, Any
