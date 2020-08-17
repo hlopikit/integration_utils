@@ -324,4 +324,4 @@ class BitrixUserToken(models.Model):
 
     __str__ = __unicode__
 
-    #call_api_method_v2 = call_api_method
+    call_api_method_v2 = call_api_method
