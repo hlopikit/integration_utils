@@ -199,7 +199,7 @@ def convert_params(form_data):
     return u'&'.join(recursive_traverse(form_data))
 
 
-def api_call2(domain, api_method, auth_token, params=None, webhook=False, timeout=DEFAULT_TIMEOUT):
+def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout=DEFAULT_TIMEOUT):
     """POST-запрос к Bitrix24 api
 
     :param domain: Полный адрес домена (it-solution.bitrix24.ru)

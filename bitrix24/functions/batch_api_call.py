@@ -5,8 +5,8 @@ from django.utils.http import urlquote
 import six
 
 from settings import ilogger
-from .api_call2 import (
-    api_call2,
+from .api_call import (
+    api_call,
     convert_params,
     RawStringParam,
     DEFAULT_TIMEOUT,
@@ -152,7 +152,7 @@ def to_chunks(lst, chunk_size=50):
     return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
-def _batch_api_call3(
+def _batch_api_call(
             methods,  # type: Methods
             bitrix_user_token,  # type: BitrixUserToken
             function_calling_from_bitrix_user_token_think_before_use,
@@ -306,7 +306,7 @@ def _batch_api_call3(
 
     # Берем по chunk_size методов и отправляем запросы
     for part in parts_methods:
-        response = api_call2(
+        response = api_call(
             domain=domain,
             api_method='batch',
             auth_token=auth_token,
@@ -339,7 +339,7 @@ def _batch_api_call3(
             if error == 'expired_token' and bitrix_user_token and \
                     bitrix_user_token.refresh(timeout=timeout):
                 # Если обновление токена прошло успешно, повторить запрос
-                return _batch_api_call3(methods, bitrix_user_token,
+                return _batch_api_call(methods, bitrix_user_token,
                                         function_calling_from_bitrix_user_token_think_before_use=True,
                                         halt=halt,
                                         chunk_size=chunk_size,

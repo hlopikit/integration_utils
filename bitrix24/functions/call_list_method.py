@@ -6,8 +6,8 @@ from django.http import JsonResponse
 from django.utils import timezone
 import six
 
-from bitrix_utils.bitrix_auth.functions.api_call2 import DEFAULT_TIMEOUT
-from bitrix_utils.bitrix_auth.functions.batch_api_call3 import BatchResultDict
+from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
+from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
 
 if not six.PY2:  # type hints
@@ -300,7 +300,7 @@ def call_list_method(
                 params['select'] = fields.get('select')
             methods.append((method, params))
 
-        batch = bx_token.batch_api_call_v3(methods, timeout=timeout,
+        batch = bx_token.batch_api_call(methods, timeout=timeout,
                                            chunk_size=batch_size,
                                            log_prefix=log_prefix, halt=1)
 
@@ -324,7 +324,7 @@ def call_list_method(
 
     # NB! fields.copy() защищает оригинал от изменения
     # (api_call2 добавляет туда auth)
-    response = bx_token.call_api_method_v2(
+    response = bx_token.call_api_method(
         method, params=fields and fields.copy(), timeout=timeout,
     )
 
@@ -354,7 +354,7 @@ def call_list_method(
         batch_start = timezone.now()
         time_log.append('batch started: %s' % batch_start)
 
-        batch_res = bx_token.batch_api_call_v3(
+        batch_res = bx_token.batch_api_call(
             methods=reqs, timeout=timeout, log_prefix=log_prefix,
             chunk_size=batch_size, halt=1,  # останавливается на первой ошибке
         )

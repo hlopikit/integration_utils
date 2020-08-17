@@ -8,6 +8,7 @@ from django.db import models
 
 from django.utils import timezone
 
+from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
 from integration_utils.bitrix24.functions.call_list_method import call_list_method, CallListException
 from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixTimeout
 
@@ -187,6 +188,7 @@ class BitrixUserToken(models.Model):
 
         try:
             response = api_call(
+                domain=settings.APP_SETTINGS.portal_domain,
                 api_method=api_method,
                 auth_token=self.auth_token,
                 params=params,
@@ -230,27 +232,12 @@ class BitrixUserToken(models.Model):
             self.save(force_update=True)
 
 
-    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, v=2, chunk_size=50, log_prefix=''):
-        """см. ..functions.batch_api_call[v]
-        """
-        if v != 3:
-            ilogger.error('batch_api_call_v2_deprecation', 'batch_api_call_v2_deprecation')
-
-        if v == 3:
-            return self.batch_api_call_v3(methods=methods, timeout=timeout,
-                                          chunk_size=chunk_size, log_prefix=log_prefix)
-        elif chunk_size != 50:
-            raise RuntimeError('chunk_size only supported with v=3')
-
-        return batch_api_call2(methods=methods, bitrix_user_token=self, timeout=timeout)
-
-    def batch_api_call_v3(self, methods, timeout=DEFAULT_TIMEOUT,
-                          chunk_size=50, halt=0, log_prefix=''):
+    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
-        from ..functions.batch_api_call3 import _batch_api_call3, BatchApiCallError
+        from ..functions.batch_api_call import _batch_api_call, BatchApiCallError
         try:
-            return _batch_api_call3(methods=methods,
+            return _batch_api_call(methods=methods,
                                     bitrix_user_token=self,
                                     function_calling_from_bitrix_user_token_think_before_use=True,
                                     timeout=timeout,
@@ -337,4 +324,4 @@ class BitrixUserToken(models.Model):
 
     __str__ = __unicode__
 
-    call_api_method_v2 = call_api_method
+    #call_api_method_v2 = call_api_method
