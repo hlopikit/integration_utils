@@ -1,5 +1,3 @@
-from its_utils.app_logger.its_logger import ItsLogger
-
 
 class MuteLogger:
     # Немой логгер
