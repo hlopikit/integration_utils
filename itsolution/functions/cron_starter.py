@@ -3,7 +3,7 @@ import os, sys
 from django.utils.module_loading import import_string
 
 FILE_PATH = os.path.abspath(os.path.dirname(__file__))
-sys.path.append(os.path.join(FILE_PATH, '../../'))
+sys.path.append(os.path.join(FILE_PATH, '../../../'))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')
 
 
