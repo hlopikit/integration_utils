@@ -7,8 +7,8 @@ class LocalSettingsClass:
                  secret_key,
                  application_bitrix_client_id,
                  application_bitrix_client_secret,
-                 application_index_path,
-                 bitrix_events_plan):
+                 application_index_path
+                 ):
 
         self.portal_domain = portal_domain
         self.app_domain = app_domain
@@ -18,4 +18,4 @@ class LocalSettingsClass:
         self.application_bitrix_client_id = application_bitrix_client_id
         self.application_bitrix_client_secret = application_bitrix_client_secret
         self.application_index_path = application_index_path
-        self.bitrix_events_plan = bitrix_events_plan
+
