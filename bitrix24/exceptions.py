@@ -23,16 +23,16 @@ class ConnectionToBitrixError(Exception):
     pass
 
 
-class BitrixTimeout(Exception):
-    def __init__(self, requests_timeout, timeout):
-        self.request_timeout = requests_timeout
-        self.timeout = timeout
-
-    def __str__(self):
-        return '[{self.timeout} sec.] ' \
-               'requests_timeout={self.request_timeout!r} ' \
-               'request={self.request_timeout.request!r}'.format(self=self)
-
-    def __repr__(self):
-        rv = '<BitrixTimeout {!s}>'.format(self)
-        return rv
+# class BitrixTimeout(Exception):
+#     def __init__(self, requests_timeout, timeout):
+#         self.request_timeout = requests_timeout
+#         self.timeout = timeout
+#
+#     def __str__(self):
+#         return '[{self.timeout} sec.] ' \
+#                'requests_timeout={self.request_timeout!r} ' \
+#                'request={self.request_timeout.request!r}'.format(self=self)
+#
+#     def __repr__(self):
+#         rv = '<BitrixTimeout {!s}>'.format(self)
+#         return rv
