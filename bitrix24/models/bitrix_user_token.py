@@ -8,9 +8,9 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
+from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError, BitrixTimeout
 from integration_utils.bitrix24.functions.call_list_method import call_list_method, CallListException
-from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixTimeout
+from integration_utils.bitrix24.exceptions import BitrixApiError
 
 if False:
     from typing import Optional, Sequence, Iterable, Any
