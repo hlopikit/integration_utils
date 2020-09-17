@@ -9,6 +9,6 @@
     <h2>Добрый день {{ request.bx_user.first_name }}</h2>
 </body>
 <script>
-    location.pathname = '{{ index_path }}'
+    location.href = '{{ index_path|safe }}'
 </script>
 </html>

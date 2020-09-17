@@ -1,6 +1,5 @@
 from django.shortcuts import render
 from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
 
 from integration_utils.bitrix24.bitrix_user_auth.main_auth import main_auth
 
@@ -25,8 +24,18 @@ def start(request):
 
     index_path = settings.APP_SETTINGS.application_index_path
 
+    params_string = ''
     if bx_referer_params and len(bx_referer_params):
-        index_path += '?' + urlencode(bx_referer_params)
+        params_string = '?' + urlencode({'bx_referer_params': json.dumps(bx_referer_params)})
+    get_params_string = urlencode(request.GET)
+    if len(get_params_string):
+        if params_string:
+            params_string += '&'
+        else:
+            params_string += '?'
+        params_string += get_params_string
+
+    index_path += params_string
 
     return render(request, 'start.html', locals())
 
