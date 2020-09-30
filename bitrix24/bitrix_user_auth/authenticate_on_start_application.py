@@ -16,6 +16,11 @@ def authenticate_on_start_application(request):
     app_sid = request.GET.get('APP_SID')
     https = request.GET.get('PROTOCOL', '1') == '1'
 
+    if not auth_token and request.POST.get('auth[access_token]'):
+        # Для авторизации ЧатБотов
+        auth_token = request.POST.get('auth[access_token]')
+        refresh_token = request.POST.get('auth[refresh_token]')
+
     request.bitrix_user_is_new = None
     request.bitrix_auth_key = None
     request.bitrix_user = None
