@@ -1,6 +1,7 @@
 # coding=utf8
 import json
 import functools
+from json.decoder import JSONDecodeError
 
 from django.http import JsonResponse
 
@@ -9,7 +10,7 @@ from django.http import JsonResponse
 # Приоритет такой GET -> POST -> request.body
 # какие бонусы это дает
 # Меньше кода, можно тестирвовать из гет строки в браузере
-# получить параметры можно из request.НАЗВАНИЕПАРАМЕТРА
+# получить параметры можно из request.its_params.get(НАЗВАНИЕПАРАМЕТРА)
 
 def get_params_from_sources(function):
     @functools.wraps(function)
@@ -34,10 +35,16 @@ def get_params_from_sources(function):
                 ), status=400)
 
         for key, value in request.POST.items():
-            params[key] = value
+            try:
+                params[key] = json.loads(value)
+            except JSONDecodeError:
+                params[key] = value
 
         for key, value in request.GET.items():
-            params[key] = value
+            try:
+                params[key] = json.loads(value)
+            except JSONDecodeError:
+                params[key] = value
 
         request.its_params = params
         return function(request, *args, **kwargs)
