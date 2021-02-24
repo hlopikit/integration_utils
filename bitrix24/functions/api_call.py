@@ -2,6 +2,8 @@
 
 from collections import OrderedDict
 from pprint import pformat
+from urllib.parse import urlparse
+
 import requests
 import time
 from urllib3.exceptions import MaxRetryError
@@ -66,6 +68,7 @@ def call_with_retries(url, converted_params, retry_http=False,
             auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
             timeout=timeout,
             files=files,
+            allow_redirects=False,
         )
     except requests.exceptions.SSLError as e:
         raise ConnectionToBitrixError()
@@ -96,6 +99,35 @@ def call_with_retries(url, converted_params, retry_http=False,
                     sleep_on_503_time=sleep_on_503_time,
                     response=response,
                 ))))
+
+        elif response.status_code == 302:
+            location = response.headers.get('location')
+            if location:
+                old_domain = urlparse(url).netloc
+                new_domain = urlparse(location).netloc
+
+                if old_domain != new_domain:
+                    ilogger.debug('retry_on_302=>{}'.format(pformat(dict(
+                        old_domain=old_domain,
+                        new_domain=new_domain,
+                        url=url,
+                        location=location,
+                    ))))
+
+                    return call_with_retries(
+                        url=location,
+                        converted_params=converted_params,
+                        retries_on_503=retries_on_503,
+                        sleep_on_503_time=sleep_on_503_time,
+                        timeout=timeout,
+                        files=files,
+                    )
+
+            ilogger.warn('retry_on_302_failed=>{}'.format(pformat(dict(
+                url=url,
+                location=location,
+                response=response,
+            ))))
 
     return response
 
