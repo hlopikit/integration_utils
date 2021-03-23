@@ -18,6 +18,9 @@ class BitrixApiError(BitrixApiException):
         if settings.DEBUG:
             print(response.text)
 
+    def __str__(self):
+        return "{} {}".format(self.status_code, self.response.text)
+
 
 class ConnectionToBitrixError(Exception):
     pass
