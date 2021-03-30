@@ -7,7 +7,8 @@ class LocalSettingsClass:
                  secret_key,
                  application_bitrix_client_id,
                  application_bitrix_client_secret,
-                 application_index_path
+                 application_index_path,
+                 application_token=None,  # токен для верификации событий
                  ):
 
         self.portal_domain = portal_domain
@@ -18,4 +19,5 @@ class LocalSettingsClass:
         self.application_bitrix_client_id = application_bitrix_client_id
         self.application_bitrix_client_secret = application_bitrix_client_secret
         self.application_index_path = application_index_path
+        self.application_token = application_token
 
