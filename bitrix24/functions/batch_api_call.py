@@ -332,7 +332,7 @@ def _batch_api_call(
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет оошибка в бизнес-логике
             # - либо будут ожидать словарь и будет TypeError
-            raise RuntimeError('batch failed')
+            raise BatchApiCallError(reason=response)
 
         else:
             error = data.get('error')
