@@ -76,6 +76,11 @@ class BatchApiCallError(Exception):
         self.reason = reason
 
 
+class BatchFailed(Exception):
+    def __init__(self, reason=None):
+        self.reason = reason
+
+
 def convert_methods(methods):
     # type: (List[Tuple[str, str, ApiParams]]) -> List[Tuple[str, RawStringParam]]
     """
@@ -332,7 +337,7 @@ def _batch_api_call(
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет оошибка в бизнес-логике
             # - либо будут ожидать словарь и будет TypeError
-            raise BatchApiCallError(reason=response)
+            raise BatchFailed(reason=response)
 
         else:
             error = data.get('error')
