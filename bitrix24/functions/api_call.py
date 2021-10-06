@@ -62,14 +62,26 @@ def call_with_retries(url, converted_params, retry_http=False,
     response = None
 
     try:
-        response = requests.post(
-            url,
-            converted_params,
-            auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
-            timeout=timeout,
-            files=files,
-            allow_redirects=False,
-        )
+        if "/crm.item." in url or "/crm.type." in url:
+            #обход бага битиркса
+            # TODO выпилить когда починят
+            response = requests.post(
+                f"{url}?{converted_params.decode('utf-8')}",
+                converted_params,
+                auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
+                timeout=timeout,
+                files=files,
+                allow_redirects=False,
+            )
+        else:
+            response = requests.post(
+                url,
+                converted_params,
+                auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
+                timeout=timeout,
+                files=files,
+                allow_redirects=False,
+            )
     except requests.exceptions.SSLError as e:
         raise ConnectionToBitrixError()
     except requests.Timeout as e:
