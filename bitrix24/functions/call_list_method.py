@@ -26,6 +26,10 @@ METHOD_WRAPPERS = {
     'tasks.task.history.list': 'list',
     'tasks.task.getFields': 'fields',
     'tasks.task.getaccess': 'allowedActions',
+    'sale.order.list': 'orders',
+    'sale.propertyvalue.list': 'propertyValues',
+    'sale.basketItem.list': 'basketItems',
+    'crm.stagehistory.list': 'items',
 }
 
 
