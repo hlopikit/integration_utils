@@ -66,7 +66,7 @@ def call_with_retries(url, converted_params, retry_http=False,
             #обход бага битиркса
             # TODO выпилить когда починят
             response = requests.post(
-                f"{url}?{converted_params.decode('utf-8')}",
+                "{}?{}".format(url, converted_params.decode('utf-8')),
                 converted_params,
                 auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
                 timeout=timeout,
