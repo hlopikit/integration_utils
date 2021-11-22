@@ -30,6 +30,8 @@ METHOD_WRAPPERS = {
     'sale.propertyvalue.list': 'propertyValues',
     'sale.basketItem.list': 'basketItems',
     'crm.stagehistory.list': 'items',
+    'crm.item.list': 'items',
+    'crm.type.list': 'types',
 }
 
 
