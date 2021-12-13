@@ -32,6 +32,7 @@ METHOD_WRAPPERS = {
     'crm.stagehistory.list': 'items',
     'crm.item.list': 'items',
     'crm.type.list': 'types',
+    'crm.item.productrow.list': 'productRows',
 }
 
 
