@@ -248,6 +248,28 @@ class BitrixUserToken(models.Model):
             self.check_deactivate_errors(e.reason)
             raise e
 
+    def call_list_fast(
+        self,
+        method,  # type: str
+        params=None,  # type: Optional[dict]
+        descending=False,  # type: bool
+        timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
+        log_prefix='',  # type: str
+        limit=None,  # type: Optional[int]
+        batch_size=50,  # type: int
+    ):
+        # type: (...) -> Iterable[Any]
+        """Списочный запрос с параметром ?start=-1
+        см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
+
+        Если происходит KeyError, надо добавить описание метода
+        в справочники METHOD_TO_* в bitrix_utils.bitrix_auth.functions.call_list_fast
+        """
+        from ..functions.call_list_fast import call_list_fast
+        return call_list_fast(self, method, params, descending=descending,
+                              limit=limit, batch_size=batch_size,
+                              timeout=timeout, log_prefix=log_prefix)
+
     def call_list_method(
             self,
             method,  # type: str
