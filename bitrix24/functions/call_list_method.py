@@ -216,14 +216,14 @@ def check_params(method, params):
             'нормальным методом, например tasks.task.list' % method)
     if isinstance(params, (list, tuple)):
         params = OrderedDict((str(i), value) for i, value in enumerate(params))
-    if (
-        # TODO: хорошо бы проверить все методы с позиционными параметрами,
-        # сейчас проверяются 3 особо странных
-        method.lower() in WEIRD_PAGINATION_METHODS and
-        params and
-        not isinstance(params, OrderedDict)
-    ):
-        raise ValueError(u'Надо использовать OrderedDict с %s' % method)
+    # if (
+    #     # TODO: хорошо бы проверить все методы с позиционными параметрами,
+    #     # сейчас проверяются 3 особо странных
+    #     method.lower() in WEIRD_PAGINATION_METHODS and
+    #     params and
+    #     not isinstance(params, OrderedDict)
+    # ):
+    #     raise ValueError(u'Надо использовать OrderedDict с %s' % method)
     return params
 
 
