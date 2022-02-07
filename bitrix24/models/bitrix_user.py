@@ -14,7 +14,7 @@ class BitrixUser(models.Model):
     work_phone = models.CharField(max_length=100, blank=True, default='')  # WORK_PHONE
     personal_mobile = models.CharField(max_length=100, blank=True, default='')  # PERSONAL_MOBILE
 
-    extranet = models.NullBooleanField(default=None)
+    extranet = models.BooleanField(default=None, null=True)
 
     is_admin = models.BooleanField(blank=True, default=False)
 

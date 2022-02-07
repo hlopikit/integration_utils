@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 
-from collections import OrderedDict
 from pprint import pformat
 from urllib.parse import urlparse
 
 import requests
 import time
-from urllib3.exceptions import MaxRetryError
+
+import urllib
+
 import six
 
 from django.conf import settings
-from django.utils.http import urlquote
-from django.utils.encoding import force_text
+from django.utils.encoding import force_str
 
 from settings import ilogger
 
@@ -197,7 +197,7 @@ def convert_params(form_data):
 
             if not isinstance(values, RawStringParam):
                 # convert int, float, lazy_str to str
-                values = urlquote(force_text(values))
+                values = urllib.parse.quote(force_str(values))
             else:
                 values = str(values)
 
@@ -227,7 +227,7 @@ def convert_params(form_data):
             # Кодируется только вложенная часть ключа,
             # т.к. внешняя бывает только при рекурсивном вызове и уже
             # может содержать квадратные скобки, которые мы хотим сохранить
-            inner_key = urlquote(force_text(inner_key))
+            inner_key = urllib.parse.quote(force_str(inner_key))
 
             if key is not None:
                 inner_key = u'%s[%s]' % (key, inner_key)

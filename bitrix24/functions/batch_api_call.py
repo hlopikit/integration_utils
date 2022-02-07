@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
+import urllib
 from collections import OrderedDict
 
-from django.utils.http import urlquote
 import six
 
 from settings import ilogger
@@ -132,7 +132,7 @@ def convert_methods(methods):
             request_name,
             RawStringParam('{}?{}'.format(
                 method,
-                urlquote(convert_params(params), safe='[]=')  # квотировать нужно только &
+                urllib.parse.quote(convert_params(params), safe='[]=')  # квотировать нужно только &
             )),
         ))
 
