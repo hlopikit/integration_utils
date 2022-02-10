@@ -62,9 +62,10 @@ def call_with_retries(url, converted_params, retry_http=False,
     response = None
 
     try:
-        if "/crm.item." in url or "/crm.type." in url:
+        if False: #"/crm.item." in url or "/crm.type." in url:
             #обход бага битиркса
             # TODO выпилить когда починят
+            # Вроде починили
             response = requests.post(
                 "{}?{}".format(url, converted_params.decode('utf-8')),
                 converted_params,
