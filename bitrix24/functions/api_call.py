@@ -113,14 +113,14 @@ def call_with_retries(url, converted_params, retry_http=False,
                     response=response,
                 ))))
 
-        elif response.status_code == 302:
+        elif response.status_code in [301, 302]:
             location = response.headers.get('location')
             if location:
                 old_domain = urlparse(url).netloc
                 new_domain = urlparse(location).netloc
 
                 if old_domain != new_domain:
-                    ilogger.debug('retry_on_302=>{}'.format(pformat(dict(
+                    ilogger.debug('retry_on_301_302=>{}'.format(pformat(dict(
                         old_domain=old_domain,
                         new_domain=new_domain,
                         url=url,
@@ -136,7 +136,7 @@ def call_with_retries(url, converted_params, retry_http=False,
                         files=files,
                     )
 
-            ilogger.warn('retry_on_302_failed=>{}'.format(pformat(dict(
+            ilogger.warn('retry_on_301_302_failed=>{}'.format(pformat(dict(
                 url=url,
                 location=location,
                 response=response,
