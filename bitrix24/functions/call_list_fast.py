@@ -36,6 +36,10 @@ def simple_order(descending=False):
     return {'order': {'ID': 'DESC' if descending else 'ASC'}}
 
 
+def voximplant_statistic_order(descending=False):
+    return {'order': 'DESC' if descending else 'ASC', 'sort': 'ID'}
+
+
 # Как выглядят параметры сортировки, у большинства: {'order': {'ID': 'DESC'}}
 METHOD_TO_ORDER = {
     'tasks.task.list': simple_order,
@@ -50,6 +54,8 @@ METHOD_TO_ORDER = {
     'crm.activity.list': simple_order,
 
     'crm.requisite.list': simple_order,
+
+    'voximplant.statistic.get': voximplant_statistic_order,
 
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
@@ -108,6 +114,8 @@ METHOD_TO_FILTER = {
     'crm.activity.list': filter_id_upper,
 
     'crm.requisite.list': filter_id_upper,
+
+    'voximplant.statistic.get': filter_id_upper,
 }
 
 
@@ -233,6 +241,13 @@ def call_list_fast(
                 if limit is not None and len(seen_ids) >= limit:
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
+            if (
+                    method == 'voximplant.statistic.get' and
+                    list(batch.errors.values())[0]['error_description'] == 'SQL query error!'
+            ):  # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
+                #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
+                #        получили все элементы, поэтому можем игнорировать ошибку
+                return
             raise BatchApiCallError(batch)
         if not all(
                 chunk['result'] and len(
