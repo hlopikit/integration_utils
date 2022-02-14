@@ -248,7 +248,8 @@ def _batch_api_call(
         webhook = True
 
     else:
-        if getattr(bitrix_user_token.application, 'is_webhook', False):
+        app = getattr(bitrix_user_token, 'application', None)
+        if app and getattr(app, 'is_webhook', False):
             auth_token = '{}/{}'.format(bitrix_user_token.user.bitrix_id, bitrix_user_token.auth_token)
             webhook = True
 

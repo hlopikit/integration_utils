@@ -22,6 +22,11 @@ class BitrixApiError(BitrixApiException):
         return "{} {}".format(self.status_code, self.response.text)
 
 
+class ExpiredToken(BitrixApiError):
+    def __init__(self, status_code=401, response=(('error', 'expired_token'),)):
+        super().__init__(status_code, response=dict(response))
+
+
 class ConnectionToBitrixError(Exception):
     pass
 

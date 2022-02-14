@@ -8,23 +8,17 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError, BitrixTimeout
-from integration_utils.bitrix24.functions.call_list_method import call_list_method, CallListException
-from integration_utils.bitrix24.exceptions import BitrixApiError
-
-if False:
-    from typing import Optional, Sequence, Iterable, Any
-
+from integration_utils.bitrix24.functions.api_call import BitrixTimeout
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken
+from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 
 
 def refresh_all():
     return BitrixUserToken.refresh_all()
 
 
-
-
-class BitrixUserToken(models.Model):
-    DEFAULT_TIMEOUT=10
+class BitrixUserToken(models.Model, BaseBitrixToken):
+    DEFAULT_TIMEOUT = 10
 
     EXPIRED_TOKEN = 2
     INVALID_GRANT = 3
@@ -81,7 +75,6 @@ class BitrixUserToken(models.Model):
         # BitrixUserToken(auth_token='65c09d5d001c767d002443c00000000100000301144')
         super().__init__(*args, **kwargs)
 
-
     def signed_pk(self):
         #Пара из id токена и подписи, проверяем подпись при запросах
         assert self.pk
@@ -95,7 +88,6 @@ class BitrixUserToken(models.Model):
         signer = TimestampSigner(key=settings.APP_SETTINGS.secret_key)
         pk = signer.unsign(signed_pk)
         return cls.objects.get(pk=pk)
-
 
     def get_auth_key(self):
         # Ключ по которому мы можем определить можно ли воспользоваться токеном
@@ -148,7 +140,7 @@ class BitrixUserToken(models.Model):
         try:
             response_json = response.json()
         except (ValueError, TypeError):
-            if response.status_code >= 403 and "portal404" in response.content:
+            if response.status_code >= 403 and "portal404" in response.text:
                 self.refresh_error = 6
                 self.is_active = False
                 self.save()
@@ -183,47 +175,14 @@ class BitrixUserToken(models.Model):
 
         return True
 
-
     def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT):
-
         try:
-            response = api_call(
-                domain=settings.APP_SETTINGS.portal_domain,
-                api_method=api_method,
-                auth_token=self.auth_token,
-                params=params,
-                timeout=timeout,
-            )
-        except ConnectionToBitrixError:
-            raise BitrixApiError(600, {'error': 'ConnectionToBitrixError'})
-
-        # Пробуем раскодировать json
-        try:
-            json_response = response.json()
-        except ValueError:
-            raise BitrixApiError(600, response)
-
-        if response.status_code in [200, 201]:
-            # Нормальные ответы
-            if json_response.get('error'):
-                raise BitrixApiError(response.status_code, response)
-            else:
-                return json_response
-
-        elif response.status_code in [500, 502, 504]:
-          raise BitrixApiError(False, json_response, response.status_code, "api_error")
-        else:
-            if response.status_code == 401 and json_response['error'] == 'expired_token':
-                # Ветка обновления Токена
-                success = self.refresh(timeout=timeout)
-                if success:
-                    # Если обновление токена прошло успешно, повторить запрос
-                    return self.call_api_method(api_method, params, timeout=timeout)
-                else:
-                    raise BitrixApiError(response.status_code, response)
-
-            raise BitrixApiError(response.status_code, response)
-
+            return super().call_api_method(api_method=api_method, params=params, timeout=timeout)
+        except ExpiredToken:
+            if self.refresh(timeout=timeout):
+                # Если обновление токена прошло успешно, повторить запрос
+                return self.call_api_method(api_method, params, timeout=timeout)
+            raise
 
     def deactivate_token(self, refresh_error):
         if self.pk:
@@ -231,94 +190,20 @@ class BitrixUserToken(models.Model):
             self.refresh_error = refresh_error
             self.save(force_update=True)
 
-
     def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
-        from ..functions.batch_api_call import _batch_api_call, BatchApiCallError
+        from ..functions.batch_api_call import BatchApiCallError
         try:
-            return _batch_api_call(methods=methods,
-                                    bitrix_user_token=self,
-                                    function_calling_from_bitrix_user_token_think_before_use=True,
-                                    timeout=timeout,
-                                    chunk_size=chunk_size,
-                                    halt=halt,
-                                    log_prefix=log_prefix)
+            return super().batch_api_call(methods=methods,
+                                          timeout=timeout,
+                                          chunk_size=chunk_size,
+                                          halt=halt,
+                                          log_prefix=log_prefix)
         except BatchApiCallError as e:
-            self.check_deactivate_errors(e.reason)
+            # fixme: нет такого метода
+            # self.check_deactivate_errors(e.reason)
             raise e
-
-    def call_list_fast(
-        self,
-        method,  # type: str
-        params=None,  # type: Optional[dict]
-        descending=False,  # type: bool
-        timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-        log_prefix='',  # type: str
-        limit=None,  # type: Optional[int]
-        batch_size=50,  # type: int
-    ):
-        # type: (...) -> Iterable[Any]
-        """Списочный запрос с параметром ?start=-1
-        см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
-
-        Если происходит KeyError, надо добавить описание метода
-        в справочники METHOD_TO_* в bitrix_utils.bitrix_auth.functions.call_list_fast
-        """
-        from ..functions.call_list_fast import call_list_fast
-        return call_list_fast(self, method, params, descending=descending,
-                              limit=limit, batch_size=batch_size,
-                              timeout=timeout, log_prefix=log_prefix)
-
-    def call_list_method(
-            self,
-            method,  # type: str
-            fields=None,  # type: Optional[dict]
-            limit=None,  # type: Optional[int]
-            allowable_error=None,  # type: Optional[int]
-            timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-            force_total=None,  # type: Optional[int]
-            log_prefix='',  # type: str
-            batch_size=50,  # type: int
-    ):  # type: (...) -> list
-
-        result, err = call_list_method(self, method, fields=fields,
-                                limit=limit,
-                                allowable_error=allowable_error,
-                                timeout=timeout,
-                                log_prefix=log_prefix,
-                                batch_size=batch_size,
-                                v=2)
-        if err:  # Во второй версии всегда кидаем ошибки
-            raise CallListException(err)
-        return result
-
-
-
-
-    def call_list_fast(
-        self,
-        method,  # type: str
-        params=None,  # type: Optional[dict]
-        descending=False,  # type: bool
-        timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-        log_prefix='',  # type: str
-        limit=None,  # type: Optional[int]
-        batch_size=50,  # type: int
-    ):
-        # type: (...) -> Iterable[Any]
-        """Списочный запрос с параметром ?start=-1
-        см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
-
-        Если происходит KeyError, надо добавить описание метода
-        в справочники METHOD_TO_* в bitrix_utils.bitrix_auth.functions.call_list_fast
-        """
-        from ..functions.call_list_fast import call_list_fast
-        return call_list_fast(self, method, params, descending=descending,
-                              limit=limit, batch_size=batch_size,
-                              timeout=timeout, log_prefix=log_prefix)
-
-
 
     @classmethod
     def refresh_all(cls, timeout=DEFAULT_TIMEOUT):
