@@ -2,15 +2,15 @@
 
 from __future__ import unicode_literals
 
-from django import forms
-from django.conf import settings
-from django.contrib import admin, messages
-from django.shortcuts import render
-from django.urls import reverse, NoReverseMatch
+from django.contrib import admin
 from django.utils.safestring import mark_safe
-from mptt.admin import MPTTModelAdmin
 
-from django.contrib.postgres.fields import JSONField
+import django
+if django.VERSION[0] >= 4:
+    from django.db.models import JSONField
+else:
+    from django.contrib.postgres.fields import JSONField
+
 from prettyjson import PrettyJSONWidget
 
 from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
@@ -20,6 +20,7 @@ class JsonInfoAdmin(admin.ModelAdmin):
     formfield_overrides = {
         JSONField: {'widget': PrettyJSONWidget}
     }
+
 
 class Bitrix24UserTokenAdminInline(admin.TabularInline):
     model = BitrixUserToken
