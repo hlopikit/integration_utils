@@ -3,13 +3,13 @@ from operator import itemgetter
 import six
 
 from settings import ilogger
-from ..models import BitrixUserToken
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchApiCallError
 
-
 if not six.PY2:
-    from typing import Optional, Iterable, Any, Hashable, Dict, Callable
+    from typing import Optional, Iterable, Any, Hashable, Dict, Callable, TYPE_CHECKING
+    if TYPE_CHECKING:
+        from ..models import BitrixUserToken
 
 
 def _deep_merge(*dicts):  # type: (*dict) -> dict
