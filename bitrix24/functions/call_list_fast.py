@@ -133,6 +133,8 @@ METHOD_TO_ID = {
     'crm.activity.list': itemgetter('ID'),
 
     'crm.requisite.list': itemgetter('ID'),
+
+    'voximplant.statistic.get': itemgetter('ID'),
 }
 
 
