@@ -15,8 +15,8 @@ class BitrixApiError(BitrixApiException):
     def __init__(self, status_code, response):
         self.status_code = status_code
         self.response = response
-        if settings.DEBUG:
-            print(response.text)
+        # if settings.DEBUG:
+        #     print(response.text)
 
     def __str__(self):
         return "{} {}".format(self.status_code, self.response.text)
