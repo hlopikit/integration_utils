@@ -23,7 +23,7 @@ class BaseBitrixToken:
 
         try:
             response = api_call(
-                domain=settings.APP_SETTINGS.portal_domain,
+                domain=self.domain,
                 api_method=api_method,
                 auth_token=auth,
                 webhook=webhook,
