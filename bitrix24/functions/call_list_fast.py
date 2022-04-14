@@ -57,6 +57,8 @@ METHOD_TO_ORDER = {
 
     'voximplant.statistic.get': voximplant_statistic_order,
 
+    'crm.quote.list': simple_order,
+
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
     #   для crm.deal.list. НО не надо добавлять сюда методы, которые 100%
@@ -116,6 +118,8 @@ METHOD_TO_FILTER = {
     'crm.requisite.list': filter_id_upper,
 
     'voximplant.statistic.get': filter_id_upper,
+
+    'crm.quote.list': filter_id_upper,
 }
 
 
@@ -135,6 +139,8 @@ METHOD_TO_ID = {
     'crm.requisite.list': itemgetter('ID'),
 
     'voximplant.statistic.get': itemgetter('ID'),
+
+    'crm.quote.list': itemgetter('ID'),
 }
 
 
