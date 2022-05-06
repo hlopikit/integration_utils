@@ -34,6 +34,8 @@ METHOD_WRAPPERS = {
     'crm.type.list': 'types',
     'crm.item.productrow.list': 'productRows',
     'userfieldconfig.list': 'fields',
+    'catalog.catalog.list': 'catalogs',
+    'catalog.product.list': 'products',
 }
 
 
