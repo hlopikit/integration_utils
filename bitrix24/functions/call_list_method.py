@@ -316,7 +316,7 @@ def call_list_method(
 
         result = unwrap_batch_res_method(batch,
                                          wrapper=METHOD_WRAPPERS.get(method))
-        return result, None
+        return result
     # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
 
     start = timezone.now()
@@ -394,8 +394,8 @@ def call_list_method(
                             u'total: %s, result length: %s, allowable_error: %s'
                             % (total_param, result_length, allowable_error))
 
-            return None, u'Количество элементов изменилось за время выполнения запроса на %s (допустимо %s)' % (
+            raise CallListException(u'Количество элементов изменилось за время выполнения запроса на %s (допустимо %s)' % (
                 length_error, allowable_error
-            )
+            ))
 
-    return result, None
+    return result
