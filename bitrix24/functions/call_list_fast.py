@@ -59,6 +59,8 @@ METHOD_TO_ORDER = {
 
     'crm.quote.list': simple_order,
 
+    'crm.item.list': simple_order,
+
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
     #   для crm.deal.list. НО не надо добавлять сюда методы, которые 100%
@@ -82,6 +84,24 @@ def filter_id_upper(
     if wrapper:
         path += '[%s]' % wrapper
     return {'filter': {prop: '%s[49][ID]' % path}}
+
+
+def filter_id_lower(
+    index,  # type: int
+    last_id=None,  # type: Optional[int]
+    wrapper=None,  # type: Optional[str]
+    descending=False,
+):
+    cmp = '<' if descending else '>'
+    prop = cmp + 'id'
+    if index == 0:
+        if last_id is not None:
+            return {'filter': {prop: last_id}}
+        return {}
+    path = '$result[req_%d]' % (index - 1)
+    if wrapper:
+        path += '[%s]' % wrapper
+    return {'filter': {prop: '%s[49][id]' % path}}
 
 
 def filter_id_mixed(
@@ -120,6 +140,8 @@ METHOD_TO_FILTER = {
     'voximplant.statistic.get': filter_id_upper,
 
     'crm.quote.list': filter_id_upper,
+
+    'crm.item.list': filter_id_lower,
 }
 
 
@@ -141,6 +163,8 @@ METHOD_TO_ID = {
     'voximplant.statistic.get': itemgetter('ID'),
 
     'crm.quote.list': itemgetter('ID'),
+
+    'crm.item.list': itemgetter('id'),
 }
 
 
@@ -148,6 +172,7 @@ METHOD_TO_ID = {
 # (в основном у задач) имеют доп. обертку (например resp['result']['tasks'])
 METHOD_TO_WRAPPER = {
     'tasks.task.list': 'tasks',
+    'crm.item.list': 'items',
 }
 
 
