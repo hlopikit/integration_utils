@@ -284,6 +284,16 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
 
     response = call_with_retries(url, converted_params, timeout=timeout)
 
+    if api_method != 'batch':
+        try:
+            data = response.json()
+            operating = data['time']['operating']
+            if operating > 300:
+                log_method = ilogger.info if operating < 400 else ilogger.error
+                log_method('method_operating', '{}: {}'.format(api_method, operating))
+        except:
+            pass
+
     t = time.time()
 
     ilogger.info('bitrix_request', '{}\n{} "{}"'.format(t, url, converted_params))

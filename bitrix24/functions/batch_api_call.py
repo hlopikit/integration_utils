@@ -326,6 +326,16 @@ def _batch_api_call(
         try:
             data = response.json()
 
+            try:
+                operating = data['time']['operating']
+                if operating > 300:
+                    log_method = ilogger.info if operating < 400 else ilogger.error
+                    log_method('method_operating', 'batch({}): {}'.format(
+                        ', '.join({m for _, m, _ in normalized_methods}), operating,
+                    ))
+            except:
+                pass
+
         except ValueError:  # response - не json
             # Если апи вернуло ошибку, не связанную с токеном, логируем
             try:
