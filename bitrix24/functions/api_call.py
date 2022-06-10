@@ -289,7 +289,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
             data = response.json()
             operating = data['time']['operating']
             if operating > 300:
-                log_method = ilogger.info if operating < 400 else ilogger.error
+                log_method = ilogger.info if operating < 400 else ilogger.warning
                 log_method('method_operating', '{}: {}'.format(api_method, operating))
         except:
             pass

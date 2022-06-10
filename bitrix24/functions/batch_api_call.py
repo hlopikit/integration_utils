@@ -329,7 +329,7 @@ def _batch_api_call(
             try:
                 operating = data['time']['operating']
                 if operating > 300:
-                    log_method = ilogger.info if operating < 400 else ilogger.error
+                    log_method = ilogger.info if operating < 400 else ilogger.warning
                     log_method('method_operating', 'batch({}): {}'.format(
                         ', '.join({m for _, m, _ in normalized_methods}), operating,
                     ))
