@@ -335,7 +335,7 @@ def _batch_api_call(
                         domain, ', '.join({m for _, m, _ in normalized_methods}), operating,
                     ))
                     if operating > 300:
-                        time.sleep(15)
+                        time.sleep(30)
             except:
                 pass
 
