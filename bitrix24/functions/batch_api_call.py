@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import time
 import urllib
 from collections import OrderedDict
 
@@ -333,6 +334,8 @@ def _batch_api_call(
                     log_method('method_operating', '{}, batch({}): {}'.format(
                         domain, ', '.join({m for _, m, _ in normalized_methods}), operating,
                     ))
+                    if operating > 400:
+                        time.sleep(10)
             except:
                 pass
 
