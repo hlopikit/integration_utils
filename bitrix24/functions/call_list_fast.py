@@ -60,6 +60,7 @@ METHOD_TO_ORDER = {
     'crm.quote.list': simple_order,
 
     'crm.item.list': simple_order,
+    'lists.element.get': simple_order,
 
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
@@ -140,6 +141,7 @@ METHOD_TO_FILTER = {
     'voximplant.statistic.get': filter_id_upper,
 
     'crm.quote.list': filter_id_upper,
+    'lists.element.get': filter_id_upper,
 
     'crm.item.list': filter_id_lower,
 }
@@ -163,6 +165,7 @@ METHOD_TO_ID = {
     'voximplant.statistic.get': itemgetter('ID'),
 
     'crm.quote.list': itemgetter('ID'),
+    'lists.element.get': itemgetter('ID'),
 
     'crm.item.list': itemgetter('id'),
 }
