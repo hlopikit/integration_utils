@@ -328,7 +328,8 @@ def _batch_api_call(
             data = response.json()
 
             try:
-                operating = data['time']['operating']
+                operating = max([v['operating'] for k,v in data['result']['result_time'].items()])
+                operating = max(operating, data['time']['operating'])
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
                     log_method('method_operating', '{}, batch({}): {}'.format(
