@@ -97,15 +97,13 @@ class BaseBitrixToken:
             log_prefix='',  # type: str
             batch_size=50,  # type: int
     ):  # type: (...) -> list
-        result, err = call_list_method(self, method, fields=fields,
+        result = call_list_method(self, method, fields=fields,
                                        limit=limit,
                                        allowable_error=allowable_error,
                                        timeout=timeout,
                                        log_prefix=log_prefix,
                                        batch_size=batch_size,
                                        v=2)
-        if err:  # Во второй версии всегда кидаем ошибки
-            raise CallListException(err)
         return result
 
     call_list_method_v2 = call_api_method
