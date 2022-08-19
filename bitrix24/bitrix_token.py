@@ -106,7 +106,7 @@ class BaseBitrixToken:
                                        v=2)
         return result
 
-    call_list_method_v2 = call_api_method
+    call_list_method_v2 = call_list_method
 
 
 class BitrixToken(BaseBitrixToken):
