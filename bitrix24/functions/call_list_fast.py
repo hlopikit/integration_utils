@@ -278,7 +278,7 @@ def call_list_fast(
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
             if (
-                    method == 'voximplant.statistic.get' and
+                    method in ['voximplant.statistic.get', 'crm.requisite.list'] and
                     list(batch.errors.values())[0]['error_description'] == 'SQL query error!'
             ):  # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
                 #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
