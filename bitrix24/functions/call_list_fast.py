@@ -61,12 +61,19 @@ METHOD_TO_ORDER = {
 
     'crm.item.list': simple_order,
     'lists.element.get': simple_order,
+    'crm.invoice.list': simple_order,
 
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
     #   для crm.deal.list. НО не надо добавлять сюда методы, которые 100%
     #   не работают, например user.get (не умеет фильтрацию >ID или <ID)
 }
+
+IGNORE_SQL_QUERY_ERROR = [
+    'voximplant.statistic.get',
+    'crm.requisite.list',
+    'crm.invoice.list',
+]
 
 
 def filter_id_upper(
@@ -144,6 +151,7 @@ METHOD_TO_FILTER = {
     'lists.element.get': filter_id_upper,
 
     'crm.item.list': filter_id_lower,
+    'crm.invoice.list': filter_id_upper,
 }
 
 
@@ -168,6 +176,7 @@ METHOD_TO_ID = {
     'lists.element.get': itemgetter('ID'),
 
     'crm.item.list': itemgetter('id'),
+    'crm.invoice.list': itemgetter('ID'),
 }
 
 
@@ -278,7 +287,7 @@ def call_list_fast(
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
             if (
-                    method in ['voximplant.statistic.get', 'crm.requisite.list'] and
+                    method in IGNORE_SQL_QUERY_ERROR and
                     list(batch.errors.values())[0]['error_description'] == 'SQL query error!'
             ):  # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
                 #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
