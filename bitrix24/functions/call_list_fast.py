@@ -69,12 +69,6 @@ METHOD_TO_ORDER = {
     #   не работают, например user.get (не умеет фильтрацию >ID или <ID)
 }
 
-IGNORE_SQL_QUERY_ERROR = [
-    'voximplant.statistic.get',
-    'crm.requisite.list',
-    'crm.invoice.list',
-]
-
 
 def filter_id_upper(
     index,  # type: int
@@ -286,10 +280,8 @@ def call_list_fast(
                 if limit is not None and len(seen_ids) >= limit:
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
-            if (
-                    method in IGNORE_SQL_QUERY_ERROR and
-                    list(batch.errors.values())[0]['error_description'] == 'SQL query error!'
-            ):  # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
+            if list(batch.errors.values())[0]['error_description'] == 'SQL query error!':
+                # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
                 #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
                 #        получили все элементы, поэтому можем игнорировать ошибку
                 return
