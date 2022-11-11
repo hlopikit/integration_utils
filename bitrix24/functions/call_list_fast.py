@@ -182,6 +182,10 @@ METHOD_TO_WRAPPER = {
 }
 
 
+def is_sql_query_error(batch):
+    return 'sql query error' in list(batch.errors.values())[0]['error_description'].lower()
+
+
 def call_list_fast(
     tok,  # type: BitrixUserToken
     method,  # type: str
@@ -280,7 +284,7 @@ def call_list_fast(
                 if limit is not None and len(seen_ids) >= limit:
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
-            if list(batch.errors.values())[0]['error_description'] == 'SQL query error!':
+            if is_sql_query_error(batch):
                 # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
                 #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
                 #        получили все элементы, поэтому можем игнорировать ошибку
