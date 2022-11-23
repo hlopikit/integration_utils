@@ -152,7 +152,7 @@ class BaseRobot(models.Model):
         @csrf_exempt
         @wraps(cls.start_process)
         def view(request: HttpRequest):
-            cls_name = type(cls).__name__
+            cls_name = cls.__name__
 
             ilogger.debug(
                 'new_robot_request_{}'.format(cls_name),
@@ -208,7 +208,7 @@ class BaseRobot(models.Model):
 
         resp = api_call(settings.APP_SETTINGS.portal_domain, 'app.info', auth_token=auth['access_token'], timeout=1)
         try:
-            assert resp.ok and resp.json()['result']['CODE'] == settings.APP_SETTINGS.app_name
+            assert resp.ok and resp.json()['result']['CODE'] == settings.APP_SETTINGS.application_bitrix_client_id
         except (ValueError, AssertionError):
             raise VerificationError('invalid auth: {}'.format(auth))
 
