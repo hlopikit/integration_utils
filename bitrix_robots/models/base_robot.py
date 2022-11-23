@@ -170,6 +170,8 @@ class BaseRobot(models.Model):
                 )
                 return e.http_response()
 
+            robot.save()
+
             try:
                 robot.start_process()
             except Exception as e:
