@@ -278,7 +278,7 @@ class BaseRobot(models.Model):
             )
 
         self.finished = timezone.now()
-        self.save(update_fields=['finished', 'result'])
+        self.save(update_fields=['finished', 'result', 'is_success'])
         self.send_result()
 
     def get_return_values(self):
