@@ -52,7 +52,7 @@ class BaseRobot(models.Model):
         """Получить URL обработчика через reverse+название view
         """
         return 'https://{domain}{path}'.format(
-            domain=settings.DOMAIN,
+            domain=settings.APP_SETTINGS.app_domain,
             path=reverse(view_name),
         )
 
@@ -218,10 +218,7 @@ class BaseRobot(models.Model):
     def dynamic_token(self) -> BitrixUserToken:
         """Конструирует динамический BitrixUserToken.
         """
-        return BitrixUserToken(
-            auth_token=self.params["auth[access_token]"],
-            domain=settings.APP_SETTINGS.portal_domain,
-        )
+        return BitrixUserToken(auth_token=self.params["auth[access_token]"])
 
     @cached_property
     def bx_user(self) -> BitrixUser:
