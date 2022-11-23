@@ -7,7 +7,7 @@ from integration_utils.bitrix_robots.example_robot.models import ExampleRobot
 @main_auth(on_cookies=True)
 def uninstall(request):
     try:
-        ExampleRobot.uninstall(request.bx_user_token)
+        ExampleRobot.uninstall(request.bitrix_user_token)
     except Exception as exc:
         return HttpResponse(str(exc))
 
