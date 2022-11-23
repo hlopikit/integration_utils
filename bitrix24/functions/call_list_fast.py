@@ -62,6 +62,7 @@ METHOD_TO_ORDER = {
     'crm.item.list': simple_order,
     'lists.element.get': simple_order,
     'crm.invoice.list': simple_order,
+    'crm.stagehistory.list': simple_order,
 
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
@@ -146,6 +147,7 @@ METHOD_TO_FILTER = {
 
     'crm.item.list': filter_id_lower,
     'crm.invoice.list': filter_id_upper,
+    'crm.stagehistory.list': filter_id_upper,
 }
 
 
@@ -171,6 +173,7 @@ METHOD_TO_ID = {
 
     'crm.item.list': itemgetter('id'),
     'crm.invoice.list': itemgetter('ID'),
+    'crm.stagehistory.list': itemgetter('ID'),
 }
 
 
@@ -179,6 +182,7 @@ METHOD_TO_ID = {
 METHOD_TO_WRAPPER = {
     'tasks.task.list': 'tasks',
     'crm.item.list': 'items',
+    'crm.stagehistory.list': 'items',
 }
 
 
