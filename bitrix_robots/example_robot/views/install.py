@@ -6,5 +6,9 @@ from integration_utils.bitrix_robots.example_robot.models import ExampleRobot
 
 @main_auth(on_cookies=True)
 def install(request):
-    ExampleRobot.install_or_update('bitrix_robot_example:handler', request.bx_user_token)
+    try:
+        ExampleRobot.install_or_update('bitrix_robot_example:handler', request.bx_user_token)
+    except Exception as exc:
+        return HttpResponse(str(exc))
+
     return HttpResponse('ok')
