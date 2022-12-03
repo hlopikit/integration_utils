@@ -205,8 +205,11 @@ class BaseRobot(models.Model):
         except KeyError:
             raise VerificationError('no event token (POST[event_token])')
 
-        if settings.APP_SETTINGS.application_token != auth['application_token']:
-            raise VerificationError('invalid application_token: {}'.format(auth['application_token']))
+        if settings.APP_SETTINGS.application_token:
+            if settings.APP_SETTINGS.application_token == auth['application_token']:
+                return True
+            else:
+                raise VerificationError('invalid application_token: {}'.format(auth['application_token']))
 
         resp = api_call(settings.APP_SETTINGS.portal_domain, 'app.info', auth_token=auth['access_token'], timeout=1)
         try:
