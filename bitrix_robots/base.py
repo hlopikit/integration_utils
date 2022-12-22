@@ -234,7 +234,7 @@ class BaseBitrixRobot(models.Model):
 
     def get_auth_dict(self) -> dict:
         auth = {}
-        for key in ['member_id', 'access_token', 'application_token']:
+        for key in ['member_id', 'access_token', 'application_token', 'user_id']:
             auth_key = 'auth[{}]'.format(key)
             try:
                 auth[key] = self.params[auth_key]
