@@ -172,18 +172,26 @@ class BaseBitrixRobot(models.Model):
                 '{request.POST!r}'.format(request=request),
             )
 
-            robot = cls(params=request.its_params)
-
             try:
-                robot.verify_event()
-            except VerificationError as e:
+                robot = cls(params=request.its_params)
+
+                try:
+                    robot.verify_event()
+                except VerificationError as e:
+                    ilogger.error(
+                        'robot_verification_error_{}'.format(cls_name),
+                        '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
+                    )
+                    return e.http_response()
+
+                robot.save()
+
+            except Exception as e:
                 ilogger.error(
-                    'robot_verification_error_{}'.format(cls_name),
+                    'robot_view_unexpected_error_{}'.format(cls_name),
                     '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
                 )
-                return e.http_response()
-
-            robot.save()
+                return HttpResponse('error')
 
             if cls.PROCESS_ON_REQUEST:
                 try:
