@@ -72,7 +72,7 @@ class BaseRobot(BaseBitrixRobot):
             user=user,
             defaults=dict(
                 auth_token=auth['access_token'],
-                refresh_token=auth.get('refresh_token', ''),
+                refresh_token=self.params.get('auth[refresh_token]', ''),
                 auth_token_date=timezone.now(),
                 is_active=True,
             ),
