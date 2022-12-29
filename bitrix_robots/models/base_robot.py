@@ -55,17 +55,12 @@ class BaseRobot(BaseBitrixRobot):
         auth = self.get_auth_dict()
 
         application_token = settings.APP_SETTINGS.application_token
-        if application_token:
-            if application_token == auth['application_token']:
-                return
-            else:
-                raise VerificationError('invalid application_token: {}'.format(auth['application_token']))
-
-        resp = api_call(settings.APP_SETTINGS.portal_domain, 'app.info', auth_token=auth['access_token'], timeout=1)
-        try:
-            assert resp.ok and resp.json()['result']['CODE'] == settings.APP_SETTINGS.application_bitrix_client_id
-        except (ValueError, AssertionError):
-            raise VerificationError('invalid auth: {}'.format(auth))
+        if not (application_token and application_token == auth['application_token']):
+            resp = api_call(settings.APP_SETTINGS.portal_domain, 'app.info', auth_token=auth['access_token'], timeout=1)
+            try:
+                assert resp.ok and resp.json()['result']['CODE'] == settings.APP_SETTINGS.application_bitrix_client_id
+            except (ValueError, AssertionError):
+                raise VerificationError('invalid auth: {}'.format(auth))
 
         try:
             self.event_token = self.params['event_token']
