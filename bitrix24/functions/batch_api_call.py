@@ -82,6 +82,10 @@ class BatchFailed(Exception):
         self.reason = reason
 
 
+class JsonDecodeBatchFailed(BatchFailed):
+    pass
+
+
 def convert_methods(methods):
     # type: (List[Tuple[str, str, ApiParams]]) -> List[Tuple[str, RawStringParam]]
     """
@@ -351,7 +355,7 @@ def _batch_api_call(
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет оошибка в бизнес-логике
             # - либо будут ожидать словарь и будет TypeError
-            raise BatchFailed(reason=response)
+            raise JsonDecodeBatchFailed(reason=response)
 
         else:
             error = data.get('error')
