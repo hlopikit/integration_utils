@@ -346,7 +346,7 @@ def _batch_api_call(
             except UnicodeError:
                 response_text = response.content \
                     .decode(response.apparent_encoding, errors=DECODE_ERRORS)
-            ilogger.error(u'%sbitrix_api_error' % log_prefix, response_text)
+            ilogger.warning(u'%sbitrix_api_error' % log_prefix, response_text)
 
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет оошибка в бизнес-логике
