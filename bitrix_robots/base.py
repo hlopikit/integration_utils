@@ -15,6 +15,13 @@ from integration_utils.bitrix_robots.errors import VerificationError, DelayProce
 from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
 
+import django
+
+if django.VERSION[0] >= 4:
+    from django.db.models import JSONField
+else:
+    from django.contrib.postgres.fields import JSONField
+
 if TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
 
@@ -40,13 +47,13 @@ class BaseBitrixRobot(models.Model):
 
     token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
     event_token = models.CharField(max_length=255, null=True, blank=True)
-    params = models.JSONField()
+    params = JSONField()
 
     dt_add = models.DateTimeField(auto_now=True, editable=True)
     started = models.DateTimeField(null=True, blank=True)
     finished = models.DateTimeField(null=True, blank=True)
     is_success = models.BooleanField(default=False)
-    result = models.JSONField(null=True, blank=True)
+    result = JSONField(null=True, blank=True)
     is_hook_request = models.BooleanField(default=False)
 
     class Meta:
