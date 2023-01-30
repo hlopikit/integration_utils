@@ -55,6 +55,7 @@ class BaseBitrixRobot(models.Model):
     is_success = models.BooleanField(default=False)
     result = JSONField(null=True, blank=True)
     is_hook_request = models.BooleanField(default=False)
+    send_result_response = models.TextField(null=True, blank=True)
 
     class Meta:
         abstract = True
@@ -337,17 +338,19 @@ class BaseBitrixRobot(models.Model):
             return
 
         try:
-            self.token.call_api_method('bizproc.event.send', dict(
+            self.send_result_response = str(self.token.call_api_method('bizproc.event.send', dict(
                 event_token=self.event_token,
                 return_values=self.get_return_values(),
-            ))
+            )))
 
         except Exception as exc:
-            if getattr(exc, 'error', None) == 404:
-                # процесс удалён
-                return
+            ilogger.warning('robot_send_result_{}_{}'.format(
+                '404' if getattr(exc, 'error', None) == 404 else 'error',
+                type(self).__name__), str(exc),
+            )
+            self.send_result_response = 'Error! {}'.format(exc)
 
-            ilogger.warning('robot_send_result_error_{}'.format(type(self).__name__), str(exc))
+        self.save(update_fields=['send_result_response'])
 
     def process(self) -> dict:
         """
