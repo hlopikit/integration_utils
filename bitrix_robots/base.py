@@ -41,8 +41,8 @@ class BaseBitrixRobot(models.Model):
     USE_SUBSCRIPTION = None
     USE_PLACEMENT = False
 
-    # Вызывать start_process() сразу после получения запроса
-    # Если False, нужно вызвать start_process() в кроне
+    # Обрабатывать сразу после получения запроса
+    # Если False, обрабатывать в integration_utils.bitrix_robots.cron.process_robot_requests
     PROCESS_ON_REQUEST = True
 
     token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
