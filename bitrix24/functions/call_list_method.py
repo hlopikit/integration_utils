@@ -36,6 +36,7 @@ METHOD_WRAPPERS = {
     'userfieldconfig.list': 'fields',
     'catalog.catalog.list': 'catalogs',
     'catalog.product.list': 'products',
+    'catalog.storeproduct.list': 'storeProducts',
 }
 
 
