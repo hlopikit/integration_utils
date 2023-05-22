@@ -17,7 +17,7 @@ def tasks_task_update(but, task_id, title=None, description=None, responsible_id
 
     fields = {}
     method = "tasks.task.update"
-    params = {"task_id": task_id, "fields": fields}
+    params = {"taskId": task_id, "fields": fields}
 
     add_param(fields, "TITLE", title)
     add_param(fields, "DESCRIPTION", description)
