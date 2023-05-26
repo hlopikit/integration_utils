@@ -5,7 +5,8 @@ def add_param(obj, key, value):
     return obj
 
 def add_param_yesno(obj, key, value):
-    value = "Y" if value else "N"
+    if value != None:
+        value = "Y" if value else "N"
     return add_param(obj, key, value)
 """
 STATUS: 2 - Ждет выполнения, 3 - Выполняется, 4 - Ожидает контроля, 5 - Завершена, 6 - Отложена. По умолчанию - 2
