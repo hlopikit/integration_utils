@@ -43,7 +43,9 @@ def tasks_task_get(but, task_id, select=None):
     # https://dev.1c-bitrix.ru/rest_help/tasks/task/tasks/tasks_task_get.php
 
     method = "tasks.task.get"
-    params = {"taskId": task_id, "select": select}
+    params = {"taskId": task_id}
+    if select:
+        params['select'] = select
 
     result = but.call_api_method(method, params)['result']
 
