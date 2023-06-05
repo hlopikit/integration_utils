@@ -47,7 +47,7 @@ def tasks_task_get(but, task_id, select=None):
     if select:
         params['select'] = select
 
-    result = but.call_api_method(method, params)['result']
+    result = but.call_api_method(method, params)['result']['task']
 
 
     return result
