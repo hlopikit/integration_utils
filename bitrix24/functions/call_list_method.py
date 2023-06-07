@@ -37,6 +37,7 @@ METHOD_WRAPPERS = {
     'catalog.catalog.list': 'catalogs',
     'catalog.product.list': 'products',
     'catalog.storeproduct.list': 'storeProducts',
+    'catalog.product.offer.list': 'offers',
 }
 
 
