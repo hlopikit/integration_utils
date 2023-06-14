@@ -273,6 +273,9 @@ def call_list_fast(
             ))
         batch = tok.batch_api_call_v3(batch_params,
                                       timeout=timeout, log_prefix=log_prefix)
+
+        duplicate_count = 0
+        max_duplicate_count = 1
         for _, response in batch.iter_successes():
             result = response['result']
             if wrapper is not None:
@@ -281,7 +284,14 @@ def call_list_fast(
             for entity in result:
                 id = id_fn(entity)
                 if id in seen_ids:
-                    return  # Если встречается дубль - завершаем выполнение
+                    if duplicate_count < max_duplicate_count:
+                        # https://b24.it-solution.ru/workgroups/group/347/tasks/task/view/50889/
+                        # crm.deal.list может вернуть одну сделку дважды. пропускаем первый дублированный элемент
+                        duplicate_count += 1
+                        continue
+
+                    return  # Если дублей несколько - завершаем выполнение
+
                 yield entity
                 seen_ids.add(id)
                 last_entity_id = id
