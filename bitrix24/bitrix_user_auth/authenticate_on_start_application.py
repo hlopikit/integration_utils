@@ -1,3 +1,5 @@
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse
 from django.utils import timezone
 from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
 
@@ -20,6 +22,9 @@ def authenticate_on_start_application(request):
         # Для авторизации ЧатБотов
         auth_token = request.POST.get('auth[access_token]')
         refresh_token = request.POST.get('auth[refresh_token]')
+
+    if not auth_token:
+        raise PermissionDenied(f"Не передан AUTH_ID. Ожидаем что этот урл будет открываться через фрейм в Битрикс24. ")
 
     request.bitrix_user_is_new = None
     request.bitrix_auth_key = None
