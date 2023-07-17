@@ -13,10 +13,9 @@ STATUS: 2 - Ждет выполнения, 3 - Выполняется, 4 - Ож�
 PRIORITY: 2 - Высокий, 1 - Средний, 0 - Низкий. По умолчанию - 1
 """
 
-def tasks_task_update(but, task_id, title=None, description=None, responsible_id=None, group_id=None, auditors=None, status=None, allow_change_deadline: bool=None, need_result: bool=None):
+def tasks_task_update(but, task_id, *, fields={}, title=None, description=None, responsible_id=None, group_id=None, auditors=None, status=None, allow_change_deadline: bool=None, need_result: bool=None):
     # https://dev.1c-bitrix.ru/rest_help/tasks/task/tasks/tasks_task_update.php
 
-    fields = {}
     method = "tasks.task.update"
     params = {"taskId": task_id, "fields": fields}
 
