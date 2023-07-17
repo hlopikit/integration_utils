@@ -30,7 +30,7 @@ class BaseBitrixRobot(models.Model):
     CODE = NotImplemented  # type: str
     NAME = NotImplemented  # type: str
 
-    APP_DOMAIN = settings.DOMAIN  # type: str
+    APP_DOMAIN = getattr(settings, 'DOMAIN', '')  # type: str
 
     PROPERTIES = {}
     RETURN_PROPERTIES = {}
