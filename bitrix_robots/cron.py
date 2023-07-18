@@ -3,12 +3,15 @@ from django.utils.module_loading import import_string
 from settings import ilogger
 
 
-def process_robot_requests(robot_cls):
+def process_robot_requests(robot_cls, qs=None):
     if isinstance(robot_cls, str):
         robot_cls = import_string(robot_cls)
 
     portal_results = {}
-    for robot in robot_cls.objects.filter(started__isnull=True).iterator():
+    if qs is None:
+        qs = robot_cls.objects.all()
+
+    for robot in qs.filter(started__isnull=True).iterator():
         try:
             robot.start_process()
         except Exception as exc:
