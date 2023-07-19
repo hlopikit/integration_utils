@@ -30,7 +30,7 @@ class BaseBitrixRobot(models.Model):
     CODE = NotImplemented  # type: str
     NAME = NotImplemented  # type: str
 
-    APP_DOMAIN = settings.DOMAIN  # type: str
+    APP_DOMAIN = getattr(settings, 'DOMAIN', '')  # type: str
 
     PROPERTIES = {}
     RETURN_PROPERTIES = {}
@@ -309,7 +309,7 @@ class BaseBitrixRobot(models.Model):
             return
 
         except Exception as exc:
-            self.result = dict(error=str(exc))
+            self.result = self.get_error_result(exc)
             self.is_success = False
 
             ilogger.error(
@@ -321,6 +321,9 @@ class BaseBitrixRobot(models.Model):
         self.save(update_fields=['finished', 'result', 'is_success'])
         self.send_result()
         return self.result
+
+    def get_error_result(self, exc: Exception) -> dict:
+        return dict(error=str(exc))
 
     def get_return_values(self) -> dict:
         return_values = {}
