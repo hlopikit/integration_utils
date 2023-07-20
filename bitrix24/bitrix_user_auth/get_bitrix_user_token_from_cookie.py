@@ -19,6 +19,7 @@ def get_bitrix_user_token_from_cookie(request):
     if bitrix_user_token_signed_pk:
         request.bitrix_user_token = BitrixUserToken.get_by_signed_pk(bitrix_user_token_signed_pk)
         request.bitrix_user = request.bitrix_user_token.user
+        request.bitrix_user_is_new = False
         return request.bitrix_user_token
     else:
         raise EmptyCookie()
