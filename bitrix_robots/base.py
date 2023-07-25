@@ -68,6 +68,30 @@ class BaseBitrixRobot(models.Model):
     def __str__(self):
         return '[{}] {} ({})'.format(self.id, self.token, self.dt_add)
 
+    def save(self, *args, **kwargs):
+        self.fix_json_params()
+        super().save(*args, **kwargs)
+
+    def fix_json_params(self):
+        """привести параметры к нужным типам
+        """
+
+        if self.is_hook_request:
+            return
+
+        for prop_name, desc in self.PROPERTIES.items():
+            prop = None
+            for prop_var in ['properties[{}]'.format(prop_name), 'properties[{}][0]'.format(prop_name)]:
+                if prop_var in self.params:
+                    prop = prop_var
+
+            if not prop:
+                return
+
+            if desc.get('Multiple') != 'Y' and desc.get('Type') == 'string':
+                # числа с большой разрядностью ведут сбя странно при сохранениие в jsonfield
+                self.params[prop] = str(self.params[prop])
+
     @classmethod
     def handler_url(cls, view_name):
         """Получить URL обработчика через reverse+название view
