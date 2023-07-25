@@ -15,6 +15,7 @@ from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
 
 
 def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=False):
+    # Для аутентификации пользователя портала
     # on_start - авторизация по первому входу из Битрикс24
     # on_cookies - авторизация по кукам = для гет запросов ОК
     # on_token - авторизация по токену, для Пост запросов и других влияющих на данные
