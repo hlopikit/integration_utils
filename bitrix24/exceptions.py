@@ -19,7 +19,10 @@ class BitrixApiError(BitrixApiException):
         #     print(response.text)
 
     def __str__(self):
-        return "{} {}".format(self.status_code, self.response.text)
+        return "{} {}".format(self.status_code, self.get_response_text())
+
+    def get_response_text(self):
+        return getattr(self.response, 'text', str(self.response))
 
 
 class ExpiredToken(BitrixApiError):
