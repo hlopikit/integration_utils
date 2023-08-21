@@ -1,5 +1,5 @@
 from django.conf import settings
-from telegram.bot import Bot
+from integration_utils.vendors.telegram.bot import Bot
 
 def log_to_telegram(text):
     """
