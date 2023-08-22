@@ -46,7 +46,7 @@ from typing import (
 from .types import JSONDict, FileInput
 
 if TYPE_CHECKING:
-    from . import Message, Update, TelegramObject, InputFile
+    from .. import Message, Update, TelegramObject, InputFile
 
 # in PTB-Raw we don't have pytz, so we make a little workaround here
 DTM_UTC = dtm.timezone.utc
@@ -126,7 +126,7 @@ def parse_file_input(
         :attr:`file_input`, in case it's no valid file input.
     """
     # Importing on file-level yields cyclic Import Errors
-    from . import InputFile  # pylint: disable=C0415
+    from .. import InputFile  # pylint: disable=C0415
 
     if isinstance(file_input, str) and file_input.startswith('file://'):
         return file_input
