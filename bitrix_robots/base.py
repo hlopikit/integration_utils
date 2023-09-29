@@ -13,12 +13,14 @@ from django.conf import settings
 from integration_utils.its_utils.app_get_params import get_params_from_sources
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
 from integration_utils.bitrix_robots.helpers import get_php_style_list
-from its_utils.functions.compatibility import get_json_field
 from settings import ilogger
 
 import django
+if django.VERSION[0] >= 3:
+    from django.db.models import JSONField
+else:
+    from django.contrib.postgres.fields import JSONField
 
-JSONField = get_json_field()
 
 if TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
