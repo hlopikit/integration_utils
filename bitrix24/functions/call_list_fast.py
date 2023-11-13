@@ -64,10 +64,12 @@ METHOD_TO_ORDER = {
     'crm.invoice.list': simple_order,
     'crm.stagehistory.list': simple_order,
 
+    'user.get': simple_order,
+
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
     #   для crm.deal.list. НО не надо добавлять сюда методы, которые 100%
-    #   не работают, например user.get (не умеет фильтрацию >ID или <ID)
+    #   не работают, например не умеют фильтрацию >ID или <ID
 }
 
 
@@ -148,6 +150,8 @@ METHOD_TO_FILTER = {
     'crm.item.list': filter_id_lower,
     'crm.invoice.list': filter_id_upper,
     'crm.stagehistory.list': filter_id_upper,
+
+    'user.get': filter_id_upper,
 }
 
 
@@ -174,6 +178,8 @@ METHOD_TO_ID = {
     'crm.item.list': itemgetter('id'),
     'crm.invoice.list': itemgetter('ID'),
     'crm.stagehistory.list': itemgetter('ID'),
+
+    'user.get': itemgetter('ID'),
 }
 
 
