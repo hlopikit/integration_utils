@@ -8,6 +8,8 @@ UNDEFINED = 'undefined'
 
 
 def date_to_bitrix_format(dt):
+    # Переводит в
+    # '2023-11-18T13:52:57'
     return dt.astimezone(pytz.timezone('Europe/Moscow')).isoformat()[:19]
 
 
