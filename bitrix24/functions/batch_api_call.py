@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import time
 import urllib
 from collections import OrderedDict
@@ -12,6 +11,7 @@ from .api_call import (
     RawStringParam,
     DEFAULT_TIMEOUT,
 )
+from ..exceptions import JsonDecodeBatchFailed, BatchApiCallError
 
 # typing
 if not six.PY2:
@@ -70,20 +70,6 @@ class BatchResultDict(OrderedDict):
             dict.__repr__(self),
             self.all_ok,
         )
-
-
-class BatchApiCallError(Exception):
-    def __init__(self, reason=None):
-        self.reason = reason
-
-
-class BatchFailed(Exception):
-    def __init__(self, reason=None):
-        self.reason = reason
-
-
-class JsonDecodeBatchFailed(BatchFailed):
-    pass
 
 
 def convert_methods(methods):

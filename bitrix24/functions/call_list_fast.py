@@ -4,7 +4,7 @@ import six
 
 from settings import ilogger
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
-from integration_utils.bitrix24.functions.batch_api_call import BatchApiCallError
+from integration_utils.bitrix24.exceptions import BatchApiCallError
 
 if not six.PY2:
     from typing import Optional, Iterable, Any, Hashable, Dict, Callable, TYPE_CHECKING

@@ -193,7 +193,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
-        from ..functions.batch_api_call import BatchApiCallError
+        from integration_utils.bitrix24.exceptions import BatchApiCallError
         try:
             return super().batch_api_call(methods=methods,
                                           timeout=timeout,

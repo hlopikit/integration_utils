@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from pprint import pformat
 from urllib.parse import urlparse
 
@@ -8,11 +6,11 @@ import time
 
 import urllib
 
-import six
 
 from django.conf import settings
 from django.utils.encoding import force_str
 
+from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout
 from settings import ilogger
 
 
@@ -22,27 +20,6 @@ from settings import ilogger
 # например в кроне, можно явно передать большее значение или даже None.
 DEFAULT_TIMEOUT = 60
 
-
-class ConnectionToBitrixError(Exception):
-    pass
-
-
-@six.python_2_unicode_compatible
-class BitrixTimeout(Exception):
-    def __init__(self, requests_timeout, timeout):
-        self.request_timeout = requests_timeout
-        self.timeout = timeout
-
-    def __str__(self):
-        return '[{self.timeout} sec.] ' \
-               'requests_timeout={self.request_timeout!r} ' \
-               'request={self.request_timeout.request!r}'.format(self=self)
-
-    def __repr__(self):
-        rv = '<BitrixTimeout {!s}>'.format(self)
-        if six.PY2:
-            return rv.encode('utf8')
-        return rv
 
 
 class RawStringParam:
