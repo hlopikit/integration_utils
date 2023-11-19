@@ -135,11 +135,11 @@ class BitrixApiError(BitrixApiException):
         error.setdefault('error_message', self.message)
         return error
 
-    def __str__(self):
-        return "{} {}".format(self.status_code, self.get_response_text())
-
-    def get_response_text(self):
-        return getattr(self.response, 'text', str(self.response))
+    # def __str__(self):
+    #     return "{} {}".format(self.status_code, self.get_response_text())
+    #
+    # def get_response_text(self):
+    #     return getattr(self.response, 'text', str(self.response))
 
     def json_http_response(self, status=None):
         if status is None:
