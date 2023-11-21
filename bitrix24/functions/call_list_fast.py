@@ -288,7 +288,7 @@ def call_list_fast(
                 result = result[wrapper]
             # ilogger.debug('fast_batch_debug', "результат ".format(', '.join(id_fn(x) for x in result)))
             for entity in result:
-                id = id_fn(entity)
+                id = int(id_fn(entity))
                 if id in seen_ids:
                     if duplicate_count < max_duplicate_count:
                         # https://b24.it-solution.ru/workgroups/group/347/tasks/task/view/50889/
@@ -297,6 +297,12 @@ def call_list_fast(
                         continue
 
                     return  # Если дублей несколько - завершаем выполнение
+
+                if last_entity_id:
+                    if (descending and last_entity_id < id) or (not descending and last_entity_id > id):
+                        # https://b24.it-solution.ru/workgroups/group/421/tasks/task/view/79144/
+                        # фикс на случае, когда в запросе есть фильтр по id
+                        return
 
                 yield entity
                 seen_ids.add(id)
