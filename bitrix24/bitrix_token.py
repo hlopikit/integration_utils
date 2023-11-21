@@ -32,13 +32,15 @@ class BaseBitrixToken:
             )
         except ConnectionToBitrixError:
             # fixme: BitrixApiError явно не ожидает, что туда передадут словарь
-            raise BitrixApiError(600, {'error': 'ConnectionToBitrixError'})
+            #raise BitrixApiError(600, {'error': 'ConnectionToBitrixError'})
+            raise BitrixApiError(has_resp='deprecated', json_response={'error': 'ConnectionToBitrixError'}, status_code=600, message='')
 
         # Пробуем раскодировать json
         try:
             json_response = response.json()
         except ValueError:
-            raise BitrixApiError(600, response)
+            #raise BitrixApiError(600, response)
+            raise BitrixApiError(has_resp='deprecated', json_response={"error": "json ValueError"}, status_code=601, message='')
 
         if response.status_code in [200, 201] and not json_response.get('error'):
             return json_response
@@ -46,7 +48,8 @@ class BaseBitrixToken:
         if response.status_code == 401 and json_response['error'] == 'expired_token':
             raise ExpiredToken
 
-        raise BitrixApiError(response.status_code, response)
+        #raise BitrixApiError(response.status_code, response)
+        raise BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=response.status_code, message='')
 
     call_api_method_v2 = call_api_method
 

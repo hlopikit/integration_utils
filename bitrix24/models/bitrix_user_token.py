@@ -117,7 +117,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         """
         if not self.pk:
             # Динамический токен
-            raise BitrixApiError(401, dict(error='expired_token'))
+            #raise BitrixApiError(401, dict(error='expired_token'))
+            raise BitrixApiError(has_resp='deprecated', json_response=dict(error='expired_token'), status_code=401, message='expired_token')
 
         params = {
             'grant_type': 'refresh_token',

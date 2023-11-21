@@ -18,12 +18,30 @@ class BitrixApiException(Exception):
     pass
 
 
+# Статус коды добавленные
+# 600
+# raise BitrixApiError(has_resp='deprecated', json_response={'error': 'ConnectionToBitrixError'}, status_code=600, message='')
+# 601
+# raise BitrixApiError(has_resp='deprecated', json_response={"error": "json ValueError"}, status_code=601, message='')
+
+
 
 
 class BitrixApiError(BitrixApiException):
     TOKEN_DEACTIVATED = 'token_deactivated'
 
     def __init__(self, has_resp, json_response, status_code, message, refresh_error=None):
+        # has_resp - has response похоже на атавизм, не нашел применения достоиного в коде УДАЛИТЬ?
+        # json_response - используется как миниму для анализа что же там в ошибке было
+        # status_code - http статус код ответа
+        # message - укороченное пояснение ошибке не через json_response
+        # refresh_error - пок тоже не понятно как применяется УДАЛИТЬ?
+
+        # В интегрейшн утилсях раньше применялись
+        # raise BitrixApiError(401, dict(error='expired_token'))
+        # Нужно переделать на
+        # raise BitrixApiError(has_resp='deprecated', json_response=dict(error='expired_token'), status_code=401, message='expired_token')
+
         super(BitrixApiError, self).__init__(dict(
             has_resp=has_resp,
             json_response=json_response,
@@ -36,6 +54,9 @@ class BitrixApiError(BitrixApiException):
         self.status_code = status_code
         self.message = message
         self.refresh_error = refresh_error
+
+
+
 
     @property
     def error(self):  # 'error' из json-ответа
