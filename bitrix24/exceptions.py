@@ -164,10 +164,15 @@ class BitrixApiError(BitrixApiException):
 
 
 class ExpiredToken(BitrixApiError):
+    # Наследуется от BitrixApiError чтобы отлавливать одним ехсептшном все ошибки АПИ
+    # Возможно нужно наследовать от BitrixApiException №
+    # TODO ошибки еще надо в порядок приводить
+
     def __init__(self, status_code=401):
-        from collections import namedtuple
-        response = namedtuple('Response', ['text'], defaults=['expired_token'])()
-        super().__init__(status_code, response=response)
+        # from collections import namedtuple
+        # json_response = namedtuple('Response', ['text'], defaults=['expired_token'])()
+        # это было сделано чтобы можно было обращаться json_response.text
+        super().__init__(has_resp=False, json_response={"error": "expired_token"}, status_code=status_code, message='expired_token', refresh_error=None)
 
 
 
