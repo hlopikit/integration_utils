@@ -67,6 +67,7 @@ METHOD_TO_ORDER = {
     'user.get': simple_order,
 
     'catalog.product.list': simple_order,
+    'catalog.product.offer.list': simple_order,
 
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
@@ -156,6 +157,7 @@ METHOD_TO_FILTER = {
     'user.get': filter_id_upper,
 
     'catalog.product.list': filter_id_lower,
+    'catalog.product.offer.list': filter_id_lower,
 }
 
 
@@ -186,6 +188,7 @@ METHOD_TO_ID = {
     'user.get': itemgetter('ID'),
 
     'catalog.product.list': itemgetter('id'),
+    'catalog.product.offer.list': itemgetter('id'),
 }
 
 
@@ -196,6 +199,7 @@ METHOD_TO_WRAPPER = {
     'crm.item.list': 'items',
     'crm.stagehistory.list': 'items',
     'catalog.product.list': 'products',
+    'catalog.product.offer.list': 'offers',
 }
 
 
