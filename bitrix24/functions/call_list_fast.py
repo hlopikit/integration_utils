@@ -66,6 +66,8 @@ METHOD_TO_ORDER = {
 
     'user.get': simple_order,
 
+    'catalog.product.list': simple_order,
+
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
     #   для crm.deal.list. НО не надо добавлять сюда методы, которые 100%
@@ -152,6 +154,8 @@ METHOD_TO_FILTER = {
     'crm.stagehistory.list': filter_id_upper,
 
     'user.get': filter_id_upper,
+
+    'catalog.product.list': filter_id_lower,
 }
 
 
@@ -180,6 +184,8 @@ METHOD_TO_ID = {
     'crm.stagehistory.list': itemgetter('ID'),
 
     'user.get': itemgetter('ID'),
+
+    'catalog.product.list': itemgetter('id'),
 }
 
 
@@ -189,6 +195,7 @@ METHOD_TO_WRAPPER = {
     'tasks.task.list': 'tasks',
     'crm.item.list': 'items',
     'crm.stagehistory.list': 'items',
+    'catalog.product.list': 'products',
 }
 
 
