@@ -298,6 +298,10 @@ def call_list_fast(
             if wrapper is not None:
                 result = result[wrapper]
             # ilogger.debug('fast_batch_debug', "результат ".format(', '.join(id_fn(x) for x in result)))
+
+            if not result:
+                return
+
             for entity in result:
                 id = int(id_fn(entity))
                 if id in seen_ids:
