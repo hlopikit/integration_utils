@@ -1,6 +1,7 @@
 from operator import itemgetter
 
 import six
+from django.conf import settings
 
 from settings import ilogger
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
@@ -292,7 +293,7 @@ def call_list_fast(
                                       timeout=timeout, log_prefix=log_prefix)
 
         duplicate_count = 0
-        max_duplicate_count = 1
+        max_duplicate_count = getattr(settings, 'CALL_LIST_FAST_MAX_DUPLICATE_COUNT', 10)
         for _, response in batch.iter_successes():
             result = response['result']
             if wrapper is not None:
