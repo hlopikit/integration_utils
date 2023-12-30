@@ -3150,7 +3150,8 @@ class Bot(TelegramObject):
         else:
             self.logger.debug('No new updates found.')
 
-        return Update.de_list(result, self)  # type: ignore[return-value]
+        return result
+        #return Update.de_list(result, self)  # type: ignore[return-value]
 
     @log
     def set_webhook(
