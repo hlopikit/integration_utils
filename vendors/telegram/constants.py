@@ -422,3 +422,5 @@ BOT_COMMAND_SCOPE_CHAT_MEMBER = 'chat_member'
 MENU_BUTTON_COMMANDS = 'commands'
 MENU_BUTTON_WEB_APP = 'web_app'
 MENU_BUTTON_DEFAULT = 'default'
+
+BOT_ALLOWED_REACTIONS = {"👍", "👎", "❤"}

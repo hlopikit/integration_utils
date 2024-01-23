@@ -92,7 +92,7 @@ from . import (
     ChatAdministratorRights,
     MenuButton,
 )
-from .constants import MAX_INLINE_QUERY_RESULTS
+from .constants import MAX_INLINE_QUERY_RESULTS, BOT_ALLOWED_REACTIONS
 from .error import InvalidToken, TelegramError
 from .forumtopic import ForumTopic
 from .utils.deprecate import TelegramDeprecationWarning
@@ -6535,6 +6535,83 @@ class Bot(TelegramObject):
         }
         return self._post(  # type: ignore[return-value]
             "unpinAllForumTopicMessages",
+            data,
+            timeout=timeout,
+            api_kwargs=api_kwargs,
+        )
+
+    @log
+    def set_message_reaction(
+            self,
+            chat_id: Union[str, int],
+            message_id: int,
+            reaction: Optional[Sequence[str]] = None,
+            is_big: Optional[bool] = None,
+            *,
+            timeout: ODVInput[float] = DEFAULT_NONE,
+            api_kwargs: Optional[JSONDict] = None,
+    ) -> bool:
+        """
+        Use this method to change the chosen reactions on a message. Service messages can't be
+        reacted to. Automatically forwarded messages from a channel to its discussion group have
+        the same available reactions as messages in the channel.
+
+        .. versionadded:: NEXT.VERSION
+
+        Args:
+            chat_id (:obj:`int` | :obj:`str`): |chat_id_channel|
+            message_id (:obj:`int`): Identifier of the target message. If the message belongs to a
+                media group, the reaction is set to the first non-deleted message in the group
+                instead.
+            reaction (Sequence[:class:`telegram.ReactionType` | :obj:`str`] | \
+                :class:`telegram.ReactionType` | :obj:`str`, optional): New list of reaction
+                types to set on the message. Currently, as non-premium users, bots can set up to
+                one reaction per message. A custom emoji reaction can be used if it is either
+                already present on the message or explicitly allowed by chat administrators.
+
+                Tip:
+                    Passed :obj:`str` values will be converted to either
+                    :class:`telegram.ReactionTypeEmoji` or
+                    :class:`telegram.ReactionTypeCustomEmoji`
+                    depending on whether they are listed in
+                    :class:`~telegram.constants.ReactionEmoji`.
+
+            is_big (:obj:`bool`, optional): Pass :obj:`True` to set the reaction with a big
+                animation.
+
+        Returns:
+            :obj:`bool` On success, :obj:`True` is returned.
+
+        Raises:
+            :class:`telegram.error.TelegramError`
+        """
+
+        parsed_reaction = (
+            [
+                {
+                    "type": "emoji",
+                    "emoji": entry
+                }
+                if entry in BOT_ALLOWED_REACTIONS
+                else {
+                    "type": "custom_emoji",
+                    "custom_emoji_id": entry
+                }
+                for entry in ([reaction] if isinstance(reaction, str) else reaction)
+            ]
+            if reaction is not None
+            else None
+        )
+
+        data: JSONDict = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "reaction": parsed_reaction,
+            "is_big": is_big,
+        }
+
+        return self._post(
+            "setMessageReaction",
             data,
             timeout=timeout,
             api_kwargs=api_kwargs,
