@@ -39,6 +39,7 @@ METHOD_WRAPPERS = {
     'catalog.storeproduct.list': 'storeProducts',
     'catalog.product.offer.list': 'offers',
     'catalog.section.list': 'sections',
+    'catalog.productPropertyEnum.list': 'productPropertyEnums',
 }
 
 
