@@ -60,7 +60,7 @@ from . import (
     WebAppData,
     VideoChatScheduled,
 )
-from .forumtopic import ForumTopicClosed, ForumTopicCreated, ForumTopicReopened
+from .forumtopic import ForumTopicClosed, ForumTopicCreated, ForumTopicReopened, ForumTopicEdited
 from .utils.helpers import (
     escape_markdown,
     from_timestamp,
@@ -524,6 +524,7 @@ class Message(TelegramObject):
         'forum_topic_created',
         'forum_topic_closed',
         'forum_topic_reopened',
+        'forum_topic_edited',
         '_id_attrs',
     )
 
@@ -638,6 +639,7 @@ class Message(TelegramObject):
         forum_topic_created: ForumTopicCreated = None,
         forum_topic_closed: ForumTopicClosed = None,
         forum_topic_reopened: ForumTopicReopened = None,
+        forum_topic_edited: ForumTopicEdited = None,
         **_kwargs: Any,
     ):
         if (
@@ -746,6 +748,7 @@ class Message(TelegramObject):
         self.forum_topic_created = forum_topic_created
         self.forum_topic_closed = forum_topic_closed
         self.forum_topic_reopened = forum_topic_reopened
+        self.forum_topic_edited = forum_topic_edited
         self.bot = bot
 
         self._effective_attachment = DEFAULT_NONE
@@ -842,6 +845,9 @@ class Message(TelegramObject):
         )
         data["forum_topic_reopened"] = ForumTopicReopened.de_json(
             data.get("forum_topic_reopened"), bot
+        )
+        data['forum_topic_edited'] = ForumTopicEdited.de_json(
+            data.get('forum_topic_edited'), bot
         )
 
         return cls(bot=bot, **data)

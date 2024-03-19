@@ -132,3 +132,23 @@ class ForumTopicReopened(TelegramObject):
 
     def __init__(self, **_kwargs: Any):  # skipcq: PTC-W0049
         pass
+
+
+class ForumTopicEdited(TelegramObject):
+    """
+    Объект для хранения данных изменения топика
+    """
+    __slots__ = ("name", "icon_color", "icon_custom_emoji_id", "_id_attrs")
+
+    def __init__(
+            self,
+            name: str = None,
+            icon_color: int = None,
+            icon_custom_emoji_id: str = None,
+            **_kwargs: Any,
+    ):
+        self.name = name
+        self.icon_color = icon_color
+        self.icon_custom_emoji_id = icon_custom_emoji_id
+
+        self._id_attrs = (self.name, self.icon_color)
