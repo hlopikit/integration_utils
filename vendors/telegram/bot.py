@@ -312,6 +312,7 @@ class Bot(TelegramObject):
         api_kwargs: JSONDict = None,
         protect_content: bool = None,
         message_thread_id: int = None,
+        business_connection_id: int = None,
     ) -> Union[bool, Message]:
         if reply_to_message_id is not None:
             data['reply_to_message_id'] = reply_to_message_id
@@ -321,6 +322,9 @@ class Bot(TelegramObject):
 
         if message_thread_id is not None:
             data["message_thread_id"] = message_thread_id
+
+        if business_connection_id is not None:
+                    data["business_connection_id"] = business_connection_id
 
         # We don't check if (DEFAULT_)None here, so that _put is able to insert the defaults
         # correctly, if necessary
@@ -477,6 +481,7 @@ class Bot(TelegramObject):
         entities: Union[List['MessageEntity'], Tuple['MessageEntity', ...]] = None,
         protect_content: bool = None,
         message_thread_id: int = None,
+        business_connection_id: int = None,
     ) -> Message:
         """Use this method to send text messages.
 
@@ -542,6 +547,7 @@ class Bot(TelegramObject):
             api_kwargs=api_kwargs,
             protect_content=protect_content,
             message_thread_id=message_thread_id,
+            business_connection_id=business_connection_id,
         )
 
     @log
