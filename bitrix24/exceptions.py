@@ -223,15 +223,20 @@ class SnapiError(BitrixApiError):
 class JsonDecodeBatchFailed(BatchFailed):
     pass
 
-class BitrixTimeout(BitrixApiException):
+class BaseTimeout(BitrixApiException):
     def __init__(self, requests_timeout, timeout):
         self.request_timeout = requests_timeout
         self.timeout = timeout
 
-    def __str__(self):
-        return '[{self.timeout} sec.] ' \
-               'requests_timeout={self.request_timeout!r} ' \
-               'request={self.request_timeout.request!r}'.format(self=self)
     def __repr__(self):
         rv = '<BitrixTimeout {!s}>'.format(self)
         return rv
+
+class BitrixTimeout(BaseTimeout):
+    def __str__(self):
+        return '[{self.timeout} sec.] ' 'requests_timeout={self.request_timeout!r} ' 'request={self.request_timeout.request!r}'.format(self=self)
+
+
+class BitrixOauthRefreshTimeout(BaseTimeout):
+    def __str__(self):
+        return 'oauth.bitrix.info - timeout {self.timeout} sec.'.format(self=self)
