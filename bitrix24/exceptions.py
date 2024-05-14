@@ -24,8 +24,12 @@ class BitrixApiException(Exception):
 # 601
 # raise BitrixApiError(has_resp='deprecated', json_response={"error": "json ValueError"}, status_code=601, message='')
 
-
-
+def get_bitrix_api_error(json_response, status_code, message=''):
+    bitrix_api_error = BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=status_code, message=message)
+    if bitrix_api_error.is_not_found:
+        return BitrixApiErrorNotFound(has_resp='deprecated', json_response=json_response, status_code=status_code, message=message)
+    else:
+        return bitrix_api_error
 
 class BitrixApiError(BitrixApiException):
     TOKEN_DEACTIVATED = 'token_deactivated'
@@ -87,6 +91,10 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_free_plan_error(self):
         return self.error_description == "REST is available only on commercial plans."
+
+    @property
+    def is_not_found(self):
+        return self.error_description == 'Not found' and self.status_code == 400
 
     @property
     def is_internal_server_error(self):
@@ -240,3 +248,7 @@ class BitrixTimeout(BaseTimeout):
 class BitrixOauthRefreshTimeout(BaseTimeout):
     def __str__(self):
         return 'oauth.bitrix.info - timeout {self.timeout} sec.'.format(self=self)
+
+class BitrixApiErrorNotFound(BitrixApiError):
+    # Ошибка когда не найдена Компания, или контакт, или лид или тп.
+    pass

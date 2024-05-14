@@ -5,7 +5,7 @@ from django.conf import settings
 
 from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
 from integration_utils.bitrix24.functions.call_list_method import call_list_method, CallListException
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, get_bitrix_api_error
 
 
 class BaseBitrixToken:
@@ -49,7 +49,7 @@ class BaseBitrixToken:
             raise ExpiredToken
 
         #raise BitrixApiError(response.status_code, response)
-        raise BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=response.status_code, message='')
+        raise get_bitrix_api_error(json_response=json_response, status_code=response.status_code, message='')
 
     call_api_method_v2 = call_api_method
 
