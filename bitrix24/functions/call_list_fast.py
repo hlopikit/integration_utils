@@ -37,6 +37,10 @@ def simple_order(descending=False):
     return {'order': {'ID': 'DESC' if descending else 'ASC'}}
 
 
+def simple_order_lower(descending=False):
+    return {'order': {'id': 'DESC' if descending else 'ASC'}}
+
+
 def voximplant_statistic_order(descending=False):
     return {'order': 'DESC' if descending else 'ASC', 'sort': 'ID'}
 
@@ -69,6 +73,8 @@ METHOD_TO_ORDER = {
 
     'catalog.product.list': simple_order,
     'catalog.product.offer.list': simple_order,
+
+    'rpa.item.list': simple_order_lower,
 
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
@@ -159,6 +165,8 @@ METHOD_TO_FILTER = {
 
     'catalog.product.list': filter_id_lower,
     'catalog.product.offer.list': filter_id_lower,
+
+    'rpa.item.list': filter_id_lower,
 }
 
 
@@ -190,6 +198,8 @@ METHOD_TO_ID = {
 
     'catalog.product.list': itemgetter('id'),
     'catalog.product.offer.list': itemgetter('id'),
+
+    'rpa.item.list': itemgetter('id'),
 }
 
 
@@ -201,6 +211,7 @@ METHOD_TO_WRAPPER = {
     'crm.stagehistory.list': 'items',
     'catalog.product.list': 'products',
     'catalog.product.offer.list': 'offers',
+    'rpa.item.list': 'items',
 }
 
 

@@ -40,6 +40,8 @@ METHOD_WRAPPERS = {
     'catalog.product.offer.list': 'offers',
     'catalog.section.list': 'sections',
     'catalog.productPropertyEnum.list': 'productPropertyEnums',
+    'rpa.item.list': 'items',
+    'rpa.stage.listForType': 'stages',
 }
 
 
