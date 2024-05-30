@@ -49,7 +49,7 @@ class BaseBitrixRobot(models.Model):
     event_token = models.CharField(max_length=255, null=True, blank=True)
     params = JSONField()
 
-    dt_add = models.DateTimeField(auto_now=True, editable=True)
+    dt_add = models.DateTimeField(default=timezone.now)
     started = models.DateTimeField(null=True, blank=True)
     finished = models.DateTimeField(null=True, blank=True)
     is_success = models.BooleanField(default=False)
