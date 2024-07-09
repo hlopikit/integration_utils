@@ -219,6 +219,13 @@ def is_sql_query_error(batch):
     return 'sql query error' in list(batch.errors.values())[0]['error_description'].lower()
 
 
+def is_invalid_filter_error(method, batch):
+    return (
+            method == 'crm.item.list' and
+            'invalid filter' in list(batch.errors.values())[0]['error_description'].lower()
+    )
+
+
 def call_list_fast(
     tok,  # type: BitrixUserToken
     method,  # type: str
@@ -337,7 +344,7 @@ def call_list_fast(
                 if limit is not None and len(seen_ids) >= limit:
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
-            if is_sql_query_error(batch):
+            if is_sql_query_error(batch) or is_invalid_filter_error(method, batch):
                 # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
                 #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
                 #        получили все элементы, поэтому можем игнорировать ошибку
