@@ -224,6 +224,10 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     def hello_world(self, *args, **kwargs):  # ?
         return u'hello_world'
 
+    @classmethod
+    def get_admin_token(cls):
+        return cls.objects.filter(is_active=True, user__is_admin=True).first()
+
     def __unicode__(self):
         try:
             return u"#{}@{} of {!r}".format(self.id, "domain", self.user if self.id else 'dynamic_token')
