@@ -50,7 +50,7 @@ class BaseBitrixRobot(models.Model):
     params = JSONField()
 
     dt_add = models.DateTimeField(default=timezone.now)
-    started = models.DateTimeField(null=True, blank=True)
+    started = models.DateTimeField(null=True, blank=True, db_index=True)
     finished = models.DateTimeField(null=True, blank=True)
     is_success = models.BooleanField(default=False)
     result = JSONField(null=True, blank=True)
@@ -386,3 +386,9 @@ class BaseBitrixRobot(models.Model):
         self.token - токен
         """
         raise NotImplementedError
+
+
+    @classmethod
+    def process_robot_requests(cls):
+        from integration_utils.bitrix_robots.cron import process_robot_requests
+        process_robot_requests(cls)
