@@ -391,4 +391,4 @@ class BaseBitrixRobot(models.Model):
     @classmethod
     def process_robot_requests(cls):
         from integration_utils.bitrix_robots.cron import process_robot_requests
-        process_robot_requests(cls)
+        return process_robot_requests(cls)
