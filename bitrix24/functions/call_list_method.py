@@ -42,6 +42,7 @@ METHOD_WRAPPERS = {
     'catalog.productPropertyEnum.list': 'productPropertyEnums',
     'rpa.item.list': 'items',
     'rpa.stage.listForType': 'stages',
+    'socialnetwork.api.workgroup.list': 'workgroups',
 }
 
 
