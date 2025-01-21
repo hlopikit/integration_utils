@@ -57,3 +57,12 @@ class BitrixUser(models.Model):
 
         if save:
             self.save()
+
+    @classmethod
+    def update_portal_staff(cls):
+        # метод пометит всем сотрудникам портала user_is_active = Тру
+        # всем не сотрудникам или не актиным Фалс
+        from crm.functions.get_token import get_super_token
+        active_users = [item['ID'] for item in get_super_token().call_list_fast('user.get', {"filter":{"ACTIVE":True}})]
+        return (cls.objects.filter(bitrix_id__in=active_users).update(user_is_active=True),
+                cls.objects.exclude(bitrix_id__in=active_users).update(user_is_active=False))
