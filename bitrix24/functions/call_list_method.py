@@ -43,6 +43,7 @@ METHOD_WRAPPERS = {
     'rpa.item.list': 'items',
     'rpa.stage.listForType': 'stages',
     'socialnetwork.api.workgroup.list': 'workgroups',
+    'catalog.product.sku.list': 'units',
 }
 
 
