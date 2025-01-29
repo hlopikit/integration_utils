@@ -156,6 +156,12 @@ class BitrixApiError(BitrixApiException):
             'Исчерпан выделенный дисковый ресурс.<br>'
         ]
 
+    @property
+    def is_token_expired(self):
+        # {'has_resp': True, 'json_response': {'error': 'expired_token', 'error_description': 'The access token provided has expired.'},
+        # 'status_code': 401, 'message': 'cant_refresh', 'refresh_error': None}
+        return self.error_description == 'The access token provided has expired.'
+
     def dict(self):
         if isinstance(self.json_response, dict):
             error = self.json_response
