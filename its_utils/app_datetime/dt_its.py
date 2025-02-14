@@ -1,5 +1,4 @@
 from arrow import Arrow, ArrowFactory
-from arrow import api
 
 from its_utils.app_datetime.calendar_work_days import WORK_AND_REST_DAYS
 
@@ -8,9 +7,10 @@ from its_utils.app_datetime.calendar_work_days import WORK_AND_REST_DAYS
 
 def dt_its(*args, **kwargs):
     # сокращение для DtIts.get() и обрабатывает None!!!
-    if args == (None, ) and not kwargs:
+    if args == (None,) and not kwargs:
         return None
     return DtIts.get(*args, **kwargs)
+
 
 class DtIts(Arrow):
     # !!! ЧИТАТЬ РИДМИ
@@ -20,9 +20,6 @@ class DtIts(Arrow):
     #
     # now = DtIts.now()
     # after_one_hour = now.shift(hours=1)
-
-    def bitrix_format(self):
-        return self.to('Europe/Moscow').isoformat()
 
     def bitrix_format(self):
         return self.isoformat()
@@ -44,13 +41,12 @@ class DtIts(Arrow):
     def end_of_day(self):
         return self.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-
     def shift_workdays(self, days):
-        # Смещает дни учитывая рабочие и выходные
-        # Возварщает новый объект
-        # Есди сегодня понедельник, то один рабочий день назад это пятница
-        # А если сегодня суббота????? то скорее тоже пятница
-        # создаем новый результат, чтобы не вернуть тот же объект
+        # Смещает дни учитывая рабочие и выходные.
+        # Возвращает новый объект.
+        # Если сегодня понедельник, то один рабочий день назад - это пятница.
+        # А если сегодня суббота, то тоже - пятница.
+        # Создаём новый результат, чтобы не вернуть тот же объект.
         result = DtIts.get(self)
         while days:
             if days > 0:
@@ -62,14 +58,12 @@ class DtIts(Arrow):
                     days -= 1
                 else:
                     days += 1
-
         return result.shift()
 
     def is_workday(self):
         day_type = WORK_AND_REST_DAYS.get((self.year, self.month, self.day), None)
         if day_type is not None:
             return day_type
-
         if self.weekday() in [5, 6]:
             return False
         else:
@@ -77,9 +71,9 @@ class DtIts(Arrow):
 
     @staticmethod
     def workdays_diff(dt1: 'DtIts', dt2: 'DtIts') -> int:
-        # Должен вычислить количество полных рабочих суток
-        # если dt1 > dt2, то вернет положительное число, иначе отрицательное
-        # Если dt1 = пондельник 13-00 и dt2 = предыдущая пятница 16-00, то рабочие сутки еще не прошли
+        # Должен вычислить количество полных рабочих суток.
+        # Если dt1 > dt2, то вернет положительное число, иначе - отрицательное.
+        # Если dt1 = понедельник 13-00 и dt2 = предыдущая пятница 16-00, то рабочие сутки ещё не прошли.
         days = 0
         if dt1 == dt2:
             return 0
@@ -97,5 +91,4 @@ class DtIts(Arrow):
                 days += 1
             else:
                 break
-
         return days * direction
