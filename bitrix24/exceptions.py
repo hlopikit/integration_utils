@@ -89,6 +89,10 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'authorization_error'
 
     @property
+    def is_cant_refresh(self):
+        return self.error == 'expired_token' and self.message == 'cant_refresh'
+
+    @property
     def is_free_plan_error(self):
         return self.error_description == "REST is available only on commercial plans."
 
