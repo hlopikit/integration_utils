@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import Optional, Callable, TYPE_CHECKING, Union
 
 from django.contrib import admin
 from django.db import models
@@ -9,6 +9,7 @@ from django.utils.functional import cached_property
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpRequest, QueryDict, JsonResponse
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 from integration_utils.its_utils.app_get_params import get_params_from_sources
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
@@ -44,6 +45,9 @@ class BaseBitrixRobot(models.Model):
     # Обрабатывать сразу после получения запроса
     # Если False, обрабатывать в integration_utils.bitrix_robots.cron.process_robot_requests
     PROCESS_ON_REQUEST = True
+
+    # True активирует валидацию пропсов, которые кинул битрикс с помощью validate_props
+    VALIDATE_PROPS = False
 
     token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
     event_token = models.CharField(max_length=255, null=True, blank=True)
@@ -287,6 +291,57 @@ class BaseBitrixRobot(models.Model):
     def user(self) -> 'BitrixUser':
         return self.token.user
 
+    @staticmethod
+    def safe_int(value: Optional[Union[int, str]]) -> Optional[int]:
+        """
+        Преобразует значение в int, если это возможно.
+        Если значение пустое или None, возвращает None.
+        При неудаче выбрасывает ValidationError.
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, int):
+            return value
+
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+            try:
+                return int(value)
+            except ValueError:
+                raise ValidationError(f"Значение '{value}' не может быть преобразовано в число.")
+
+        # Если значение ни строка, ни число – выбрасываем ошибку валидации
+        raise ValidationError("Значение должно быть строкой или числом.")
+
+    def validate_props(self) -> dict:
+        """
+        Проверяет типы значений пропсовЮ которые прислал битрикс.
+        На данный момент проверяет только целочисленные (int) поля, которые не являются множественными.
+        При наличии ошибок выбрасывает ValidationError со всеми сообщениями.
+        """
+        errors = []
+
+        for prop_name, prop_value in self.props.items():
+            try:
+                prop_config = self.PROPERTIES.get(prop_name, {})
+                prop_type = prop_config.get('Type')
+                multiple = prop_config.get('Multiple')
+
+                if prop_type == 'int' and multiple != 'Y':
+                    # Переопределяем значение в props
+                    self.props[prop_name] = self.safe_int(prop_value)
+            except ValidationError as exc:
+                errors.append(f"Ошибка в поле '{prop_name}': {exc}")
+
+        if errors:
+            # Если есть хотя бы одна ошибка, выбрасываем их все одним исключением
+            raise ValidationError("\n".join(errors))
+
+        return self.props
+
     @cached_property
     def props(self) -> dict:
         """Разбирает присланные данные на основании PROPERTIES
@@ -321,6 +376,9 @@ class BaseBitrixRobot(models.Model):
     def start_process(self):
         self.started = timezone.now()
         self.save(update_fields=['started'])
+
+        if self.VALIDATE_PROPS:
+            self.validate_props()
 
         try:
             self.result = self.process()
