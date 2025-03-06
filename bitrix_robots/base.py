@@ -377,10 +377,10 @@ class BaseBitrixRobot(models.Model):
         self.started = timezone.now()
         self.save(update_fields=['started'])
 
-        if self.VALIDATE_PROPS:
-            self.validate_props()
-
         try:
+            if self.VALIDATE_PROPS:
+                self.validate_props()
+
             self.result = self.process()
             self.is_success = True
 
