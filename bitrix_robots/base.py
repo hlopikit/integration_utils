@@ -280,7 +280,8 @@ class BaseBitrixRobot(models.Model):
         return auth
 
     def verify_event(self):
-        """Проверка подлинности присланного события.
+        """
+        Проверка подлинности присланного события.
         Несколько усложняется тем, что у нас несколько приложений Базы Знаний.
 
         :raises: VerificationError
@@ -344,7 +345,8 @@ class BaseBitrixRobot(models.Model):
 
     @cached_property
     def props(self) -> dict:
-        """Разбирает присланные данные на основании PROPERTIES
+        """
+        Разбирает присланные данные на основании PROPERTIES
         """
 
         if self.is_hook_request:
