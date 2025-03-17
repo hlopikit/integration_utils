@@ -311,11 +311,11 @@ class BaseBitrixRobot(models.Model):
                 raise ValidationError(f"Значение '{value}' не может быть преобразовано в число.")
 
         # Если значение ни строка, ни число – выбрасываем ошибку валидации
-        raise ValidationError("Значение должно быть строкой или числом.")
+        raise ValidationError('Значение должно быть строкой или числом.')
 
     def validate_props(self) -> dict:
         """
-        Проверяет типы значений пропсовЮ которые прислал битрикс.
+        Проверяет типы значений свойств, которые прислал Битрикс.
         На данный момент проверяет только целочисленные (int) поля, которые не являются множественными.
         При наличии ошибок выбрасывает ValidationError со всеми сообщениями.
         """
@@ -330,12 +330,13 @@ class BaseBitrixRobot(models.Model):
                 if prop_type == 'int' and multiple != 'Y':
                     # Переопределяем значение в props
                     self.props[prop_name] = self.safe_int(prop_value)
+
             except ValidationError as exc:
                 errors.append(f"Ошибка в поле '{prop_name}': {exc}")
 
         if errors:
             # Если есть хотя бы одна ошибка, выбрасываем их все одним исключением
-            raise ValidationError("\n".join(errors))
+            raise ValidationError('\n'.join(errors))
 
         return self.props
 
@@ -344,7 +345,6 @@ class BaseBitrixRobot(models.Model):
         """
         Разбирает присланные данные на основании PROPERTIES
         """
-
         if self.is_hook_request:
             return self.params.get('properties', {})
 
