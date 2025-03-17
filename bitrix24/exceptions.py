@@ -1,5 +1,6 @@
 from django.http import JsonResponse
 import six
+
 STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
 
@@ -10,6 +11,7 @@ INVALID_TOKEN = 'invalid_token'
 NO_AUTH_FOUND = 'NO_AUTH_FOUND'
 APPLICATION_NOT_FOUND = 'APPLICATION_NOT_FOUND'
 QUERY_LIMIT_EXCEEDED = 'QUERY_LIMIT_EXCEEDED'
+
 
 class BitrixApiException(Exception):
     """
@@ -31,17 +33,18 @@ def get_bitrix_api_error(json_response, status_code, message=''):
     else:
         return bitrix_api_error
 
+
 class BitrixApiError(BitrixApiException):
     TOKEN_DEACTIVATED = 'token_deactivated'
 
     def __init__(self, has_resp, json_response, status_code, message, refresh_error=None):
-        # has_resp - has response похоже на атавизм, не нашел применения достоиного в коде УДАЛИТЬ?
-        # json_response - используется как миниму для анализа что же там в ошибке было
-        # status_code - http статус код ответа
+        # :has_resp - has response похоже на атавизм, не нашел применения достойного в коде УДАЛИТЬ?
+        # :json_response - используется как минимум для анализа, что же там в ошибке было.
+        # :status_code - http статус код ответа
         # message - укороченное пояснение ошибке не через json_response
         # refresh_error - пок тоже не понятно как применяется УДАЛИТЬ?
 
-        # В интегрейшн утилсях раньше применялись
+        # В integration_utils раньше применялись
         # raise BitrixApiError(401, dict(error='expired_token'))
         # Нужно переделать на
         # raise BitrixApiError(has_resp='deprecated', json_response=dict(error='expired_token'), status_code=401, message='expired_token')
@@ -58,9 +61,6 @@ class BitrixApiError(BitrixApiException):
         self.status_code = status_code
         self.message = message
         self.refresh_error = refresh_error
-
-
-
 
     @property
     def error(self):  # 'error' из json-ответа
@@ -133,7 +133,7 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_no_auth_found(self):
-        # Рандомная фигня от битрикса, когда он сам заворачивает свои же токены
+        # Случайная фигня от Битрикс, когда он сам заворачивает свои же токены
         return self.error == 'NO_AUTH_FOUND'
 
     @property
@@ -165,6 +165,10 @@ class BitrixApiError(BitrixApiException):
         # {'has_resp': True, 'json_response': {'error': 'expired_token', 'error_description': 'The access token provided has expired.'},
         # 'status_code': 401, 'message': 'cant_refresh', 'refresh_error': None}
         return self.error_description == 'The access token provided has expired.'
+
+    @property
+    def is_access_denied(self):
+        return self.error == 'ACCESS_DENIED' and self.error_description == 'Access denied!'
 
     def dict(self):
         if isinstance(self.json_response, dict):
@@ -198,13 +202,9 @@ class BitrixApiError(BitrixApiException):
         return json_error_response
 
 
-
-
-
-
 class ExpiredToken(BitrixApiError):
-    # Наследуется от BitrixApiError чтобы отлавливать одним ехсептшном все ошибки АПИ
-    # Возможно нужно наследовать от BitrixApiException №
+    # Наследуется от BitrixApiError, чтобы отлавливать одним исключением все ошибки АПИ.
+    # Возможно, нужно наследовать от BitrixApiException.
     # TODO ошибки еще надо в порядок приводить
 
     def __init__(self, status_code=401):
@@ -214,10 +214,8 @@ class ExpiredToken(BitrixApiError):
         super().__init__(has_resp=False, json_response={"error": "expired_token"}, status_code=status_code, message='expired_token', refresh_error=None)
 
 
-
 class ConnectionToBitrixError(BitrixApiException):
     pass
-
 
 
 class BatchApiCallError(BitrixApiException):
@@ -229,17 +227,22 @@ class BatchFailed(BitrixApiException):
     def __init__(self, reason=None):
         self.reason = reason
 
+
 class BitrixTokenRefreshError(BitrixApiError):
     pass
+
 
 class BitrixApiServerError(BitrixApiError):
     is_internal_server_error = True
 
+
 class SnapiError(BitrixApiError):
     pass
 
+
 class JsonDecodeBatchFailed(BatchFailed):
     pass
+
 
 class BaseTimeout(BitrixApiException):
     def __init__(self, requests_timeout, timeout):
@@ -250,6 +253,7 @@ class BaseTimeout(BitrixApiException):
         rv = '<BitrixTimeout {!s}>'.format(self)
         return rv
 
+
 class BitrixTimeout(BaseTimeout):
     def __str__(self):
         return '[{self.timeout} sec.] ' 'requests_timeout={self.request_timeout!r} ' 'request={self.request_timeout.request!r}'.format(self=self)
@@ -259,6 +263,7 @@ class BitrixOauthRefreshTimeout(BaseTimeout):
     def __str__(self):
         return 'oauth.bitrix.info - timeout {self.timeout} sec.'.format(self=self)
 
+
 class BitrixApiErrorNotFound(BitrixApiError):
-    # Ошибка когда не найдена Компания, или контакт, или лид или тп.
+    # Ошибка когда не найдена Компания, или Контакт, или Лид или тп.
     pass
