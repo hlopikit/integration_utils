@@ -308,7 +308,7 @@ class BaseBitrixRobot(models.Model):
             try:
                 return int(value)
             except ValueError:
-                raise ValidationError(f"Значение '{value}' не может быть преобразовано в число.")
+                raise ValidationError(f'Значение "{value}" не может быть преобразовано в число.')
 
         # Если значение ни строка, ни число – выбрасываем ошибку валидации
         raise ValidationError('Значение должно быть строкой или числом.')
@@ -332,11 +332,11 @@ class BaseBitrixRobot(models.Model):
                     self.props[prop_name] = self.safe_int(prop_value)
 
             except ValidationError as exc:
-                errors.append(f"Ошибка в поле '{prop_name}': {exc}")
+                errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
 
         if errors:
             # Если есть хотя бы одна ошибка, выбрасываем их все одним исключением
-            raise ValidationError('\n'.join(errors))
+            raise ValidationError(' '.join(errors))
 
         return self.props
 
@@ -404,6 +404,8 @@ class BaseBitrixRobot(models.Model):
 
     @staticmethod
     def get_error_result(exc: Exception) -> dict:
+        if hasattr(exc, 'message'):
+            return dict(error=exc.message)
         return dict(error=str(exc))
 
     def get_return_values(self) -> dict:
