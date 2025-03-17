@@ -99,7 +99,8 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def handler_url(cls, view_name):
-        """Получить URL обработчика через reverse+название view
+        """
+        Получить URL обработчика через reverse+название view
         """
         return 'https://{domain}{path}'.format(
             domain=cls.APP_DOMAIN,
@@ -139,21 +140,21 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def is_installed(cls, admin_token: 'BitrixUserToken') -> bool:
-        """Зарегистрирован ли робот на портале
+        """
+        Зарегистрирован ли робот на портале
         """
         robot_codes = admin_token.call_list_method_v2('bizproc.robot.list')
         return any(code == cls.CODE for code in robot_codes)
 
     @classmethod
-    def install(cls, view_name: str, admin_token: 'BitrixUserToken',
-                token_user: Optional['BitrixUser'] = None):
-        """Встроить робота на портал
+    def install(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: Optional['BitrixUser'] = None):
+        """
+        Встроить робота на портал
         """
         if token_user:
             assert token_user.id == admin_token.user_id
         else:
             token_user = admin_token.user
-
         return admin_token.call_api_method(
             'bizproc.robot.add',
             params=cls._robot_add_params(view_name, token_user.bitrix_id),
@@ -161,39 +162,37 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def uninstall(cls, admin_token: 'BitrixUserToken'):
-        """Удалить робота с портала
         """
-
+        Удалить робота с портала
+        """
         return admin_token.call_api_method(
             'bizproc.robot.delete',
             params=dict(CODE=cls.CODE),
         )['result']
 
     @classmethod
-    def update(cls, view_name: str, admin_token: 'BitrixUserToken',
-               token_user: Optional['BitrixUser'] = None):
-        """Обновить параметры робота на портале
+    def update(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: Optional['BitrixUser'] = None):
+        """
+        Обновить параметры робота на портале
         """
         if token_user:
             assert token_user.id == admin_token.user_id
         else:
             token_user = admin_token.user
-
         return admin_token.call_api_method(
             'bizproc.robot.update',
             params=cls._robot_update_params(view_name, token_user.bitrix_id),
         )['result']
 
     @classmethod
-    def install_or_update(cls, view_name: str, admin_token: 'BitrixUserToken',
-                          token_user: 'BitrixUser' = None):
-        """Встроить или обновить параметры робота на портале
+    def install_or_update(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: 'BitrixUser' = None):
+        """
+        Встроить или обновить параметры робота на портале
         """
         if cls.is_installed(admin_token):
             method = cls.update
         else:
             method = cls.install
-
         return method(view_name=view_name, admin_token=admin_token, token_user=token_user)
 
     @classmethod
