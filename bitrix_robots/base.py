@@ -17,18 +17,14 @@ from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
 
 import django
+
 if django.VERSION[0] >= 3:
     from django.db.models import JSONField
 else:
     from django.contrib.postgres.fields import JSONField
 
-
 if TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
-
-
-def get_error_result(exc: Exception) -> dict:
-    return dict(error=str(exc))
 
 
 class BaseBitrixRobot(models.Model):
@@ -393,7 +389,7 @@ class BaseBitrixRobot(models.Model):
             return
 
         except Exception as exc:
-            self.result = get_error_result(exc)
+            self.result = self.get_error_result(exc)
             self.is_success = False
 
             ilogger.error(
@@ -405,6 +401,10 @@ class BaseBitrixRobot(models.Model):
         self.save(update_fields=['finished', 'result', 'is_success'])
         self.send_result()
         return self.result
+
+    @staticmethod
+    def get_error_result(exc: Exception) -> dict:
+        return dict(error=str(exc))
 
     def get_return_values(self) -> dict:
         return_values = {}
