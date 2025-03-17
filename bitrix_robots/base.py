@@ -27,6 +27,10 @@ if TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
 
 
+def get_error_result(exc: Exception) -> dict:
+    return dict(error=str(exc))
+
+
 class BaseBitrixRobot(models.Model):
     CODE = NotImplemented  # type: str
     NAME = NotImplemented  # type: str
@@ -77,23 +81,20 @@ class BaseBitrixRobot(models.Model):
         super().save(*args, **kwargs)
 
     def fix_json_params(self):
-        """привести параметры к нужным типам
         """
-
+        Привести параметры к нужным типам
+        """
         if self.is_hook_request:
             return
-
         for prop_name, desc in self.PROPERTIES.items():
             prop = None
             for prop_var in ['properties[{}]'.format(prop_name), 'properties[{}][0]'.format(prop_name)]:
                 if prop_var in self.params:
                     prop = prop_var
-
             if not prop:
                 return
-
             if desc.get('Multiple') != 'Y' and desc.get('Type') == 'string':
-                # числа с большой разрядностью ведут сбя странно при сохранениие в jsonfield
+                # числа с большой разрядностью ведут сбя странно при сохранении в jsonfield
                 self.params[prop] = str(self.params[prop])
 
     @classmethod
@@ -234,7 +235,7 @@ class BaseBitrixRobot(models.Model):
                     robot.start_process()
                 except Exception as e:
                     ilogger.error(
-                        'robot_processings_error_{}'.format(cls_name),
+                        'robot_processing_error_{}'.format(cls_name),
                         '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
                     )
                     return HttpResponse('error')
@@ -385,13 +386,13 @@ class BaseBitrixRobot(models.Model):
             self.is_success = True
 
         except DelayProcess:
-            # вернуть запрос  в очередь
+            # вернуть запрос в очередь
             self.started = None
             self.save(update_fields=['started'])
             return
 
         except Exception as exc:
-            self.result = self.get_error_result(exc)
+            self.result = get_error_result(exc)
             self.is_success = False
 
             ilogger.error(
@@ -403,9 +404,6 @@ class BaseBitrixRobot(models.Model):
         self.save(update_fields=['finished', 'result', 'is_success'])
         self.send_result()
         return self.result
-
-    def get_error_result(self, exc: Exception) -> dict:
-        return dict(error=str(exc))
 
     def get_return_values(self) -> dict:
         return_values = {}
