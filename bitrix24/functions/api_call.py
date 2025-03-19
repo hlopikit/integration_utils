@@ -35,9 +35,12 @@ class RawStringParam:
 def call_with_retries(url, converted_params,
                       retries_on_503=20, sleep_on_503_time=0.5,
                       timeout=DEFAULT_TIMEOUT, files=None):
+    """
+    Вызвать метод Битрикс в несколько попыток при неудаче.
 
-    response = None
-
+    :raises ConnectionToBitrixError: Проблема с соединением или ошибка SSL при запросе requests
+    :raises BitrixTimeout: Таймаут запроса requests
+    """
     verify = getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True)
 
     try:
