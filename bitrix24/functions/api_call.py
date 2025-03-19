@@ -41,29 +41,18 @@ def call_with_retries(url, converted_params, retry_http=False,
     verify = getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True)
 
     try:
-        if False: #"/crm.item." in url or "/crm.type." in url:
-            #обход бага битиркса
-            # TODO выпилить когда починят
-            # Вроде починили
-            response = requests.post(
-                "{}?{}".format(url, converted_params.decode('utf-8')),
-                converted_params,
-                auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
-                timeout=timeout,
-                files=files,
-                allow_redirects=False,
-                verify=verify
-            )
-        else:
-            response = requests.post(
-                url,
-                converted_params,
-                auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
-                timeout=timeout,
-                files=files,
-                allow_redirects=False,
-                verify=verify
-            )
+        # В истории Git есть фикс бага от 2021 года для crm.item и crm.type.
+        # Если баг снова появится - можно восстановить из Git.
+        # Дата commit-а с удалением кода фикса - 19.03.2025.
+        response = requests.post(
+            url,
+            converted_params,
+            auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
+            timeout=timeout,
+            files=files,
+            allow_redirects=False,
+            verify=verify
+        )
     except requests.exceptions.SSLError as e:
         raise ConnectionToBitrixError()
     except requests.Timeout as e:
