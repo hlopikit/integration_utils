@@ -10,7 +10,7 @@ import urllib
 from django.conf import settings
 from django.utils.encoding import force_str
 
-from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout
+from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError
 from settings import ilogger
 
 
@@ -40,6 +40,7 @@ def call_with_retries(url, converted_params,
 
     :raises ConnectionToBitrixError: Проблема с соединением или ошибка SSL при запросе requests
     :raises BitrixTimeout: Таймаут запроса requests
+    :raises BitrixApiServerError: Ошибка сервера Битрикс
     """
     verify = getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True)
 
@@ -61,6 +62,13 @@ def call_with_retries(url, converted_params,
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout)
     else:
+        # Ошибка Nginx - 403 Forbidden
+        if response.status_code == 403 and 'nginx' in response.text:
+            json_response = {
+                'error': 'Nginx 403 Forbidden',
+                'error_description': 'Nginx 403 Forbidden',
+            }
+            raise BitrixApiServerError(has_resp=False, json_response=json_response, status_code=response.status_code, message='Nginx 403 Forbidden')
         if response.status_code == 503:
             if retries_on_503 > 0:
                 ilogger.debug('retry_on_503=>{}'.format(pformat(dict(
