@@ -56,12 +56,10 @@ def call_with_retries(url, converted_params,
             allow_redirects=False,
             verify=verify
         )
-    except requests.exceptions.SSLError as e:
+    except (requests.ConnectionError, requests.exceptions.SSLError):
         raise ConnectionToBitrixError()
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout)
-    except requests.ConnectionError as e:
-        raise ConnectionToBitrixError()
     else:
         if response.status_code == 503:
             if retries_on_503 > 0:
