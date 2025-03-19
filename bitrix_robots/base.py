@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import Optional, Callable, TYPE_CHECKING, Union
 
 from django.contrib import admin
 from django.db import models
@@ -9,6 +9,7 @@ from django.utils.functional import cached_property
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpRequest, QueryDict, JsonResponse
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 from integration_utils.its_utils.app_get_params import get_params_from_sources
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
@@ -16,11 +17,11 @@ from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
 
 import django
+
 if django.VERSION[0] >= 3:
     from django.db.models import JSONField
 else:
     from django.contrib.postgres.fields import JSONField
-
 
 if TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
@@ -44,6 +45,9 @@ class BaseBitrixRobot(models.Model):
     # Обрабатывать сразу после получения запроса
     # Если False, обрабатывать в integration_utils.bitrix_robots.cron.process_robot_requests
     PROCESS_ON_REQUEST = True
+
+    # True активирует валидацию пропсов, которые кинул битрикс с помощью validate_props
+    VALIDATE_PROPS = False
 
     token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
     event_token = models.CharField(max_length=255, null=True, blank=True)
@@ -73,28 +77,26 @@ class BaseBitrixRobot(models.Model):
         super().save(*args, **kwargs)
 
     def fix_json_params(self):
-        """привести параметры к нужным типам
         """
-
+        Привести параметры к нужным типам
+        """
         if self.is_hook_request:
             return
-
         for prop_name, desc in self.PROPERTIES.items():
             prop = None
             for prop_var in ['properties[{}]'.format(prop_name), 'properties[{}][0]'.format(prop_name)]:
                 if prop_var in self.params:
                     prop = prop_var
-
             if not prop:
                 return
-
             if desc.get('Multiple') != 'Y' and desc.get('Type') == 'string':
-                # числа с большой разрядностью ведут сбя странно при сохранениие в jsonfield
+                # числа с большой разрядностью ведут сбя странно при сохранении в jsonfield
                 self.params[prop] = str(self.params[prop])
 
     @classmethod
     def handler_url(cls, view_name):
-        """Получить URL обработчика через reverse+название view
+        """
+        Получить URL обработчика через reverse+название view
         """
         return 'https://{domain}{path}'.format(
             domain=cls.APP_DOMAIN,
@@ -134,21 +136,21 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def is_installed(cls, admin_token: 'BitrixUserToken') -> bool:
-        """Зарегистрирован ли робот на портале
+        """
+        Зарегистрирован ли робот на портале
         """
         robot_codes = admin_token.call_list_method_v2('bizproc.robot.list')
         return any(code == cls.CODE for code in robot_codes)
 
     @classmethod
-    def install(cls, view_name: str, admin_token: 'BitrixUserToken',
-                token_user: Optional['BitrixUser'] = None):
-        """Встроить робота на портал
+    def install(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: Optional['BitrixUser'] = None):
+        """
+        Встроить робота на портал
         """
         if token_user:
             assert token_user.id == admin_token.user_id
         else:
             token_user = admin_token.user
-
         return admin_token.call_api_method(
             'bizproc.robot.add',
             params=cls._robot_add_params(view_name, token_user.bitrix_id),
@@ -156,39 +158,37 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def uninstall(cls, admin_token: 'BitrixUserToken'):
-        """Удалить робота с портала
         """
-
+        Удалить робота с портала
+        """
         return admin_token.call_api_method(
             'bizproc.robot.delete',
             params=dict(CODE=cls.CODE),
         )['result']
 
     @classmethod
-    def update(cls, view_name: str, admin_token: 'BitrixUserToken',
-               token_user: Optional['BitrixUser'] = None):
-        """Обновить параметры робота на портале
+    def update(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: Optional['BitrixUser'] = None):
+        """
+        Обновить параметры робота на портале
         """
         if token_user:
             assert token_user.id == admin_token.user_id
         else:
             token_user = admin_token.user
-
         return admin_token.call_api_method(
             'bizproc.robot.update',
             params=cls._robot_update_params(view_name, token_user.bitrix_id),
         )['result']
 
     @classmethod
-    def install_or_update(cls, view_name: str, admin_token: 'BitrixUserToken',
-                          token_user: 'BitrixUser' = None):
-        """Встроить или обновить параметры робота на портале
+    def install_or_update(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: 'BitrixUser' = None):
+        """
+        Встроить или обновить параметры робота на портале
         """
         if cls.is_installed(admin_token):
             method = cls.update
         else:
             method = cls.install
-
         return method(view_name=view_name, admin_token=admin_token, token_user=token_user)
 
     @classmethod
@@ -230,7 +230,7 @@ class BaseBitrixRobot(models.Model):
                     robot.start_process()
                 except Exception as e:
                     ilogger.error(
-                        'robot_processings_error_{}'.format(cls_name),
+                        'robot_processing_error_{}'.format(cls_name),
                         '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
                     )
                     return HttpResponse('error')
@@ -276,7 +276,8 @@ class BaseBitrixRobot(models.Model):
         return auth
 
     def verify_event(self):
-        """Проверка подлинности присланного события.
+        """
+        Проверка подлинности присланного события.
         Несколько усложняется тем, что у нас несколько приложений Базы Знаний.
 
         :raises: VerificationError
@@ -287,11 +288,63 @@ class BaseBitrixRobot(models.Model):
     def user(self) -> 'BitrixUser':
         return self.token.user
 
+    @staticmethod
+    def safe_int(value: Optional[Union[int, str]]) -> Optional[int]:
+        """
+        Преобразует значение в int, если это возможно.
+        Если значение пустое или None, возвращает None.
+        При неудаче выбрасывает ValidationError.
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, int):
+            return value
+
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+            try:
+                return int(value)
+            except ValueError:
+                raise ValidationError(f'Значение "{value}" не может быть преобразовано в число.')
+
+        # Если значение ни строка, ни число – выбрасываем ошибку валидации
+        raise ValidationError('Значение должно быть строкой или числом.')
+
+    def validate_props(self) -> dict:
+        """
+        Проверяет типы значений свойств, которые прислал Битрикс.
+        На данный момент проверяет только целочисленные (int) поля, которые не являются множественными.
+        При наличии ошибок выбрасывает ValidationError со всеми сообщениями.
+        """
+        errors = []
+
+        for prop_name, prop_value in self.props.items():
+            try:
+                prop_config = self.PROPERTIES.get(prop_name, {})
+                prop_type = prop_config.get('Type')
+                multiple = prop_config.get('Multiple')
+
+                if prop_type == 'int' and multiple != 'Y':
+                    # Переопределяем значение в props
+                    self.props[prop_name] = self.safe_int(prop_value)
+
+            except ValidationError as exc:
+                errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
+
+        if errors:
+            # Если есть хотя бы одна ошибка, выбрасываем их все одним исключением
+            raise ValidationError(' '.join(errors))
+
+        return self.props
+
     @cached_property
     def props(self) -> dict:
-        """Разбирает присланные данные на основании PROPERTIES
         """
-
+        Разбирает присланные данные на основании PROPERTIES
+        """
         if self.is_hook_request:
             return self.params.get('properties', {})
 
@@ -323,11 +376,14 @@ class BaseBitrixRobot(models.Model):
         self.save(update_fields=['started'])
 
         try:
+            if self.VALIDATE_PROPS:
+                self.validate_props()
+
             self.result = self.process()
             self.is_success = True
 
         except DelayProcess:
-            # вернуть запрос  в очередь
+            # вернуть запрос в очередь
             self.started = None
             self.save(update_fields=['started'])
             return
@@ -346,7 +402,10 @@ class BaseBitrixRobot(models.Model):
         self.send_result()
         return self.result
 
-    def get_error_result(self, exc: Exception) -> dict:
+    @staticmethod
+    def get_error_result(exc: Exception) -> dict:
+        if hasattr(exc, 'message'):
+            return dict(error=exc.message)
         return dict(error=str(exc))
 
     def get_return_values(self) -> dict:
