@@ -32,7 +32,7 @@ class RawStringParam:
     __repr__ = lambda self: '<RawStringParam %r>' % self.value
 
 
-def call_with_retries(url, converted_params, retry_http=False,
+def call_with_retries(url, converted_params,
                       retries_on_503=20, sleep_on_503_time=0.5,
                       timeout=DEFAULT_TIMEOUT, files=None):
 
