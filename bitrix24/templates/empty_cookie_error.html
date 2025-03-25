@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ошибка авторизации</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        .error { color: red; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <h2 class="error">{{ message }}</h2>
+    <p>Ваши текущие cookie:</p>
+    <ul>
+        {% for key, value in cookies.items %}
+            <li><strong>{{ key }}:</strong> {{ value }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
