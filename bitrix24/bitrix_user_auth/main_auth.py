@@ -1,27 +1,20 @@
 from functools import wraps
 
 from django.shortcuts import render
-from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 
-from integration_utils.bitrix24.bitrix_user_auth.authenticate_on_start_application import \
-    authenticate_on_start_application
-from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import \
-    get_bitrix_user_token_from_cookie, EmptyCookie
-from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_header import \
-    get_bitrix_user_token_from_header
+from integration_utils.bitrix24.bitrix_user_auth.authenticate_on_start_application import authenticate_on_start_application
+from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import get_bitrix_user_token_from_cookie, EmptyCookie
+from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_header import get_bitrix_user_token_from_header
 from integration_utils.bitrix24.bitrix_user_auth.set_cookie import set_auth_cookie
-from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
-
-from bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import EmptyCookie
 
 
 def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=False):
     # Для аутентификации пользователя портала
     # on_start - авторизация по первому входу из Битрикс24
     # on_cookies - авторизация по кукам = для гет запросов ОК
-    # on_token - авторизация по токену, для Пост запросов и других влияющих на данные
+    # on_token - авторизация по токену, для POST-запросов и других влияющих на данные
 
     def inner_main_auth(func):
         @csrf_exempt
@@ -35,10 +28,7 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
                 try:
                     get_bitrix_user_token_from_cookie(request)
                 except EmptyCookie:
-                    return render(request, 'empty_cookie_error.html', {
-                        'message': 'Ваша сессия истекла. Пожалуйста, обновите страницу или авторизуйтесь снова.',
-                        'cookies': request.COOKIES
-                    }, status=401)
+                    return render(request, 'empty_cookie_error.html', status=401)
             if on_header:
                 get_bitrix_user_token_from_header(request=request)
 

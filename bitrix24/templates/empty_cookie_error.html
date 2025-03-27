@@ -1,21 +1,46 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ошибка авторизации</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-        .error { color: red; font-size: 18px; }
-    </style>
-</head>
-<body>
-    <h2 class="error">{{ message }}</h2>
-    <p>Ваши текущие cookie:</p>
-    <ul>
-        {% for key, value in cookies.items %}
-            <li><strong>{{ key }}:</strong> {{ value }}</li>
-        {% endfor %}
-    </ul>
-</body>
-</html>
+<h1 class="header">Ошибка авторизации по cookie</h1>
+<div class="msg-box">
+    <p>В запросе не был найден cookie авторизации.</p>
+    <p>Возможно, в вашем браузере отключена поддержка cookies третьих сторон.</p>
+    <p>Вы можете прочитать, как
+        <a href="https://articles.it-solution.ru/article/read/0OdjJ6ftgs7huIWoQ8lsCxKE4SRhxE946qiuJVPXcV/"
+           target="_blank">включить поддержку 3rd-party cookies для Safari</a>.
+    </p>
+    <p>Некоторые расширения браузеров, антивирусы и блокировщики рекламы также могут ограничивать поддержку cookies третьих сторон.</p>
+</div>
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    .header {
+        text-align: center;
+    }
+
+    .msg-box {
+        margin-bottom: 20px;
+        border-radius: 15px;
+        background: #ddd;
+        color: #222;
+        padding: 150px 15px;
+        text-align: center;
+        font-size: 1.1rem;
+        font-weight: lighter;
+    }
+
+    .msg-box a, .msg-box a:visited {
+        color: #447;
+        text-decoration: none;
+    }
+
+    .msg-box a:hover, .msg-box a:active, .msg-box a:focus {
+        color: #669;
+        text-decoration: underline;
+    }
+
+    @media (max-width: 1000px) {
+        .msg-box {
+            padding: 60px 10px;
+        }
+    }
+</style>
