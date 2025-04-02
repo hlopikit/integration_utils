@@ -1,4 +1,4 @@
-from integration_utils.its_utils.app_logger.constants import log_levels
+from integration_utils.iu_logger.constants import log_levels
 
 
 class BaseLogger:

@@ -1,4 +1,4 @@
-from integration_utils.its_utils.app_logger.classes.base_logger import BaseLogger
+from integration_utils.iu_logger.classes.base_logger import BaseLogger
 
 
 class ConsoleLogger(BaseLogger):
