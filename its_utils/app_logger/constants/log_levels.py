@@ -1,0 +1,9 @@
+from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+LOG_LEVEL_CHOICES = (
+    (DEBUG, 'DEBUG'),
+    (INFO, 'INFO'),
+    (WARNING, 'WARNING'),
+    (ERROR, 'ERROR'),
+    (CRITICAL, 'CRITICAL'),
+)
