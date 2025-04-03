@@ -308,10 +308,10 @@ class BaseBitrixRobot(models.Model):
             try:
                 return int(value)
             except ValueError:
-                raise ValidationError(f'Значение "{value}" не может быть преобразовано в число.')
+                raise ValidationError(f'Значение "{value}" не может быть преобразовано в число')
 
         # Если значение ни строка, ни число – выбрасываем ошибку валидации
-        raise ValidationError('Значение должно быть строкой или числом.')
+        raise ValidationError('Значение должно быть строкой или числом')
 
     def validate_props(self) -> dict:
         """
@@ -387,6 +387,11 @@ class BaseBitrixRobot(models.Model):
             self.started = None
             self.save(update_fields=['started'])
             return
+
+        except ValidationError as exc:
+            self.result = self.get_error_result(exc)
+            self.is_success = False
+            ilogger.warning(f'robot_validation_error_{type(self).__name__}', f'request id {self.id}: {exc.message}')
 
         except Exception as exc:
             self.result = self.get_error_result(exc)
