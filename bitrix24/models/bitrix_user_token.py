@@ -55,7 +55,9 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     )
 
     AUTH_COOKIE_MAX_AGE = None   # as long as the client’s browser session
-    domain = settings.APP_SETTINGS.portal_domain
+    # можно переопределить домен для рест методов для кластеров
+    rest_domain = getattr(settings, 'REST_DOMAIN', None)
+    domain = rest_domain or settings.APP_SETTINGS.portal_domain
     web_hook_auth = None
     application = None
 
