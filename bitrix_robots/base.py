@@ -313,6 +313,35 @@ class BaseBitrixRobot(models.Model):
         # Если значение ни строка, ни число – выбрасываем ошибку валидации
         raise ValidationError('Значение должно быть строкой или числом.')
 
+    @staticmethod
+    def safe_bool(value: Optional[Union[bool, str]], required: bool = False) -> Optional[bool]:
+        """
+        Производит валидацию и нормализацию логических пропсов.
+        'Y' = True
+        'N', '', и None = False, если поле не является обязательным.
+
+        Если поле обязательно (required==True) и значение пустое, выбрасывает ошибку.
+        """
+        if required and (value is None or (isinstance(value, str) and not value.strip())):
+            raise ValidationError("Поле обязательно для заполнения.")
+
+        if value is None:
+            return False
+
+        if isinstance(value, bool):
+            return value
+
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return False
+            if value == 'Y':
+                return True
+            elif value == 'N':
+                return False
+
+        raise ValidationError(f"Значение '{value}' не может быть преобразовано в bool.")
+
     def validate_props(self) -> dict:
         """
         Проверяет типы значений свойств, которые прислал Битрикс.
@@ -330,6 +359,10 @@ class BaseBitrixRobot(models.Model):
                 if prop_type == 'int' and multiple != 'Y':
                     # Переопределяем значение в props
                     self.props[prop_name] = self.safe_int(prop_value)
+
+                if prop_type == 'bool' and multiple != 'Y':
+                    # Переопределяем значение в props
+                    self.props[prop_name] = self.safe_bool(prop_value)
 
             except ValidationError as exc:
                 errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
