@@ -289,12 +289,15 @@ class BaseBitrixRobot(models.Model):
         return self.token.user
 
     @staticmethod
-    def safe_int(value: Optional[Union[int, str]]) -> Optional[int]:
+    def safe_int(value: Optional[Union[int, str]], required: bool = False) -> Optional[int]:
         """
         Преобразует значение в int, если это возможно.
         Если значение пустое или None, возвращает None.
         При неудаче выбрасывает ValidationError.
         """
+        if required and (value is None or (isinstance(value, str) and not value.strip())):
+            raise ValidationError("Поле обязательно для заполнения.")
+
         if value is None:
             return None
 
@@ -358,11 +361,11 @@ class BaseBitrixRobot(models.Model):
 
                 if prop_type == 'int' and multiple != 'Y':
                     # Переопределяем значение в props
-                    self.props[prop_name] = self.safe_int(prop_value)
+                    self.props[prop_name] = self.safe_int(prop_value, required=prop_config.get('Required', 'N') == 'Y')
 
                 if prop_type == 'bool' and multiple != 'Y':
                     # Переопределяем значение в props
-                    self.props[prop_name] = self.safe_bool(prop_value)
+                    self.props[prop_name] = self.safe_bool(prop_value, required=prop_config.get('Required', 'N') == 'Y')
 
             except ValidationError as exc:
                 errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
