@@ -296,7 +296,7 @@ class BaseBitrixRobot(models.Model):
         При неудаче выбрасывает ValidationError.
         """
         if required and (value is None or (isinstance(value, str) and not value.strip())):
-            raise ValidationError("Поле обязательно для заполнения.")
+            raise ValidationError('Поле обязательно для заполнения.')
 
         if value is None:
             return None
@@ -322,11 +322,10 @@ class BaseBitrixRobot(models.Model):
         Производит валидацию и нормализацию логических пропсов.
         'Y' = True
         'N', '', и None = False, если поле не является обязательным.
-
         Если поле обязательно (required==True) и значение пустое, выбрасывает ошибку.
         """
         if required and (value is None or (isinstance(value, str) and not value.strip())):
-            raise ValidationError("Поле обязательно для заполнения.")
+            raise ValidationError('Поле обязательно для заполнения.')
 
         if value is None:
             return False
