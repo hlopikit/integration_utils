@@ -18,7 +18,7 @@ def refresh_all():
 
 
 class BitrixUserToken(models.Model, BaseBitrixToken):
-    DEFAULT_TIMEOUT = 10
+    DEFAULT_TIMEOUT = getattr(settings, 'BITRIX_RESTAPI_DEFAULT_TIMEOUT', 10)
 
     EXPIRED_TOKEN = 2
     INVALID_GRANT = 3
