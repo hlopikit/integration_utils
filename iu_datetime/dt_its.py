@@ -31,7 +31,7 @@ class DtIts(Arrow):
     def get(cls, *args, **kwargs):
         """
         Собрать класс DtIts из входящих параметров
-        from its_utils.app_datetime.dt_its import DtIts
+        from integration_utils.iu_datetime.dt_its import DtIts
         from django.utils import timezone
         DtIts.get(timezone.now())
         """
