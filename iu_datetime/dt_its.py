@@ -25,7 +25,21 @@ class DtIts(Arrow):
     # after_one_hour = now.shift(hours=1)
 
     def bitrix_format(self):
+        '2025-05-01T20:27:51.614763+03:00'
         return self.isoformat()
+
+    def replace_to_moscow(self):
+        return self.replace(tzinfo='Europe/Moscow')
+
+    def replace_to_utc(self):
+        """
+        Можно использовать когда хотим стукнутсья в БД Битрикс24,
+        dt = DtIts.now().shift(minutes=-5) # Получили время текущее, но в БД Битрикс хранится без часового пояса
+        comments = BForumMessage.objects.qs_tasks_comments().qs_not_service().filter(post_date__gte=dt.replace_to_utc().datetime).order_by('id')
+        Returns:
+
+        """
+        return self.replace(tzinfo='UTC')
 
     @classmethod
     def get(cls, *args, **kwargs):
