@@ -208,7 +208,7 @@ def convert_params(form_data):
         else:
             raise TypeError(values)
 
-        # Тут проиходит добавление вложенности ключам и рекурсивный вызов
+        # Тут происходит добавление вложенности ключам и рекурсивный вызов
         for inner_key, v in iterable:
 
             # Кодируется только вложенная часть ключа,
@@ -245,7 +245,6 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
         можно передать None, хотя возможно лучше передать просто большое
         значение, например 30 * 60 (полчаса)
 
-    :rtype: requests.Response
     :returns: Объект ответа библиотеки requests
     """
 
@@ -273,8 +272,8 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
             if operating > 300:
                 log_method = ilogger.info if operating < 400 else ilogger.warning
                 log_method('method_operating', '{}, {}: {}'.format(domain, api_method, operating))
-        except:
-            pass
+        except Exception as e:
+            ilogger.warning('method_operating_exception', repr(e))
 
     t = time.time()
 
