@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Optional, Callable, TYPE_CHECKING, Union
+from typing import Optional, Callable, TYPE_CHECKING, Union, Any
 
 from django.contrib import admin
 from django.db import models
@@ -289,14 +289,21 @@ class BaseBitrixRobot(models.Model):
         return self.token.user
 
     @staticmethod
+    def _check_required(value: Any, required: bool):
+        """
+        Проверяет, что обязательное поле не пустое.
+        """
+        if required and (value is None or (isinstance(value, str) and not value.strip())):
+            raise ValidationError('Поле обязательно для заполнения.')
+
+    @staticmethod
     def safe_int(value: Optional[Union[int, str]], required: bool = False) -> Optional[int]:
         """
         Преобразует значение в int, если это возможно.
         Если значение пустое или None, возвращает None.
         При неудаче выбрасывает ValidationError.
         """
-        if required and (value is None or (isinstance(value, str) and not value.strip())):
-            raise ValidationError('Поле обязательно для заполнения.')
+        BaseBitrixRobot._check_required(value, required)
 
         if value is None:
             return None
@@ -305,13 +312,13 @@ class BaseBitrixRobot(models.Model):
             return value
 
         if isinstance(value, str):
-            value = value.strip()
-            if not value:
+            striped = value.strip()
+            if not striped:
                 return None
             try:
-                return int(value)
+                return int(striped)
             except ValueError:
-                raise ValidationError(f'Значение "{value}" не может быть преобразовано в число')
+                raise ValidationError(f'Значение "{striped}" не может быть преобразовано в число')
 
         # Если значение ни строка, ни число – выбрасываем ошибку валидации
         raise ValidationError('Значение должно быть строкой или числом')
@@ -324,8 +331,7 @@ class BaseBitrixRobot(models.Model):
         'N', '', и None = False, если поле не является обязательным.
         Если поле обязательно (required==True) и значение пустое, выбрасывает ошибку.
         """
-        if required and (value is None or (isinstance(value, str) and not value.strip())):
-            raise ValidationError('Поле обязательно для заполнения.')
+        BaseBitrixRobot._check_required(value, required)
 
         if value is None:
             return False
@@ -334,21 +340,35 @@ class BaseBitrixRobot(models.Model):
             return value
 
         if isinstance(value, str):
-            value = value.strip()
-            if not value:
+            striped = value.strip()
+            if not striped:
                 return False
-            if value == 'Y':
+            if striped == 'Y':
                 return True
-            elif value == 'N':
+            if striped == 'N':
                 return False
 
         raise ValidationError(f"Значение '{value}' не может быть преобразовано в bool.")
 
+    @staticmethod
+    def safe_str(value: Optional[str], required: bool = False) -> Optional[str]:
+        """
+        Проверяет и возвращает строку.
+        """
+        BaseBitrixRobot._check_required(value, required)
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            return value
+
+        raise ValidationError('Значение должно быть строкой.')
+
     def validate_props(self) -> dict:
         """
         Проверяет типы значений свойств, которые прислал Битрикс.
-        На данный момент проверяет только целочисленные (int) поля, которые не являются множественными.
-        При наличии ошибок выбрасывает ValidationError со всеми сообщениями.
+        Сейчас проверяет int, bool и string.
         """
         errors = []
 
@@ -357,14 +377,16 @@ class BaseBitrixRobot(models.Model):
                 prop_config = self.PROPERTIES.get(prop_name, {})
                 prop_type = prop_config.get('Type')
                 multiple = prop_config.get('Multiple')
+                required = prop_config.get('Required', 'N') == 'Y'
 
                 if prop_type == 'int' and multiple != 'Y':
-                    # Переопределяем значение в props
-                    self.props[prop_name] = self.safe_int(prop_value, required=prop_config.get('Required', 'N') == 'Y')
+                    self.props[prop_name] = self.safe_int(prop_value, required=required)
 
-                if prop_type == 'bool' and multiple != 'Y':
-                    # Переопределяем значение в props
-                    self.props[prop_name] = self.safe_bool(prop_value, required=prop_config.get('Required', 'N') == 'Y')
+                elif prop_type == 'bool' and multiple != 'Y':
+                    self.props[prop_name] = self.safe_bool(prop_value, required=required)
+
+                elif prop_type == "string" and multiple != 'Y':
+                    self.props[prop_name] = self.safe_str(prop_value, required=required)
 
             except ValidationError as exc:
                 errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
