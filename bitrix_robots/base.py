@@ -289,11 +289,11 @@ class BaseBitrixRobot(models.Model):
         return self.token.user
 
     @staticmethod
-    def _check_required(value: Any, required: bool):
+    def _check_required(value: Any):
         """
         Проверяет, что обязательное поле не пустое.
         """
-        if required and (value is None or (isinstance(value, str) and not value.strip())):
+        if value is None or (isinstance(value, str) and not value.strip()):
             raise ValidationError('Поле обязательно для заполнения.')
 
     @staticmethod
@@ -303,7 +303,8 @@ class BaseBitrixRobot(models.Model):
         Если значение пустое или None, возвращает None.
         При неудаче выбрасывает ValidationError.
         """
-        BaseBitrixRobot._check_required(value, required)
+        if required:
+            BaseBitrixRobot._check_required(value)
 
         if value is None:
             return None
@@ -312,13 +313,13 @@ class BaseBitrixRobot(models.Model):
             return value
 
         if isinstance(value, str):
-            striped = value.strip()
-            if not striped:
+            stripped = value.strip()
+            if not stripped:
                 return None
             try:
-                return int(striped)
+                return int(stripped)
             except ValueError:
-                raise ValidationError(f'Значение "{striped}" не может быть преобразовано в число')
+                raise ValidationError(f'Значение "{stripped}" не может быть преобразовано в число')
 
         # Если значение ни строка, ни число – выбрасываем ошибку валидации
         raise ValidationError('Значение должно быть строкой или числом')
@@ -331,7 +332,8 @@ class BaseBitrixRobot(models.Model):
         'N', '', и None = False, если поле не является обязательным.
         Если поле обязательно (required==True) и значение пустое, выбрасывает ошибку.
         """
-        BaseBitrixRobot._check_required(value, required)
+        if required:
+            BaseBitrixRobot._check_required(value)
 
         if value is None:
             return False
@@ -340,12 +342,12 @@ class BaseBitrixRobot(models.Model):
             return value
 
         if isinstance(value, str):
-            striped = value.strip()
-            if not striped:
+            stripped = value.strip()
+            if not stripped:
                 return False
-            if striped == 'Y':
+            if stripped == 'Y':
                 return True
-            if striped == 'N':
+            if stripped == 'N':
                 return False
 
         raise ValidationError(f"Значение '{value}' не может быть преобразовано в bool.")
@@ -355,7 +357,8 @@ class BaseBitrixRobot(models.Model):
         """
         Проверяет и возвращает строку.
         """
-        BaseBitrixRobot._check_required(value, required)
+        if required:
+            BaseBitrixRobot._check_required(value)
 
         if value is None:
             return None
@@ -385,7 +388,7 @@ class BaseBitrixRobot(models.Model):
                 elif prop_type == 'bool' and multiple != 'Y':
                     self.props[prop_name] = self.safe_bool(prop_value, required=required)
 
-                elif prop_type == "string" and multiple != 'Y':
+                elif prop_type == 'string' and multiple != 'Y':
                     self.props[prop_name] = self.safe_str(prop_value, required=required)
 
             except ValidationError as exc:
