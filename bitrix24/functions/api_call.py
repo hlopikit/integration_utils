@@ -10,7 +10,7 @@ import urllib
 from django.conf import settings
 from django.utils.encoding import force_str
 
-from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError
+from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError
 from settings import ilogger
 
 
@@ -69,13 +69,13 @@ def call_with_retries(url, converted_params,
                 'error_description': 'Nginx 403 Forbidden',
             }
             raise BitrixApiServerError(has_resp=False, json_response=json_response, status_code=response.status_code, message='Nginx 403 Forbidden')
-        # Ошибка Битрикс - 500 Internal Server Error
-        if response.status_code == 500:
+        # Ошибка Битрикс - 500 Internal Server Error (не json)
+        if response.status_code == 500 and response.text == 'Internal Server Error':
             json_response = {
                 'error': 'Bitrix 500 Internal Server Error',
                 'error_description': 'Bitrix 500 Internal Server Error',
             }
-            raise BitrixApiServerError(has_resp=False, json_response=json_response, status_code=response.status_code, message='Bitrix 500 Internal Server Error')
+            raise BitrixApiError(has_resp=False, json_response=json_response, status_code=response.status_code, message='Bitrix 500 Internal Server Error')
         if response.status_code == 503:
             if retries_on_503 > 0:
                 ilogger.debug('retry_on_503=>{}'.format(pformat(dict(
