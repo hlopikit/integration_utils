@@ -387,7 +387,7 @@ class BaseBitrixRobot(models.Model):
     def validate_props(self) -> dict:
         """
         Проверяет типы значений свойств, которые прислал Битрикс.
-        Сейчас проверяет int, bool и string.
+        Сейчас проверяет одиночные int, bool, string и text.
         """
         errors = []
 
