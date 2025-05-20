@@ -294,7 +294,7 @@ class BaseBitrixRobot(models.Model):
         Проверяет, что обязательное поле не пустое.
         """
         if value is None or (isinstance(value, str) and not value.strip()):
-            raise ValidationError('Поле обязательно для заполнения.')
+            raise ValidationError('Поле обязательно для заполнения')
 
     @staticmethod
     def safe_int(value: Optional[Union[int, str]], required: bool = False) -> Optional[int]:
@@ -350,10 +350,10 @@ class BaseBitrixRobot(models.Model):
             if stripped == 'N':
                 return False
 
-        raise ValidationError(f"Значение '{value}' не может быть преобразовано в bool.")
+        raise ValidationError(f"Значение '{value}' не может быть преобразовано в bool")
 
     @staticmethod
-    def safe_str(value: Optional[str], required: bool = False) -> Optional[str]:
+    def safe_string(value: Optional[str], required: bool = False) -> Optional[str]:
         """
         Проверяет и возвращает строку.
         """
@@ -366,7 +366,23 @@ class BaseBitrixRobot(models.Model):
         if isinstance(value, str):
             return value
 
-        raise ValidationError('Значение должно быть строкой.')
+        raise ValidationError('Значение должно быть строкой')
+
+    @staticmethod
+    def safe_text(value: Optional[str], required: bool = False) -> Optional[str]:
+        """
+        Проверяет и возвращает текст.
+        """
+        if required:
+            BaseBitrixRobot._check_required(value)
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            return value
+
+        raise ValidationError('Значение должно быть текстом')
 
     def validate_props(self) -> dict:
         """
@@ -389,7 +405,10 @@ class BaseBitrixRobot(models.Model):
                     self.props[prop_name] = self.safe_bool(prop_value, required=required)
 
                 elif prop_type == 'string' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_str(prop_value, required=required)
+                    self.props[prop_name] = self.safe_string(prop_value, required=required)
+
+                elif prop_type == 'text' and multiple != 'Y':
+                    self.props[prop_name] = self.safe_text(prop_value, required=required)
 
             except ValidationError as exc:
                 errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
