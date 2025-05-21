@@ -268,10 +268,12 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     if api_method != 'batch':
         try:
             data = response.json()
-            operating = data['time']['operating']
-            if operating > 300:
-                log_method = ilogger.info if operating < 400 else ilogger.warning
-                log_method('method_operating', '{}, {}: {}'.format(domain, api_method, operating))
+            data_time = data.get('time', None)
+            if data_time is not None:
+                operating = data_time.get('operating', 0)
+                if operating > 300:
+                    log_method = ilogger.info if operating < 400 else ilogger.warning
+                    log_method('method_operating', '{}, {}: {}'.format(domain, api_method, operating))
         except Exception as e:
             ilogger.warning('method_operating_exception', repr(e))
 
