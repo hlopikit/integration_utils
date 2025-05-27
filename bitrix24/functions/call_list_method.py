@@ -392,7 +392,7 @@ def call_list_method(
 
     if batch_start and time_spent > ALLOWABLE_TIME:
         # записать время выполнения в лог, если batch_api_call был вызван и выполнялся дольше 2 секунд
-        ilogger.info('call_bx_list_method_time_log=> %s' % '\n'.join(time_log))
+        ilogger.info('call_bx_list_method_time_log', '\n'.join(time_log))
 
     if allowable_error is not None and not limit:
         result_length = len(result)

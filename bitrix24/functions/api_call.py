@@ -78,7 +78,7 @@ def call_with_retries(url, converted_params,
             raise BitrixApiServerError(has_resp=False, json_response=json_response, status_code=response.status_code, message='Bitrix 500 Internal Server Error')
         if response.status_code == 503:
             if retries_on_503 > 0:
-                ilogger.debug('retry_on_503=>{}'.format(pformat(dict(
+                ilogger.debug('retry_on_503', '{}'.format(pformat(dict(
                     retries_left=retries_on_503,
                     url=url,
                     sleep_on_503_time=sleep_on_503_time,
@@ -93,7 +93,7 @@ def call_with_retries(url, converted_params,
                     sleep_on_503_time=sleep_on_503_time + 0.25,
                 )
             else:
-                ilogger.warn('retry_503_exceeded=>{}'.format(pformat(dict(
+                ilogger.warn('retry_503_exceeded', '{}'.format(pformat(dict(
                     url=url,
                     sleep_on_503_time=sleep_on_503_time,
                     response=response,
@@ -106,7 +106,7 @@ def call_with_retries(url, converted_params,
                 new_domain = urlparse(location).netloc
 
                 if old_domain != new_domain:
-                    ilogger.debug('retry_on_301_302=>{}'.format(pformat(dict(
+                    ilogger.debug('retry_on_301_302', '{}'.format(pformat(dict(
                         old_domain=old_domain,
                         new_domain=new_domain,
                         url=url,
@@ -122,7 +122,7 @@ def call_with_retries(url, converted_params,
                         files=files,
                     )
 
-            ilogger.warn('retry_on_301_302_failed=>{}'.format(pformat(dict(
+            ilogger.warn('retry_on_301_302_failed', '{}'.format(pformat(dict(
                 url=url,
                 location=location,
                 response=response,
