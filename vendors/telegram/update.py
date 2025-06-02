@@ -33,6 +33,7 @@ from . import (
     constants,
     ChatJoinRequest,
 )
+from .messagereactionupdated import MessageReactionUpdated
 from .poll import PollAnswer
 from .utils.types import JSONDict
 
@@ -156,6 +157,7 @@ class Update(TelegramObject):
         'my_chat_member',
         'chat_member',
         'chat_join_request',
+        'message_reaction',
         '_id_attrs',
     )
 
@@ -237,6 +239,7 @@ class Update(TelegramObject):
         my_chat_member: ChatMemberUpdated = None,
         chat_member: ChatMemberUpdated = None,
         chat_join_request: ChatJoinRequest = None,
+        message_reaction: MessageReactionUpdated = None,
         **_kwargs: Any,
     ):
         # Required
@@ -256,6 +259,7 @@ class Update(TelegramObject):
         self.my_chat_member = my_chat_member
         self.chat_member = chat_member
         self.chat_join_request = chat_join_request
+        self.message_reaction = message_reaction
 
         self._effective_user: Optional['User'] = None
         self._effective_chat: Optional['Chat'] = None
@@ -412,5 +416,6 @@ class Update(TelegramObject):
         data['my_chat_member'] = ChatMemberUpdated.de_json(data.get('my_chat_member'), bot)
         data['chat_member'] = ChatMemberUpdated.de_json(data.get('chat_member'), bot)
         data['chat_join_request'] = ChatJoinRequest.de_json(data.get('chat_join_request'), bot)
+        data['message_reaction'] = MessageReactionUpdated.de_json(data.get('message_reaction'), bot)
 
         return cls(**data)
