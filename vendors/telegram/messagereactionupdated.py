@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Optional
 
 from . chat import Chat
 from . import TelegramObject
-from . reaction import ReactionType
+from . reaction import ReactionType, ReactionCount
 from . user import User
 from . utils.helpers import from_timestamp
 
@@ -31,6 +31,70 @@ from . utils.types import JSONDict
 
 if TYPE_CHECKING:
     from . import Bot
+
+
+class MessageReactionCountUpdated(TelegramObject):
+    """This class represents reaction changes on a message with anonymous reactions.
+
+    Objects of this class are comparable in terms of equality. Two objects of this class are
+    considered equal, if the :attr:`chat`, :attr:`message_id`, :attr:`date` and :attr:`reactions`
+    is equal.
+
+    .. versionadded:: 20.8
+
+    Args:
+        chat (:class:`telegram.Chat`): The chat containing the message.
+        message_id (:obj:`int`): Unique message identifier inside the chat.
+        date (:class:`datetime.datetime`): Date of the change in Unix time
+            |datetime_localization|
+        reactions (Sequence[:class:`telegram.ReactionCount`]): List of reactions that are present
+            on the message
+
+    Attributes:
+        chat (:class:`telegram.Chat`): The chat containing the message.
+        message_id (:obj:`int`): Unique message identifier inside the chat.
+        date (:class:`datetime.datetime`): Date of the change in Unix time
+            |datetime_localization|
+        reactions (tuple[:class:`telegram.ReactionCount`]): List of reactions that are present on
+            the message
+    """
+
+    __slots__ = (
+        "chat",
+        "date",
+        "message_id",
+        "reactions",
+        "_id_attrs"
+    )
+
+    def __init__(
+        self,
+        chat: Chat,
+        message_id: int,
+        date: dtm.datetime,
+        reactions: Sequence[ReactionCount],
+        *,
+        api_kwargs: Optional[JSONDict] = None,
+    ):
+        self.chat: Chat = chat
+        self.message_id: int = message_id
+        self.date: dtm.datetime = date
+        self.reactions: tuple[ReactionCount, ...] = tuple(reactions) if reactions else ()
+
+        self._id_attrs = (self.chat, self.message_id, self.date, self.reactions)
+
+    @classmethod
+    def de_json(cls, data: JSONDict, bot: Optional["Bot"] = None) -> Optional["MessageReactionCountUpdated"]:
+        """See :meth:`telegram.TelegramObject.de_json`."""
+        data = cls._parse_data(data)
+        if not data:
+            return None
+
+        data["date"] = from_timestamp(data.get("date"))
+        data["chat"] = Chat.de_json(data.get('chat'), bot)
+        data["reactions"] = ReactionCount.de_list(data.get("reactions"), bot)
+
+        return cls(**data)
 
 
 class MessageReactionUpdated(TelegramObject):
