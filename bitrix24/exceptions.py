@@ -170,6 +170,10 @@ class BitrixApiError(BitrixApiException):
     def is_access_denied(self):
         return self.error == 'ACCESS_DENIED' and self.error_description == 'Access denied!'
 
+    @property
+    def is_bad_gateway(self):
+        return str(self.error).casefold() == 'bad gateway'
+
     def dict(self):
         if isinstance(self.json_response, dict):
             error = self.json_response
