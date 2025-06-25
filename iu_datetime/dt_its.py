@@ -1,7 +1,7 @@
 from arrow import Arrow, ArrowFactory
 
-from its_utils.app_datetime.calendar_work_days import WORK_AND_REST_DAYS
-
+from integration_utils.its_utils.app_datetime.calendar_work_days import WORK_AND_REST_DAYS
+from settings import ilogger
 
 # https://pypi.org/project/arrow/
 
@@ -30,6 +30,33 @@ class DtIts(Arrow):
 
     def replace_to_moscow(self):
         return self.replace(tzinfo='Europe/Moscow')
+
+    def to_b24_database(self):
+        """
+        Задача этой функции перевести к такому виду чтобы можно было делать запросы к БД Битрикс24, там даты хранятся в МСК без часового пояса (может не у всех в МСК)
+        Вариант 1: делаем например timezone.now() и это в UTC уже, тогда надо добавить 3 часа и replace_to_utc сделать...
+        Вариант 2: у нас уже дата с MSK+3, ТО НАДО replace_utc сделать
+
+        Итог вот такие конструкции вернут одинаковое
+        from integration_utils.iu_datetime.dt_its import DtIts
+        DtIts.now().to_b24_database()
+
+        from django.utils import timezone
+        DtIts.get(timezone.now()).to_b24_database()
+
+        Returns:
+
+        """
+        if self.utcoffset().seconds == 0:
+            # У нас в UTC, то добавляем + 3
+            return self.shift(hours=3)
+        elif self.utcoffset().seconds == 10800:
+            # МСК время, убираем знание таймзоны
+            return self.replace_to_utc()
+        else:
+            ilogger.error("dtits_timezene", "Добавьте поддержку других таймзон")
+
+
 
     def replace_to_utc(self):
         """
