@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from . import Bot
 
 
+# noinspection PyShadowingBuiltins,GrazieInspection,PyUnusedLocal
 class ReactionType(TelegramObject):
     """Base class for Telegram ReactionType Objects.
     There exist :class:`telegram.ReactionTypeEmoji`, :class:`telegram.ReactionTypeCustomEmoji`
@@ -92,6 +93,7 @@ class ReactionType(TelegramObject):
         return cls(**data)
 
 
+# noinspection GrazieInspection
 class ReactionTypeEmoji(ReactionType):
     """
     Represents a reaction with a normal emoji.
@@ -127,6 +129,7 @@ class ReactionTypeEmoji(ReactionType):
         self._id_attrs = (self.emoji,)
 
 
+# noinspection GrazieInspection
 class ReactionTypeCustomEmoji(ReactionType):
     """
     Represents a reaction with a custom emoji.
@@ -161,6 +164,7 @@ class ReactionTypeCustomEmoji(ReactionType):
         self._id_attrs = (self.custom_emoji_id,)
 
 
+# noinspection GrazieInspection
 class ReactionTypePaid(ReactionType):
     """
     The reaction is paid.
@@ -179,6 +183,7 @@ class ReactionTypePaid(ReactionType):
         # self._freeze()
 
 
+# noinspection PyShadowingBuiltins,GrazieInspection,PyUnusedLocal
 class ReactionCount(TelegramObject):
     """This class represents a reaction added to a message along with the number of times it was
     added.
@@ -209,7 +214,7 @@ class ReactionCount(TelegramObject):
         *,
         api_kwargs: Optional[JSONDict] = None,
     ):
-        super().__init__(api_kwargs=api_kwargs)
+        # super().__init__(api_kwargs=api_kwargs)
         # Required
         self.type: ReactionType = type
         self.total_count: int = total_count
@@ -225,7 +230,6 @@ class ReactionCount(TelegramObject):
         """See :meth:`telegram.TelegramObject.de_json`."""
         data = cls._parse_data(data)
 
-        # data["type"] = de_json_optional(data.get("type"), ReactionType, bot)
-        data["type"] = ReactionType.de_json(data,bot)
+        data["type"] = ReactionType.de_json(data.get("type"), bot)
 
         return cls(**data)
