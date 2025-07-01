@@ -1,4 +1,5 @@
 from django.core.exceptions import PermissionDenied
+from django.db import IntegrityError
 from django.http import HttpResponse
 from django.utils import timezone
 from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
@@ -50,19 +51,29 @@ def authenticate_on_start_application(request):
     except BitrixUserToken.DoesNotExist:
         bitrix_user_token = BitrixUserToken()
 
-    # Заполнение полей токена
-    bitrix_user_token.user = user
-    bitrix_user_token.auth_token = auth_token
+    def _fill_token(but: BitrixUserToken):
+        # Заполнение полей токена
+        but.user = user
+        but.auth_token = auth_token
 
-    if refresh_token:
-        bitrix_user_token.refresh_token = refresh_token
+        if refresh_token:
+            but.refresh_token = refresh_token
 
-    bitrix_user_token.auth_token_date = timezone.now()
-    bitrix_user_token.is_active = True
-    bitrix_user_token.refresh_error = 0
-    if app_sid is not None:
-        bitrix_user_token.app_sid = app_sid
-    bitrix_user_token.save()
+        but.auth_token_date = timezone.now()
+        but.is_active = True
+        but.refresh_error = 0
+        if app_sid is not None:
+            but.app_sid = app_sid
+
+    _fill_token(bitrix_user_token)
+
+    try:
+        bitrix_user_token.save()
+    except IntegrityError:
+        # Случай, когда запросы накладываются друг на друга и получается два токена с одним юзером
+        bitrix_user_token = BitrixUserToken.objects.get(user=user)
+        _fill_token(bitrix_user_token)
+        bitrix_user_token.save()
 
     # Информацию о пользователе и портале записать в объект request
     # Она будет использована в функциях, у которых есть данный декоратор
