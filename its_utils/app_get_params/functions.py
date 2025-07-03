@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
+from decimal import Decimal, InvalidOperation
+
 import six
 import sys
 
@@ -18,6 +20,17 @@ def _nullable_param(coerce_fn):
     return lambda v: None if v in NULL_VALUES else coerce_fn(v)
 
 
+def decimal_param(value):
+    try:
+        if isinstance(value, Decimal):
+            return value
+        if value is None:
+            return Decimal(0)
+        return Decimal(str(value))
+    except (ValueError, TypeError, InvalidOperation):
+        raise ValueError('{!r} cannot be interpreted as decimal'.format(value))
+
+
 def bool_param(value):
     if value in TRUE_VALUES:
         return True
@@ -32,8 +45,8 @@ nullable_bool_param = _nullable_param(bool_param)
 def int_param(value):
     try:
         return int(value)
-    except (TypeError, OverflowError) as e:
-        raise ValueError(str(e))
+    except (TypeError, OverflowError, ValueError):
+        raise ValueError('{!r} cannot be interpreted as int'.format(value))
 
 
 nullable_int_param = _nullable_param(int_param)
