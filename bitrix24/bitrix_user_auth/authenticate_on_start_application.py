@@ -46,10 +46,12 @@ def authenticate_on_start_application(request):
     defaults = {
         'auth_token': auth_token,
         'auth_token_date': timezone.now(),
-        'refresh_token': refresh_token,
         'refresh_error': 0,
         'is_active': True,
     }
+
+    if refresh_token:
+        defaults['refresh_token'] = refresh_token
 
     if app_sid:
         defaults['app_sid'] = app_sid
