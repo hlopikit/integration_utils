@@ -27,8 +27,8 @@ def decimal_param(value):
         if value is None:
             return Decimal(0)
         return Decimal(str(value))
-    except (ValueError, TypeError, InvalidOperation) as e:
-        raise ValueError(str(e))
+    except (ValueError, TypeError, InvalidOperation):
+        raise ValueError('{!r} cannot be interpreted as decimal'.format(value))
 
 
 def bool_param(value):
@@ -45,8 +45,8 @@ nullable_bool_param = _nullable_param(bool_param)
 def int_param(value):
     try:
         return int(value)
-    except (TypeError, OverflowError) as e:
-        raise ValueError(str(e))
+    except (TypeError, OverflowError, ValueError):
+        raise ValueError('{!r} cannot be interpreted as int'.format(value))
 
 
 nullable_int_param = _nullable_param(int_param)
