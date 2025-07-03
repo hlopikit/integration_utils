@@ -43,16 +43,20 @@ def authenticate_on_start_application(request):
     user.save()
 
     # Получение с обновлением или создание токена пользователя
+    defaults = {
+        'auth_token': auth_token,
+        'auth_token_date': timezone.now(),
+        'refresh_token': refresh_token,
+        'refresh_error': 0,
+        'is_active': True,
+    }
+
+    if app_sid:
+        defaults['app_sid'] = app_sid
+
     bitrix_user_token, _ = BitrixUserToken.objects.update_or_create(
         user=user,
-        defaults={
-            'auth_token': auth_token,
-            'auth_token_date': timezone.now(),
-            'refresh_token': refresh_token,
-            'refresh_error': 0,
-            'is_active': True,
-            'app_sid': app_sid,
-        },
+        defaults=defaults,
     )
 
     # Информацию о пользователе и портале записать в объект request
