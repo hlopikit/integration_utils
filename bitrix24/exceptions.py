@@ -167,8 +167,24 @@ class BitrixApiError(BitrixApiException):
         return self.error_description == 'The access token provided has expired.'
 
     @property
+    def is_access_denied_any(self):
+        return self.error == 'ACCESS_DENIED'
+
+    @property
     def is_access_denied(self):
-        return self.error == 'ACCESS_DENIED' and self.error_description == 'Access denied!'
+        return self.is_access_denied_any and self.error_description == 'Access denied!'
+
+    @property
+    def is_access_denied_extended_plans(self):
+        return self.is_access_denied_any and self.error_description == 'Access denied! Available only on extended plans'
+
+    @property
+    def is_access_denied_no_rights_for_list(self):
+         return self.is_access_denied_any and self.error_description == 'Нет прав для просмотра и редактирования списка.'
+
+    @property
+    def is_bad_gateway(self):
+        return str(self.error).casefold() == 'bad gateway'
 
     def dict(self):
         if isinstance(self.json_response, dict):
