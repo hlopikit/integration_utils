@@ -186,6 +186,10 @@ class BitrixApiError(BitrixApiException):
     def is_bad_gateway(self):
         return str(self.error).casefold() == 'bad gateway'
 
+    @property
+    def is_gateway_timeout(self):
+        return self.status_code == 504
+
     def dict(self):
         if isinstance(self.json_response, dict):
             error = self.json_response
