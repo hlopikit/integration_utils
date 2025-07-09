@@ -191,7 +191,7 @@ class BitrixApiError(BitrixApiException):
         return self.status_code == 504
 
     @property
-    def is_unauthorized(self):
+    def is_unauthorized_any(self):
         return self.status_code == 401
 
     def dict(self):
