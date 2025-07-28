@@ -5,6 +5,19 @@ from integration_utils.vendors.telegram.error import RetryAfter
 
 
 def telegram_retry_after(max_retries=1):
+    """
+    Для повторных попыток вызова функции при ошибке RetryAfter от Telegram.
+    В случае ошибки делается пауза (длительность указана в ошибке).
+
+    >>> # Пример использования
+        @telegram_retry_after(max_retries=2)
+        def test():
+            print('Test')
+            from integration_utils.vendors.telegram.error import RetryAfter
+            raise RetryAfter(retry_after=3)
+
+    :param max_retries: Максимальное количество повторных попыток.
+    """
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
