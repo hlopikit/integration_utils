@@ -13,8 +13,9 @@ from integration_utils.bitrix24.bitrix_user_auth.set_cookie import set_auth_cook
 def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=False):
     # Для аутентификации пользователя портала
     # on_start - авторизация по первому входу из Битрикс24
-    # on_cookies - авторизация по кукам = для гет запросов ОК
-    # on_token - авторизация по токену, для POST-запросов и других влияющих на данные
+    # on_cookies - авторизация по кукам, для GET запросов
+    # on_header - авторизация по токену, для POST запросов и других влияющих на данные
+    # set_cookie - поставить куки в браузере для дальнейшей авторизации по on_cookies
 
     def inner_main_auth(func):
         @csrf_exempt
