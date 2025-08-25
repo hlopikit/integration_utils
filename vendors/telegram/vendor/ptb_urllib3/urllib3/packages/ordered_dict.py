@@ -2,17 +2,23 @@
 # Passes Python2.7's test suite and incorporates all the latest updates.
 # Copyright 2009 Raymond Hettinger, released under the MIT License.
 # http://code.activestate.com/recipes/576693/
-try:
-    # noinspection PyCompatibility
-    from thread import get_ident as _get_ident
-except ImportError:
-    from threading import get_ident as _get_ident
 
-try:
-    # noinspection PyCompatibility
-    from _abcoll import KeysView, ValuesView, ItemsView
-except ImportError:
-    pass
+import sys
+
+if sys.version_info >= (3, 0):
+    from threading import get_ident as _get_ident
+    from collections.abc import KeysView, ValuesView, ItemsView
+
+else:
+    try:
+        from thread import get_ident as _get_ident
+    except ImportError:
+        from dummy_thread import get_ident as _get_ident
+
+    try:
+        from _abcoll import KeysView, ValuesView, ItemsView
+    except ImportError:
+        pass
 
 
 class OrderedDict(dict):
@@ -81,7 +87,12 @@ class OrderedDict(dict):
     def clear(self):
         'od.clear() -> None.  Remove all items from od.'
         try:
-            for node in self.__map.values():
+            if sys.version_info >= (3, 0):
+                values = self.__map.values()
+            else:
+                values = self.__map.itervalues()
+
+            for node in values:
                 del node[:]
             root = self.__root
             root[:] = [root, root, None]
