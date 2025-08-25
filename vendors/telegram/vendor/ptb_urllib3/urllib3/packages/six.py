@@ -590,13 +590,13 @@ if PY3:
     viewitems = operator.methodcaller("items")
 else:
     def iterkeys(d, **kw):
-        return d.iterkeys(**kw)
+        return d.keys(**kw)
 
     def itervalues(d, **kw):
-        return d.itervalues(**kw)
+        return d.values(**kw)
 
     def iteritems(d, **kw):
-        return d.iteritems(**kw)
+        return d.items(**kw)
 
     def iterlists(d, **kw):
         return d.iterlists(**kw)

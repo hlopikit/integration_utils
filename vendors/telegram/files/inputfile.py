@@ -19,7 +19,11 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram InputFile."""
 
+# В Python 3.13 нет встроенного imghdr
+# Нужно установить пакет standard-imghdr
+# noinspection PyCompatibility
 import imghdr
+
 import logging
 import mimetypes
 import os

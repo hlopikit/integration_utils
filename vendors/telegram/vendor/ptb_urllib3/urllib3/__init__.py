@@ -10,6 +10,7 @@ from .connectionpool import (
     connection_from_url
 )
 
+# noinspection PyCompatibility
 from . import exceptions
 from .filepost import encode_multipart_formdata
 from .poolmanager import PoolManager, ProxyManager, proxy_from_url
