@@ -3,7 +3,7 @@ from django.utils.module_loading import import_string
 from settings import ilogger
 
 
-def process_robot_requests(robot_cls, qs=None):
+def process_robot_requests(robot_cls, qs = None, qs_limit: int = None):
     if isinstance(robot_cls, str):
         robot_cls = import_string(robot_cls)
 
@@ -11,7 +11,11 @@ def process_robot_requests(robot_cls, qs=None):
     if qs is None:
         qs = robot_cls.objects.all()
 
-    for robot in qs.filter(started__isnull=True).iterator():
+    qs_not_started = qs.filter(started__isnull=True)
+    if qs_limit:
+        qs_not_started = qs_not_started[:qs_limit]
+
+    for robot in qs_not_started.iterator():
         try:
             robot.start_process()
         except Exception as exc:
