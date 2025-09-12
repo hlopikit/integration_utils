@@ -67,6 +67,7 @@ class BaseBitrixRobot(models.Model):
     class Admin(admin.ModelAdmin):
         list_display = ['id', 'token', 'dt_add', 'started', 'finished', 'is_success']
         list_display_links = list_display
+        list_filter = ['is_success', 'dt_add', 'finished']
         raw_id_fields = ['token',]
 
     def __str__(self):
