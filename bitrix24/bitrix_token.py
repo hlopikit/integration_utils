@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-from typing import Optional, Iterable, Any
+from typing import Optional, Iterable, Any, Union
 
 from django.conf import settings
 
@@ -96,12 +96,13 @@ class BaseBitrixToken:
             limit=None,  # type: Optional[int]
             allowable_error=None,  # type: Optional[int]
             timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-            force_total=None,  # type: Optional[int]
+            force_total=None,  # type: Optional[int]  # TODO: Убрать когда-нибудь
             log_prefix='',  # type: str
             batch_size=50,  # type: int
-    ):  # type: (...) -> list
+    ):  # type: (...) -> Union[list, dict]
         result = call_list_method(self, method, fields=fields,
                                        limit=limit,
+                                       force_total=force_total,
                                        allowable_error=allowable_error,
                                        timeout=timeout,
                                        log_prefix=log_prefix,

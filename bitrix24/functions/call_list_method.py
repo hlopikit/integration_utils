@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
+
+import typing
 from collections import OrderedDict
 
 from django.http import JsonResponse
@@ -11,9 +13,9 @@ from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
 
 if not six.PY2:  # type hints
-    from typing import Optional, Union, Any, Tuple
+    from typing import Optional, Union
 
-if False:  # type hints
+if typing.TYPE_CHECKING:  # type hints
     from ..models import BitrixUserToken
 
 
@@ -68,8 +70,8 @@ class CallListException(Exception):
 def unwrap_batch_res(batch_res, result=None, wrapper=None):
     # type: (BatchResultDict, Union[list, dict], Optional[str]) -> Union[list, dict]
     """
-    Собрать результаты batch_api_call в один список
-    Может использоваться ка самостоятельный метод
+    Собрать результаты batch_api_call в один список.
+    Может использоваться ка самостоятельный метод.
 
     :param batch_res: результаты batch_api_call
     :param result: список, в который будем добавлять результаты
@@ -93,11 +95,11 @@ def unwrap_batch_res(batch_res, result=None, wrapper=None):
     return result
 
 
-WEIRD_PAGINATION_METHODS = set([
+WEIRD_PAGINATION_METHODS = {
     'task.item.list',
     'task.items.getlist',
     'task.elapseditem.getlist',
-])
+}
 
 
 def next_params(method, params, next_step, page_size=50):
@@ -151,7 +153,7 @@ def next_params(method, params, next_step, page_size=50):
         if _count_required_params() > 3:
             raise ValueError(
                 'Передано слишком много параметров, пожалуйста, ознакомьтесь '
-                'с докумментацией https://dev.1c-bitrix.ru/rest_help/tasks/task/item/list.php '
+                'с документацией https://dev.1c-bitrix.ru/rest_help/tasks/task/item/list.php '
                 'и передавайте не более 3 параметров (PARAMS проставляется'
                 'автоматически данным методом)'
             )
@@ -162,7 +164,7 @@ def next_params(method, params, next_step, page_size=50):
             _, select = params.popitem()
 
         params['PARAMS'] = {'NAV_PARAMS': nav_params}
-        if select is not None:  # ставим SELECT после постранички
+        if select is not None:  # ставим SELECT после NAV_PARAMS
             params['SELECT'] = select
         return params
 
@@ -250,7 +252,7 @@ def call_list_method(
         log_prefix='',
         batch_size=50,  # type: int
         v=0,
-):  # type: (...) -> Tuple[Union[list, dict], Optional[str]]
+):  # type: (...) -> Union[list, dict]
     """
     Выполнить списочный метод битрикс 24
 
@@ -258,11 +260,11 @@ def call_list_method(
     :param method: метод
     :param fields: параметры
 
-    :param force_total: максимальное количество объектов, которые нужно получить. Если None, получить все. Должно
-                        быть кратно 50
+    :param limit: максимальное количество объектов, которые нужно получить.
+                  Если None, получить все. Должно быть кратно 50
 
-    :param DEPRECATED force_total: максимальное количество объектов, которые нужно получить. Если None, получить все. Должно
-                        быть кратно 50
+    :param DEPRECATED force_total: максимальное количество объектов, которые нужно получить.
+                                   Если None, получить все. Должно быть кратно 50
 
     :param allowable_error: максимальное число, на которое может отличаться длина итогового массива от количества
                             элементов в битриксе на момент начала выполнения запроса
@@ -295,8 +297,8 @@ def call_list_method(
     fields = check_params(method, fields)
 
     # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
-    # ЕСЛИ ПЕРЕДАНЫ ТОЛКО СПИСОК ID, то тормозит если их мног,
-    # в каждый батч метод суем огромынй список, например 5000 айдишников
+    # ЕСЛИ ПЕРЕДАНЫ ТОЛКО СПИСОК ID, то тормозит если их много,
+    # в каждый батч метод суем огромный список, например 5000 айдишников
     # Альтернативное исполнение для таких ситуаций
     if (
         isinstance(fields, dict) and
