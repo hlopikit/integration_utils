@@ -37,7 +37,7 @@ def get_bitrix_api_error(json_response, status_code, message=''):
 class BitrixApiError(BitrixApiException):
     TOKEN_DEACTIVATED = 'token_deactivated'
 
-    def __init__(self, has_resp, json_response, status_code, message, refresh_error=None):
+    def __init__(self, has_resp, json_response, status_code, message, refresh_error=None, token=None):
         # :has_resp - has response похоже на атавизм, не нашел применения достойного в коде УДАЛИТЬ?
         # :json_response - используется как минимум для анализа, что же там в ошибке было.
         # :status_code - http статус код ответа
@@ -55,12 +55,14 @@ class BitrixApiError(BitrixApiException):
             status_code=status_code,
             message=message,
             refresh_error=refresh_error,
+            token=token
         ))
         self.has_resp = has_resp
         self.json_response = json_response
         self.status_code = status_code
         self.message = message
         self.refresh_error = refresh_error
+        self.token = token
 
     @property
     def error(self):  # 'error' из json-ответа
