@@ -110,6 +110,81 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         if token == cls.get_auth_token(pk):
             return pk
 
+    @classmethod
+    def get_random_token(cls, is_admin=True, pk_desc=False):
+        """
+        Получить один любой активный токен
+
+        :param is_admin: токен должен иметь права администратора
+        :param pk_desc: брать сначала более новые токены
+
+        :raise BitrixUserToken.DoesNotExist: если запрошенного токена не существует
+        :return: BitrixUserToken
+        """
+
+        tokens = cls.objects.filter(
+            user__user_is_active=True,
+            is_active=True,
+        ).exclude(
+            user__extranet=True,  # Не хотим внешних пользователей, так как ограничены в правах
+        )
+
+        if is_admin:
+            tokens = tokens.filter(user__is_admin=True)
+        else:
+            tokens = tokens.order_by('-user__is_admin')
+
+        tokens = tokens.order_by(f'{"-" if pk_desc else ""}pk')
+
+        result_token = None
+        likely_inactive_user_dict = {}
+
+        for token in tokens:
+            user = token.user
+
+            # Обновляем статус админа и активности пользователя
+            # Не сохраняем статус активности, пока не проверим через user.get
+            user.update_is_admin(token, save_is_admin=True, save_is_active=False)
+            user_is_active = user.user_is_active
+            user_is_admin = user.is_admin
+
+            # Берём следующий токен, если:
+            # - пользователь не активный
+            # - пользователь не админ, когда нужен админ
+            if not user_is_active:
+                likely_inactive_user_dict[str(user.bitrix_id)] = user
+            elif not is_admin or user_is_admin:
+                result_token = token
+                break
+
+        if result_token is None:
+            raise BitrixUserToken.DoesNotExist
+        else:
+            # Смотрим, были ли найдены потенциально неактивные пользователи
+            if likely_inactive_user_dict:
+                likely_inactive_user_bitrix_ids = list(likely_inactive_user_dict.keys())
+
+                bitrix_users = result_token.call_api_method('user.get', {
+                    'FILTER': {
+                        'ID': likely_inactive_user_bitrix_ids,
+                    },
+                })['result']
+
+                bulk_update_users = []
+                for bitrix_user in bitrix_users:
+                    bitrix_user_id = str(bitrix_user['ID'])
+                    bitrix_user_active = bitrix_user.get('ACTIVE', None)
+                    if bitrix_user_active is not None and not bitrix_user_active:
+                        bulk_update_user = likely_inactive_user_dict.get(bitrix_user_id)
+                        if bulk_update_user:
+                            bulk_update_users.append(bulk_update_user)
+
+                if bulk_update_users:
+                    from integration_utils.bitrix24.models import BitrixUser
+                    BitrixUser.objects.bulk_update(bulk_update_users, ['user_is_active'])
+
+        return result_token
+
     def refresh(self, timeout=60):
         """
         Если успешно обновился токен, то возвращаем True
@@ -228,7 +303,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     @classmethod
     def get_admin_token(cls):
-        return cls.objects.filter(is_active=True, user__is_admin=True).first()
+        return cls.get_random_token(is_admin=True)
 
     def __unicode__(self):
         try:

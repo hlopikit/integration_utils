@@ -1,6 +1,9 @@
 from django.db import models
 from django.utils import timezone
 
+from integration_utils.bitrix24.exceptions import BitrixApiError
+from settings import ilogger
+
 
 class BitrixUser(models.Model):
 
@@ -66,3 +69,44 @@ class BitrixUser(models.Model):
         active_users = [item['ID'] for item in get_super_token().call_list_fast('user.get', {"filter":{"ACTIVE":True}})]
         return (cls.objects.filter(bitrix_id__in=active_users).update(user_is_active=True),
                 cls.objects.exclude(bitrix_id__in=active_users).update(user_is_active=False))
+
+    def update_is_admin(self, bx_user_token, save=True, save_is_admin=True, save_is_active=False):
+        """
+        Узнать от Битрикс, активный ли пользователь и админ ли он,
+        установить поле is_admin и user_is_active у пользователя.
+
+        :param bx_user_token: токен пользователя
+        :param save: сохранить в БД
+        :param save_is_admin: сохранить в БД статус админа
+        :param save_is_active: сохранить в БД статус активности
+        """
+
+        is_active = True
+        is_admin = False
+
+        # Если не внешний пользователь
+        if self.bitrix_id > 0:
+            is_active = self.user_is_active
+            is_admin = self.is_admin
+            try:
+                is_admin = bx_user_token.call_api_method('user.admin')['result']
+            except BitrixApiError as e:
+                if e.error_description == 'Unable to authorize user':
+                    # Возможно, что пользователь уволен на портале
+                    is_active = False
+                    ilogger.debug('unable_to_authorize_user', 'BitrixUser {}: {}'.format(self.id, repr(e)))
+                else:
+                    raise e
+            if not isinstance(is_admin, bool):
+                raise ValueError('user.admin did not return bool: {}'.format(repr(is_admin)))
+
+        self.user_is_active = is_active
+        self.is_admin = is_admin
+
+        if save:
+            update_fields = []
+            if save_is_admin:
+                update_fields.extend(['is_admin'])
+            if save_is_active:
+                update_fields.extend(['user_is_active'])
+            self.save(update_fields=update_fields)
