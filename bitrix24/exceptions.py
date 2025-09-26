@@ -12,6 +12,24 @@ NO_AUTH_FOUND = 'NO_AUTH_FOUND'
 APPLICATION_NOT_FOUND = 'APPLICATION_NOT_FOUND'
 QUERY_LIMIT_EXCEEDED = 'QUERY_LIMIT_EXCEEDED'
 
+"""
+Сгенерировано ИИшкой
+Exception
+└── BitrixApiException
+    ├── BitrixApiError
+    │   ├── ExpiredToken
+    │   ├── BitrixTokenRefreshError
+    │   ├── BitrixApiServerError
+    │   ├── SnapiError
+    │   └── BitrixApiErrorNotFound
+    ├── ConnectionToBitrixError
+    ├── BatchFailed
+    │   └── BatchApiCallError
+    │   └── JsonDecodeBatchFailed
+    └── BaseTimeout
+        ├── BitrixTimeout
+        └── BitrixOauthRefreshTimeout
+"""
 
 class BitrixApiException(Exception):
     """
@@ -244,12 +262,12 @@ class ConnectionToBitrixError(BitrixApiException):
     pass
 
 
-class BatchApiCallError(BitrixApiException):
+
+class BatchFailed(BitrixApiException):
     def __init__(self, reason=None):
         self.reason = reason
 
-
-class BatchFailed(BitrixApiException):
+class BatchApiCallError(BatchFailed):
     def __init__(self, reason=None):
         self.reason = reason
 
