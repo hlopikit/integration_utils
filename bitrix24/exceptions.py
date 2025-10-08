@@ -93,6 +93,11 @@ class BitrixApiError(BitrixApiException):
             return self.json_response.get('error_description')
 
     @property
+    def is_not_logic_error(self):
+        from integration_utils.bitrix24.exceptions_filter_v1 import is_not_logic_error
+        return is_not_logic_error(self)
+
+    @property
     def is_token_deactivated(self):
         return self.message == 'token_deactivated'
 
