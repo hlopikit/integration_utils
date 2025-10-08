@@ -1,6 +1,9 @@
 def set_value(key, value, comment=''):
 
     from settings import ilogger
+    ilogger.error('deprecated', 'deprecated use KeyValue.set_value')
+
+    from settings import ilogger
     from integration_utils.its_utils.app_settings.models import KeyValue
 
     result = KeyValue.objects.filter(key=key).update(value=value)
@@ -10,6 +13,10 @@ def set_value(key, value, comment=''):
     return
 
 def get_value(key, create=False, default='', comment=''):
+
+    from settings import ilogger
+    ilogger.error('deprecated', 'deprecated use KeyValue.get_value')
+
     from integration_utils.its_utils.app_settings.models import KeyValue
 
     try:
