@@ -7,5 +7,5 @@ from .models import KeyValue
 
 @admin.register(KeyValue)
 class KeyValueAdmin(admin.ModelAdmin):
-    list_display = 'key', 'value', 'comment'
-    search_fields = ('key', 'comment')
+    list_display = ['key', 'json_value', 'comment']
+    search_fields = ['key', 'comment']
