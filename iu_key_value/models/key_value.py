@@ -28,6 +28,17 @@ class KeyValue(models.Model):
         try:
             return KeyValue.objects.get(key=key).json_value
         except KeyValue.DoesNotExist:
+            try:
+                # Кусок для переезда со старой функции
+                from integration_utils.its_utils.app_settings.models import KeyValue as KeyValueOld
+                kv = KeyValueOld.objects.get(key=key)
+                KeyValue.objects.create(key=key, json_value=kv.value, comment=kv.comment)
+                # Вызовем рекурсивно еще раз
+                return KeyValue.get_value(key, create=create, default=default, comment=comment)
+            except Exception:
+                # На любую ошибку забиваем, т.к это только попытка взять из старого для переезда
+                pass
+
             if create:
                 KeyValue.set_value(key=key, value=default, comment=comment)
                 return default
