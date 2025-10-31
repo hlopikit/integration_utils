@@ -1,6 +1,6 @@
 from arrow import Arrow, ArrowFactory
 
-from integration_utils.its_utils.app_datetime.calendar_work_days import WORK_AND_REST_DAYS
+from integration_utils.iu_datetime.calendar_work_days import WORK_AND_REST_DAYS
 from settings import ilogger
 
 # https://pypi.org/project/arrow/
