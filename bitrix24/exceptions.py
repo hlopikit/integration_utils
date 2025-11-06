@@ -93,6 +93,11 @@ class BitrixApiError(BitrixApiException):
             return self.json_response.get('error_description')
 
     @property
+    def is_not_logic_error(self):
+        from integration_utils.bitrix24.exceptions_filter_v1 import is_not_logic_error
+        return is_not_logic_error(self)
+
+    @property
     def is_token_deactivated(self):
         return self.message == 'token_deactivated'
 
@@ -126,6 +131,10 @@ class BitrixApiError(BitrixApiException):
         #  'json_response': {'error_description': 'Internal server error',
         #                    'error': 'INTERNAL_SERVER_ERROR'}, 'has_resp': False}
         return self.error == "INTERNAL_SERVER_ERROR"
+
+    @property
+    def is_sphinx_connect_error(self):
+        return "Sphinx connect error" in self.error_description and self.status_code == 400
 
     @property
     def is_connection_to_bitrix_error(self):
