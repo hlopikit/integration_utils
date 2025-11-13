@@ -1,6 +1,6 @@
 from arrow import Arrow, ArrowFactory
 
-from integration_utils.its_utils.app_datetime.calendar_work_days import WORK_AND_REST_DAYS
+from integration_utils.iu_datetime.calendar_work_days import WORK_AND_REST_DAYS
 from settings import ilogger
 
 # https://pypi.org/project/arrow/
@@ -25,7 +25,7 @@ class DtIts(Arrow):
     # after_one_hour = now.shift(hours=1)
 
     def bitrix_format(self):
-        '2025-05-01T20:27:51.614763+03:00'
+        """2025-05-01T20:27:51.614763+03:00"""
         return self.isoformat()
 
     def replace_to_moscow(self):
@@ -38,11 +38,11 @@ class DtIts(Arrow):
         Вариант 2: у нас уже дата с MSK+3, ТО НАДО replace_utc сделать
 
         Итог вот такие конструкции вернут одинаковое
-        from integration_utils.iu_datetime.dt_its import DtIts
-        DtIts.now().to_b24_database()
+        >>> from integration_utils.iu_datetime.dt_its import DtIts
+        >>> DtIts.now().to_b24_database()
 
-        from django.utils import timezone
-        DtIts.get(timezone.now()).to_b24_database()
+        >>> from django.utils import timezone
+        >>> DtIts.get(timezone.now()).to_b24_database()
 
         Returns:
 
@@ -54,13 +54,13 @@ class DtIts(Arrow):
             # МСК время, убираем знание таймзоны
             return self.replace_to_utc()
         else:
-            ilogger.error("dtits_timezene", "Добавьте поддержку других таймзон")
+            ilogger.error("dtits_timezone", 'Добавьте поддержку других таймзон')
 
 
 
     def replace_to_utc(self):
         """
-        Можно использовать когда хотим стукнутсья в БД Битрикс24,
+        Можно использовать когда хотим обратиться в БД Битрикс24,
         dt = DtIts.now().shift(minutes=-5) # Получили время текущее, но в БД Битрикс хранится без часового пояса
         comments = BForumMessage.objects.qs_tasks_comments().qs_not_service().filter(post_date__gte=dt.replace_to_utc().datetime).order_by('id')
         Returns:
