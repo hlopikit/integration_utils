@@ -1,4 +1,5 @@
 from integration_utils.iu_get_params.functions import *
+raise DeprecationWarning
 # from settings import ilogger
 # ilogger.warning(
 #     'deprecated',
