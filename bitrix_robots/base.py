@@ -452,7 +452,7 @@ class BaseBitrixRobot(models.Model):
             if not stripped:
                 return None
             try:
-                return datetime.strptime(stripped, '%Y-%m-%d').date()
+                return date.fromisoformat(stripped)
             except ValueError:
                 raise ValidationError(f'Дата "{stripped}" должна быть в формате ГГГГ-ММ-ДД')
 
@@ -461,7 +461,7 @@ class BaseBitrixRobot(models.Model):
     @staticmethod
     def safe_datetime(value: Optional[str], required: bool = False) -> Optional[datetime]:
         """
-        Проверяет и возвращает дату и время(datetime) в формате ГГГГ-ММ-ДД ЧЧ:ММ:СС (или без пробела).
+        Проверяет и возвращает дату и время(datetime) в ISO-формате.
         Если значение пустое или None, возвращает None.
         При несоответствии формату выбрасывает ValidationError.
         """
@@ -475,12 +475,10 @@ class BaseBitrixRobot(models.Model):
             stripped = value.strip()
             if not stripped:
                 return None
-            for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S'):
-                try:
-                    return datetime.strptime(stripped, fmt)
-                except ValueError:
-                    continue
-            raise ValidationError(f'Дата и время "{stripped}" должны быть в формате ГГГГ-ММ-ДД ЧЧ:ММ:СС')
+            try:
+                return datetime.fromisoformat(stripped)
+            except ValueError:
+                raise ValidationError(f'Дата и время "{stripped}" должны быть в ISO-формате')
 
         raise ValidationError('Дата и время должны быть строкой')
 
