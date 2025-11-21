@@ -133,6 +133,10 @@ class BitrixApiError(BitrixApiException):
         return self.error == "INTERNAL_SERVER_ERROR"
 
     @property
+    def is_sphinx_connect_error(self):
+        return "Sphinx connect error" in self.error_description and self.status_code == 400
+
+    @property
     def is_connection_to_bitrix_error(self):
         # {'refresh_error': None, 'message': 'ConnectionToBitrixError', 'has_resp': False,
         #  'json_response': {'error': 'ConnectionToBitrixError'}, 'status_code': 600}
