@@ -38,7 +38,7 @@ class BaseBitrixRobot(models.Model):
     RETURN_PROPERTIES = {}
     DEFAULT_RETURN_PROPERTIES = dict(
         ok=dict(
-            Name=dict(ru='ok'),
+            Name=dict(ru='Ок'),
             Type='bool',
             Required='N'
         ),
