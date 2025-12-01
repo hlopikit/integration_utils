@@ -429,9 +429,9 @@ class BaseBitrixRobot(models.Model):
             try:
                 return float(stripped)
             except ValueError:
-                raise ValidationError(f"Значение '{stripped}' не может быть преобразовано в число с плавающей точкой")
+                raise ValidationError(f'Значение "{stripped}" не может быть преобразовано в число с плавающей точкой')
 
-        raise ValidationError("Значение должно быть числом или строкой")
+        raise ValidationError('Значение должно быть числом или строкой')
 
     @staticmethod
     def safe_date(value: Optional[str], required: bool = False) -> Optional[date]:
