@@ -140,9 +140,6 @@ class BaseBitrixRobot(models.Model):
         if cls.RETURN_PROPERTIES:
             return_props.update(cls.RETURN_PROPERTIES)
 
-        # Сохраняем объединенные свойства обратно в cls.RETURN_PROPERTIES
-        cls.RETURN_PROPERTIES = return_props
-
         if return_props:
             params['RETURN_PROPERTIES'] = return_props
         if cls.USE_SUBSCRIPTION is not None:
