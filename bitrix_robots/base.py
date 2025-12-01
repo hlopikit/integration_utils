@@ -81,7 +81,7 @@ class BaseBitrixRobot(models.Model):
         list_display = ['id', 'token', 'dt_add', 'started', 'finished', 'is_success']
         list_display_links = list_display
         list_filter = ['is_success', 'dt_add', 'finished']
-        raw_id_fields = ['token', ]
+        raw_id_fields = ['token']
 
     def __str__(self):
         return '[{}] {} ({})'.format(self.id, self.token, self.dt_add)
