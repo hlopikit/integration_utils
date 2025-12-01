@@ -59,7 +59,7 @@ class BaseBitrixRobot(models.Model):
     # Если False, обрабатывать в integration_utils.bitrix_robots.cron.process_robot_requests
     PROCESS_ON_REQUEST = True
 
-    # True активирует валидацию пропсов, которые кинул битрикс с помощью validate_props
+    # True активирует валидацию и приведение пропсов к нужным типам
     VALIDATE_PROPS = False
 
     token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
