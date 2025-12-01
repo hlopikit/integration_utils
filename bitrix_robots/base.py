@@ -69,7 +69,7 @@ class BaseBitrixRobot(models.Model):
     dt_add = models.DateTimeField(default=timezone.now)
     started = models.DateTimeField(null=True, blank=True, db_index=True)
     finished = models.DateTimeField(null=True, blank=True)
-    is_success = models.BooleanField(default=False)
+    is_success = models.BooleanField(default=False, db_index=True)
     result = JSONField(null=True, blank=True)
     is_hook_request = models.BooleanField(default=False)
     send_result_response = models.TextField(null=True, blank=True)
