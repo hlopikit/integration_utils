@@ -9,6 +9,7 @@ import urllib
 
 from django.conf import settings
 from django.utils.encoding import force_str
+from requests import JSONDecodeError
 
 from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError
 from settings import ilogger
@@ -248,6 +249,8 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     :returns: Объект ответа библиотеки requests
     """
 
+    log_tag = 'integration_utils.bitrix24.functions.api_call'
+
     if not params:
         params = {}
 
@@ -268,14 +271,17 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     if api_method != 'batch':
         try:
             data = response.json()
+        except JSONDecodeError:
+            ilogger.warning('response_json_decode_error', f"response.text: {response.text}", tag=log_tag)
+        except Exception as e:
+            ilogger.error('response_json_exception', repr(e), tag=log_tag)
+        else:
             data_time = data.get('time', None)
-            if data_time is not None:
+            if data_time and isinstance(data_time, dict):
                 operating = data_time.get('operating', 0)
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
-                    log_method('method_operating', '{}, {}: {}'.format(domain, api_method, operating))
-        except Exception as e:
-            ilogger.warning('method_operating_exception', repr(e))
+                    log_method('method_operating', f"{domain}, {api_method}: {operating}", tag=log_tag)
 
     t = time.time()
 

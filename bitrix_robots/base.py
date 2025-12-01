@@ -12,7 +12,7 @@ from django.http import HttpResponse, HttpRequest, QueryDict, JsonResponse
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
-from integration_utils.its_utils.app_get_params import get_params_from_sources
+
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
 from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
@@ -215,6 +215,7 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def as_view(cls):
+        from integration_utils.iu_get_params.get_params_from_sources import get_params_from_sources
         @get_params_from_sources
         @csrf_exempt
         @wraps(cls.start_process)
@@ -271,6 +272,7 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def as_hook(cls):
+        from integration_utils.iu_get_params.get_params_from_sources import get_params_from_sources
         @csrf_exempt
         @get_params_from_sources
         @cls.get_hook_auth_decorator()
