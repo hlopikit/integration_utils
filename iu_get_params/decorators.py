@@ -64,16 +64,17 @@ def expect_param(
 
         # В случае если любой из обязательных параметров отсутствует
         # или при ошибках приведения типа (допустим ?directory_id=not-an-int)
-        # вернется HttpResponseBadRequest с описанием ошибки
+        # вернется err (по умолчанию HttpResponseBadRequest) с описанием ошибки
 
     :param param: str - параметр
     :param from_: str - откуда брать: 'its_params', 'GET', 'POST'
     :param coerce: coerce_fn or (coerce_fn, str) - Приведение к нужному типу,
-        пример начений:
+        пример значений:
         - app_get_params.functions.int_param
         - str
         - (MyClass, MyClass.__name__)
-        При ValueError/TypeError возвращается HttpResponseBadRequest
+        При ValueError/TypeError возвращается err
+        При передаче кортежа/списка значение str - это название нужного типа для текста ошибки
     :param default: значение по умолчанию, используется только если
         параметр при запросе вообще не передан.
     :param as_: str - параметр, который будет передан в view,
@@ -118,7 +119,7 @@ def expect_param_api(
         default=missing,  # type: Optional[ParamType]
         as_=None,  # type: Optional[str]
 ):  # type: (...) -> Callable[[ApiView], ApiView]
-    """Аналог @expect_param но отдает JsonResponse вместо HttpResponse
+    """Аналог @expect_param, но при ошибке отдает JsonResponse вместо HttpResponse
     """
     return expect_param(param, from_=from_, coerce=coerce, default=default,
                         as_=as_, err=json_error_response)
