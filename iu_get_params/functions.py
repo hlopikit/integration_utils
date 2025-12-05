@@ -71,6 +71,8 @@ def int_list(sep=','):
     def to_int_list(value):
         if not value:
             return []
+        if isinstance(value, int):
+            return [value]
         if isinstance(value, str):
             value = value.split(sep)
         try:
