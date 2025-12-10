@@ -79,7 +79,7 @@ def int_list(sep=','):
             return [int_param(s) for s in value]
         except TypeError:
             raise TypeError('expected list of integers or {sep!r}-separated '
-                            'string with integers, got {value!r} instead'
+                            'string with integers or integer, got {value!r} instead'
                             .format(**locals()))
     return to_int_list
 
