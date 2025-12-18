@@ -23,7 +23,7 @@ class BitrixUser(models.Model):
     user_is_active = models.BooleanField(default=True)  # ACTIVE
 
     def __str__(self):
-        return "#{} {} {}".format(self.pk, self.last_name, self.first_name)
+        return "#{} {} {} bx_id={}".format(self.pk, self.last_name, self.first_name, self.bitrix_id)
 
     def update_from_bitrix_response(self, user, save=True):
         """Принимает словарь - данные пользователя от user.get/user.current
