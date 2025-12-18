@@ -98,6 +98,11 @@ class BitrixApiError(BitrixApiException):
         return is_not_logic_error(self)
 
     @property
+    def is_error_core(self):
+        # например {'error': 'ERROR_CORE', 'error_description': 'Command has unprocessed exception: "OOM command not allowed when used memory > \'maxmemory\'.". Code: "0"'}, 'status_code': 400
+        return self.error == "ERROR_CORE"
+
+    @property
     def is_token_deactivated(self):
         return self.message == 'token_deactivated'
 

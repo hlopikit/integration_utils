@@ -42,6 +42,7 @@ def is_not_logic_error(exception: BitrixApiException):
             exception.is_status_gte_500,
             exception.is_application_not_found,
             exception.is_sphinx_connect_error,
+            exception.is_error_core,
         ]
         if any(error_conditions):
             return True
