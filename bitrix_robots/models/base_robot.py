@@ -28,7 +28,7 @@ class BaseRobot(BaseBitrixRobot):
     def from_hook_request(cls, request) -> 'BaseBitrixRobot':
         return cls.objects.create(
             token=request.bitrix_user_token,
-            params=request.POST.dict(),
+            params=request.its_params,
             is_hook_request=True,
         )
 
