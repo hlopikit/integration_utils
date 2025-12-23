@@ -150,6 +150,10 @@ class BitrixApiError(BitrixApiException):
         return self.error == "ConnectionToBitrixError"
 
     @property
+    def is_connection_error(self):
+        return self.error == 'CONNECTION_ERROR'
+
+    @property
     def is_error_connecting_to_authorization_server(self):
         # {'refresh_error': None, 'message': 'api_error',
         #  'json_response': {'error_description': 'Error connecting to authorization server',
@@ -229,6 +233,10 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_unauthorized_any(self):
         return self.status_code == 401
+
+    @property
+    def is_operation_time_limit(self):
+        return self.error == 'OPERATION_TIME_LIMIT'
 
     def dict(self):
         if isinstance(self.json_response, dict):
