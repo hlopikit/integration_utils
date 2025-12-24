@@ -22,10 +22,12 @@ Exception
     │   ├── BitrixApiServerError
     │   ├── SnapiError
     │   └── BitrixApiErrorNotFound
-    ├── ConnectionToBitrixError
     ├── BatchFailed
     │   └── BatchApiCallError
     │   └── JsonDecodeBatchFailed
+    ├── BaseConnectionError
+    │   ├── ConnectionToBitrixError
+    │   └── BitrixOauthConnectionError
     └── BaseTimeout
         ├── BitrixTimeout
         └── BitrixOauthRefreshTimeout
@@ -96,6 +98,11 @@ class BitrixApiError(BitrixApiException):
     def is_not_logic_error(self):
         from integration_utils.bitrix24.exceptions_filter_v1 import is_not_logic_error
         return is_not_logic_error(self)
+
+    @property
+    def is_error_core(self):
+        # например {'error': 'ERROR_CORE', 'error_description': 'Command has unprocessed exception: "OOM command not allowed when used memory > \'maxmemory\'.". Code: "0"'}, 'status_code': 400
+        return self.error == "ERROR_CORE"
 
     @property
     def is_token_deactivated(self):
@@ -267,7 +274,20 @@ class ExpiredToken(BitrixApiError):
         super().__init__(has_resp=False, json_response={"error": "expired_token"}, status_code=status_code, message='expired_token', refresh_error=None)
 
 
-class ConnectionToBitrixError(BitrixApiException):
+class BaseConnectionError(BitrixApiException):
+    def __init__(self, requests_connection_error):
+        self.requests_connection_error = requests_connection_error
+
+    def __repr__(self):
+        rv = '<BitrixConnectionError {!s}>'.format(self)
+        return rv
+
+
+class ConnectionToBitrixError(BaseConnectionError):
+    pass
+
+
+class BitrixOauthConnectionError(BaseConnectionError):
     pass
 
 

@@ -267,7 +267,9 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def as_hook(cls):
+        from integration_utils.iu_get_params.get_params_from_sources import get_params_from_sources
         @csrf_exempt
+        @get_params_from_sources
         @cls.get_hook_auth_decorator()
         @wraps(cls.process)
         def view(request):
