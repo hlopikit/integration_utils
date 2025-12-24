@@ -98,6 +98,7 @@ from .passport.passportdata import PassportData
 from .inline.inlinekeyboardbutton import InlineKeyboardButton
 from .inline.inlinekeyboardmarkup import InlineKeyboardMarkup
 from .messageautodeletetimerchanged import MessageAutoDeleteTimerChanged
+from .directmessagestopic import DirectMessagesTopic
 from .message import Message
 from .callbackquery import CallbackQuery
 from .choseninlineresult import ChosenInlineResult
@@ -353,4 +354,5 @@ __all__ = (  # Keep this alphabetically ordered
     'WebAppData',
     'WebAppInfo',
     'WebhookInfo',
+    'DirectMessagesTopic',
 )
