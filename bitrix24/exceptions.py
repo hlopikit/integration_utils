@@ -275,7 +275,7 @@ class ExpiredToken(BitrixApiError):
 
 
 class BaseConnectionError(BitrixApiException):
-    def __init__(self, requests_connection_error):
+    def __init__(self, requests_connection_error = None):
         self.requests_connection_error = requests_connection_error
 
     def __repr__(self):
