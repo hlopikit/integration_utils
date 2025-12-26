@@ -58,8 +58,8 @@ def call_with_retries(url, converted_params,
             allow_redirects=False,
             verify=verify
         )
-    except (requests.ConnectionError, requests.exceptions.SSLError):
-        raise ConnectionToBitrixError()
+    except (requests.ConnectionError, requests.exceptions.SSLError) as e:
+        raise ConnectionToBitrixError(requests_connection_error=e)
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout)
     else:
@@ -286,14 +286,10 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     t = time.time()
 
     ilogger.info('bitrix_request', '{}\n{} "{}"'.format(t, url, converted_params))
+
     try:
-        ilogger.info('bitrix_response', '{}\n{}'.format(t, response.text.encode().decode('unicode_escape')))
-
-    except (UnicodeDecodeError, UnicodeEncodeError):
-        try:
-            ilogger.info('bitrix_response', '{}\n{}'.format(t, response.text))
-
-        except Exception as exc:
-            ilogger.info('bitrix_response', '{}\n decode_error: {}'.format(t, exc))
+        ilogger.info('bitrix_response', f"{t}\n{response.text}")
+    except Exception as e:
+        ilogger.error('bitrix_response', f"{t}\nException: {repr(e)}")
 
     return response
