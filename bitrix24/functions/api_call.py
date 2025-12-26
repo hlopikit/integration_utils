@@ -58,8 +58,8 @@ def call_with_retries(url, converted_params,
             allow_redirects=False,
             verify=verify
         )
-    except (requests.ConnectionError, requests.exceptions.SSLError):
-        raise ConnectionToBitrixError()
+    except (requests.ConnectionError, requests.exceptions.SSLError) as e:
+        raise ConnectionToBitrixError(requests_connection_error=e)
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout)
     else:
