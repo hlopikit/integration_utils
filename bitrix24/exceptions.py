@@ -22,10 +22,12 @@ Exception
     │   ├── BitrixApiServerError
     │   ├── SnapiError
     │   └── BitrixApiErrorNotFound
-    ├── ConnectionToBitrixError
     ├── BatchFailed
     │   └── BatchApiCallError
     │   └── JsonDecodeBatchFailed
+    ├── BaseConnectionError
+    │   ├── ConnectionToBitrixError
+    │   └── BitrixOauthConnectionError
     └── BaseTimeout
         ├── BitrixTimeout
         └── BitrixOauthRefreshTimeout
@@ -272,7 +274,20 @@ class ExpiredToken(BitrixApiError):
         super().__init__(has_resp=False, json_response={"error": "expired_token"}, status_code=status_code, message='expired_token', refresh_error=None)
 
 
-class ConnectionToBitrixError(BitrixApiException):
+class BaseConnectionError(BitrixApiException):
+    def __init__(self, requests_connection_error = None):
+        self.requests_connection_error = requests_connection_error
+
+    def __repr__(self):
+        rv = '<BitrixConnectionError {!s}>'.format(self)
+        return rv
+
+
+class ConnectionToBitrixError(BaseConnectionError):
+    pass
+
+
+class BitrixOauthConnectionError(BaseConnectionError):
     pass
 
 
