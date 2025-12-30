@@ -152,6 +152,10 @@ class BitrixApiError(BitrixApiException):
         return self.error == "ConnectionToBitrixError"
 
     @property
+    def is_connection_error(self):
+        return self.error == 'CONNECTION_ERROR'
+
+    @property
     def is_error_connecting_to_authorization_server(self):
         # {'refresh_error': None, 'message': 'api_error',
         #  'json_response': {'error_description': 'Error connecting to authorization server',
@@ -232,6 +236,10 @@ class BitrixApiError(BitrixApiException):
     def is_unauthorized_any(self):
         return self.status_code == 401
 
+    @property
+    def is_operation_time_limit(self):
+        return self.error == 'OPERATION_TIME_LIMIT'
+
     def dict(self):
         if isinstance(self.json_response, dict):
             error = self.json_response
@@ -277,7 +285,7 @@ class ExpiredToken(BitrixApiError):
 
 
 class BaseConnectionError(BitrixApiException):
-    def __init__(self, requests_connection_error):
+    def __init__(self, requests_connection_error = None):
         self.requests_connection_error = requests_connection_error
 
     def __repr__(self):
