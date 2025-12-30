@@ -37,7 +37,9 @@ class BitrixApiException(Exception):
     """
     Ошибки от АПИ
     """
-    pass
+    @property
+    def is_not_logic_error(self):
+        return False
 
 
 # Статус коды добавленные
@@ -282,6 +284,10 @@ class BaseConnectionError(BitrixApiException):
         rv = '<BitrixConnectionError {!s}>'.format(self)
         return rv
 
+    @property
+    def is_not_logic_error(self):
+        return True
+
 
 class ConnectionToBitrixError(BaseConnectionError):
     pass
@@ -325,6 +331,10 @@ class BaseTimeout(BitrixApiException):
     def __repr__(self):
         rv = '<BitrixTimeout {!s}>'.format(self)
         return rv
+
+    @property
+    def is_not_logic_error(self):
+        return True
 
 
 class BitrixTimeout(BaseTimeout):
