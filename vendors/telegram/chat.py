@@ -255,6 +255,7 @@ class Chat(TelegramObject):
         'active_usernames',
         'emoji_status_custom_emoji_id',
         '_id_attrs',
+        'is_direct_messages',
     )
 
     SENDER: ClassVar[str] = constants.CHAT_SENDER
@@ -300,6 +301,7 @@ class Chat(TelegramObject):
         is_forum: bool = None,
         active_usernames: List[str] = None,
         emoji_status_custom_emoji_id: str = None,
+        is_direct_messages: Optional[bool] = None,
         **_kwargs: Any,
     ):
         # Required
@@ -334,6 +336,7 @@ class Chat(TelegramObject):
         self.is_forum = is_forum
         self.active_usernames = active_usernames
         self.emoji_status_custom_emoji_id = emoji_status_custom_emoji_id
+        self.is_direct_messages: Optional[bool] = is_direct_messages
 
         self.bot = bot
         self._id_attrs = (self.id,)
