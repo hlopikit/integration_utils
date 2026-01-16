@@ -28,6 +28,10 @@ class DtIts(Arrow):
         """2025-05-01T20:27:51.614763+03:00"""
         return self.isoformat()
 
+    def ones_query_format(self):
+        """Что делает: форматирует дату в вид ДАТАВРЕМЯ для 1С. Где используется: подготовка текстов запросов в ones_query."""
+        return f"ДАТАВРЕМЯ({self.year}, {self.month}, {self.day}, {self.hour}, {self.minute}, {self.second})"
+
     def replace_to_moscow(self):
         return self.replace(tzinfo='Europe/Moscow')
 
