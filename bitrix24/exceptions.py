@@ -143,7 +143,7 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_sphinx_connect_error(self):
-        return "Sphinx connect error" in self.error_description and self.status_code == 400
+        return isinstance(self.error_description, str) and "Sphinx connect error" in self.error_description and self.status_code == 400
 
     @property
     def is_connection_to_bitrix_error(self):
