@@ -1,15 +1,13 @@
 # -*- coding: UTF-8 -*-
 from typing import Optional, Iterable, Any, Union
 
+import requests
 from django.conf import settings
 
-from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
+from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError, ExpiredToken, get_bitrix_api_error
+from integration_utils.bitrix24.functions.api_call import api_call
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, get_bitrix_api_error
 
-import requests
-
-from integration_utils.bitrix24.exceptions import BitrixTimeout, BitrixApiServerError
 
 class BaseBitrixToken:
     DEFAULT_TIMEOUT = getattr(settings, 'BITRIX_RESTAPI_DEFAULT_TIMEOUT', 10)
