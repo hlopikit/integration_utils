@@ -79,15 +79,15 @@ class BaseBitrixToken:
         else:
             payload["auth"] = auth
 
-        url = f"https://{self.domain}/rest/api/{hook_key}{api_method}"
+        url = f'https://{self.domain}/rest/api/{hook_key}{api_method}'
 
         try:
             response = requests.post(
                 url,
                 json=payload,
                 headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
                 },
                 auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
                 timeout=timeout,
