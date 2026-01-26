@@ -11,7 +11,7 @@ from django.conf import settings
 from django.utils.encoding import force_str
 from requests import JSONDecodeError
 
-from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError
+from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError
 from settings import ilogger
 
 
@@ -293,3 +293,80 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
         ilogger.error('bitrix_response', f"{t}\nException: {repr(e)}")
 
     return response
+
+def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_auth: str = None, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
+    """
+    POST-запрос к REST API 3.0 Битрикс24.
+    В случае ошибки - кидаем исключение.
+
+    :raises ConnectionToBitrixError (requests.ConnectionError/SSLError)
+    :raises BitrixTimeout (requests.Timeout)
+    :raises BitrixApiServerError (ответ не является JSON)
+    :raises BitrixApiError (JSON-ответ содержит "error")
+    """
+
+    log_tag = 'integration_utils.bitrix24.functions.api_call.api_call_v3'
+
+    if not isinstance(domain, str) or not domain:
+        raise ValueError("must provide domain as a non-empty string")
+
+    if not isinstance(api_method, str) or not api_method:
+        raise ValueError("must provide api_method as a non-empty string")
+
+    if not (isinstance(auth_token, str) and auth_token) and not (isinstance(web_hook_auth, str) and web_hook_auth):
+        raise ValueError("must provide either auth_token or web_hook_auth as a non-empty string")
+
+    if params is None:
+        payload = {}
+    elif isinstance(params, dict):
+        payload = dict(params)
+    else:
+        raise TypeError(f"params must be dict or None, got {type(params)!r}")
+
+    hook_key = ''
+    if web_hook_auth:
+        hook_key = f'{web_hook_auth}/'
+    else:
+        payload['auth'] = auth_token
+
+    url = f'https://{domain}/rest/api/{hook_key}{api_method}'
+
+    try:
+        response = requests.post(
+            url,
+            json=payload,
+            headers={
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
+            timeout=timeout,
+            allow_redirects=False,
+            verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
+        )
+    except (requests.ConnectionError, requests.exceptions.SSLError) as e:
+        raise ConnectionToBitrixError(requests_connection_error=e)
+    except requests.Timeout as e:
+        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+
+    status_code = response.status_code
+    message = response.text
+
+    try:
+        json_response = response.json()
+    except JSONDecodeError:
+        raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message)
+
+    if json_response.get('error'):
+        raise BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=status_code, message=message)
+
+    t = time.time()
+
+    ilogger.info('bitrix_request', f"{t}\nurl={url}, params={params}", tag=log_tag)
+
+    try:
+        ilogger.info('bitrix_response', f"{t}\nresponse.text={response.text}", tag=log_tag)
+    except Exception as e:
+        ilogger.error('bitrix_response', f"{t}\n{repr(e)}", tag=log_tag)
+
+    return json_response

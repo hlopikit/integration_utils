@@ -1,11 +1,10 @@
 # -*- coding: UTF-8 -*-
 from typing import Optional, Iterable, Any, Union
 
-import requests
 from django.conf import settings
 
-from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError, ExpiredToken, get_bitrix_api_error
-from integration_utils.bitrix24.functions.api_call import api_call
+from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixApiError, ExpiredToken, get_bitrix_api_error
+from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
 
 
@@ -64,53 +63,12 @@ class BaseBitrixToken:
         :raises BitrixApiServerError (ответ не является JSON)
         :raises BitrixApiError (JSON-ответ содержит "error")
         """
-        auth, webhook = self.get_auth()
+        return api_call_v3(
+            domain=self.domain, api_method=api_method, auth_token=self.auth_token,
+            web_hook_auth=self.web_hook_auth, params=params, timeout=timeout,
+        )
 
-        if params is None:
-            payload = {}
-        elif isinstance(params, dict):
-            payload = dict(params)
-        else:
-            raise TypeError(f"params must be dict or None, got {type(params)!r}")
-
-        hook_key = ""
-        if webhook:
-            hook_key = f"{auth}/"
-        else:
-            payload["auth"] = auth
-
-        url = f'https://{self.domain}/rest/api/{hook_key}{api_method}'
-
-        try:
-            response = requests.post(
-                url,
-                json=payload,
-                headers={
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
-                timeout=timeout,
-                allow_redirects=False,
-                verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
-            )
-        except (requests.ConnectionError, requests.exceptions.SSLError) as e:
-            raise ConnectionToBitrixError(requests_connection_error=e)
-        except requests.Timeout as e:
-            raise BitrixTimeout(requests_timeout=e, timeout=timeout)
-
-        status_code = response.status_code
-        message = response.text
-
-        try:
-            json_response = response.json()
-        except ValueError:
-            raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message, token=self)
-
-        if json_response.get('error'):
-            raise BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=status_code, message=message, token=self)
-
-        return json_response
+    call_method = call_api_method_v3
 
     def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
