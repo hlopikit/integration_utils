@@ -1,0 +1,64 @@
+{% extends "admin/change_list.html" %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script>
+    function _bitrixRobotPost(url) {
+      var csrfToken = django.jQuery('input[name=csrfmiddlewaretoken]').val();
+      return django.jQuery.post(url, {
+        csrfmiddlewaretoken: csrfToken
+      });
+    }
+
+    function _bitrixRobotShowError(xhr) {
+      var response = xhr.responseJSON || {};
+      var message = response.error || 'Ошибка выполнения операции';
+      window.alert(message);
+    }
+
+    function _bitrixRobotInstall() {
+      _bitrixRobotPost("{{ robot_install_url }}")
+        .done(function() {
+          window.location.reload();
+        })
+        .fail(_bitrixRobotShowError);
+    }
+
+    function _bitrixRobotUninstall() {
+      _bitrixRobotPost("{{ robot_uninstall_url }}")
+        .done(function() {
+          window.location.reload();
+        })
+        .fail(_bitrixRobotShowError);
+    }
+  </script>
+{% endblock %}
+
+{% block content %}
+  <div class="module" style="margin-bottom: 16px;">
+    <h2>Установка робота {{ robot_name|default:"" }}</h2>
+    <div style="padding: 8px 12px;">
+      <strong>Статус:</strong> {{ robot_install_status }}
+      {% if robot_install_error %}
+        <div style="margin-top: 6px; color: #9a3c3c;">
+          <strong>Ошибка:</strong> {{ robot_install_error }}
+        </div>
+      {% endif %}
+    </div>
+    <div style="padding: 0 12px 12px;">
+      <button type="button" class="button" onclick="_bitrixRobotInstall()" {% if not robot_has_token %}disabled{% endif %}>
+        Установить/обновить
+      </button>
+      <button type="button" class="button" onclick="_bitrixRobotUninstall()" {% if not robot_has_token %}disabled{% endif %}>
+        Удалить
+      </button>
+    </div>
+    <div style="padding: 0 12px 12px;">
+      <strong>CODE:</strong> {{ robot_code }}
+      {% if robot_handler_view_name %}
+        <span style="margin-left: 12px;"><strong>HANDLER_VIEW_NAME:</strong> {{ robot_handler_view_name }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {{ block.super }}
+{% endblock %}
