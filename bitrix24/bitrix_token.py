@@ -56,13 +56,13 @@ class BaseBitrixToken:
 
     def call_api_method_v3(self, api_method, params=None, timeout=DEFAULT_TIMEOUT):
         """
-        Метод для взаимодействия с REST API 3.0 Битрикс24
+        Метод для взаимодействия с REST API 3.0 Битрикс24.
         В случае ошибки - кидаем исключение.
 
-        :raises ConnectionToBitrixError (requests.ConnectionError / SSLError)
+        :raises ConnectionToBitrixError (requests.ConnectionError/SSLError)
         :raises BitrixTimeout (requests.Timeout)
         :raises BitrixApiServerError (response не является JSON)
-        :raises BitrixApiError (JSON содержит "error";)
+        :raises BitrixApiError (JSON содержит "error")
         """
         auth, webhook = self.get_auth()
 
