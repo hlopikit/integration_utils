@@ -89,37 +89,26 @@ class BaseBitrixToken:
                     "Content-Type": "application/json",
                     "Accept": "application/json",
                 },
-                auth=getattr(settings, "B24_HTTP_BASIC_AUTH", None),
+                auth=getattr(settings, 'B24_HTTP_BASIC_AUTH', None),
                 timeout=timeout,
                 allow_redirects=False,
-                verify=getattr(settings, "B24API_IGNORE_SSL_VERIFICATION", True),
+                verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
             )
         except (requests.ConnectionError, requests.exceptions.SSLError) as e:
             raise ConnectionToBitrixError(requests_connection_error=e)
         except requests.Timeout as e:
             raise BitrixTimeout(requests_timeout=e, timeout=timeout)
 
-        # JSON parsing
+        status_code = response.status_code
+        message = response.text
+
         try:
             json_response = response.json()
         except ValueError:
-            raise BitrixApiServerError(
-                has_resp='deprecated',
-                json_response={
-                    "error": "BitrixApiServerError",
-                    "error_description": "Response is not JSON",
-                },
-                status_code=601,
-                message="Response is not JSON",
-            )
+            raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message, token=self)
 
-        if json_response.get("error"):
-            raise BitrixApiError(
-                has_resp='deprecated',
-                json_response=json_response,
-                status_code=response.status_code,
-                message="Error ",
-            )
+        if json_response.get('error'):
+            raise BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=status_code, message=message, token=self)
 
         return json_response
 
