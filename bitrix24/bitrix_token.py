@@ -58,10 +58,11 @@ class BaseBitrixToken:
         Метод для взаимодействия с REST API 3.0 Битрикс24.
         В случае ошибки - кидаем исключение.
 
-        :raises ConnectionToBitrixError (requests.ConnectionError/SSLError)
-        :raises BitrixTimeout (requests.Timeout)
-        :raises BitrixApiServerError (ответ не является JSON)
-        :raises BitrixApiError (JSON-ответ содержит "error")
+        :raises ValueError: Неправильное значение аргумента.
+        :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
+        :raises BitrixTimeout: requests.Timeout.
+        :raises BitrixApiServerError: Ответ не является JSON.
+        :raises BitrixApiError: JSON-ответ содержит "error".
         """
         return api_call_v3(
             domain=self.domain, api_method=api_method, auth_token=self.auth_token,

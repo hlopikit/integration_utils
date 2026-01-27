@@ -299,10 +299,11 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     POST-запрос к REST API 3.0 Битрикс24.
     В случае ошибки - кидаем исключение.
 
-    :raises ConnectionToBitrixError (requests.ConnectionError/SSLError)
-    :raises BitrixTimeout (requests.Timeout)
-    :raises BitrixApiServerError (ответ не является JSON)
-    :raises BitrixApiError (JSON-ответ содержит "error")
+    :raises ValueError: Неправильное значение аргумента.
+    :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
+    :raises BitrixTimeout: requests.Timeout.
+    :raises BitrixApiServerError: Ответ не является JSON.
+    :raises BitrixApiError: JSON-ответ содержит "error".
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call.api_call_v3'
@@ -321,7 +322,7 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     elif isinstance(params, dict):
         payload = dict(params)
     else:
-        raise TypeError(f"params must be dict or None, got {type(params)!r}")
+        raise ValueError(f"params must be dict or None, got {type(params)!r}")
 
     hook_key = ''
     if web_hook_auth:
