@@ -16,7 +16,6 @@ from django.core.exceptions import ValidationError
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
 from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
-from integration_utils.bitrix24.models import BitrixUserToken
 
 import django
 
@@ -79,143 +78,10 @@ class BaseBitrixRobot(models.Model):
         abstract = True
 
     class Admin(admin.ModelAdmin):
-        """
-        Что делает: базовая админка для роботов с установкой и статусом регистрации.
-        Где используется: наследуется админками моделей роботов.
-        """
-
-        change_list_template = 'bitrix_robots/admin/robot_change_list.html'
         list_display = ['id', 'token', 'dt_add', 'started', 'finished', 'is_success']
         list_display_links = list_display
         list_filter = ['is_success', 'dt_add', 'finished']
         raw_id_fields = ['token']
-
-        def get_urls(self):
-            """
-            Что делает: добавляет admin-эндпоинты для установки и удаления робота.
-            Где используется: Django-админка моделей роботов.
-            """
-            urls = super().get_urls()
-            custom_urls = [
-                path(
-                    'robot-install/',
-                    self.admin_site.admin_view(self.install_robot_view),
-                    name=self._get_admin_url_name('install'),
-                ),
-                path(
-                    'robot-uninstall/',
-                    self.admin_site.admin_view(self.uninstall_robot_view),
-                    name=self._get_admin_url_name('uninstall'),
-                ),
-            ]
-            return custom_urls + urls
-
-        def _get_admin_url_name(self, action: str) -> str:
-            """
-            Что делает: формирует уникальное имя URL для admin-эндпоинтов.
-            Где используется: get_urls и reverse в changelist_view.
-            """
-            return f'{self.model._meta.app_label}_{self.model._meta.model_name}_{action}'
-
-        def _get_admin_token(self) -> Optional[BitrixUserToken]:
-            """
-            Что делает: возвращает активный токен администратора Битрикс24.
-            Где используется: проверка статуса установки и операции установки/удаления робота.
-            """
-            return BitrixUserToken.objects.filter(user__is_admin=True, is_active=True).last()
-
-        def _get_handler_view_name(self) -> Optional[str]:
-            """
-            Что делает: возвращает имя handler view для установки/обновления робота.
-            Где используется: install_robot_view.
-            """
-            return getattr(self.model, 'HANDLER_VIEW_NAME', None)
-
-        def changelist_view(self, request, extra_context=None):
-            """
-            Что делает: добавляет статус установки и ссылки на действия в контекст шаблона списка.
-            Где используется: отрисовка списка робота в админке.
-            """
-            extra_context = extra_context or {}
-            token = self._get_admin_token()
-            handler_view_name = self._get_handler_view_name()
-
-            status_label = 'Нет активного токена администратора Битрикс24'
-            status_error = None
-            installed = None
-            if token:
-                try:
-                    if not handler_view_name:
-                        status_label = 'Не задан HANDLER_VIEW_NAME для установки'
-                    else:
-                        installed = self.model.is_installed(token)
-                        status_label = 'Установлен' if installed else 'Не установлен'
-                except Exception as exc:
-                    status_label = 'Ошибка проверки статуса'
-                    status_error = str(exc)
-
-            extra_context.update(
-                {
-                    'robot_install_status': status_label,
-                    'robot_install_error': status_error,
-                    'robot_has_token': bool(token),
-                    'robot_is_installed': installed,
-                    'robot_install_url': reverse(f'admin:{self._get_admin_url_name("install")}'),
-                    'robot_uninstall_url': reverse(f'admin:{self._get_admin_url_name("uninstall")}'),
-                    'robot_handler_view_name': handler_view_name,
-                    'robot_code': getattr(self.model, 'CODE', ''),
-                    'robot_name': getattr(self.model, 'NAME', ''),
-                }
-            )
-            return super().changelist_view(request, extra_context=extra_context)
-
-        def install_robot_view(self, request):
-            """
-            Что делает: устанавливает или обновляет робота через admin-эндпоинт.
-            Где используется: кнопка "Установить/обновить" в админке.
-            """
-            if request.method != 'POST':
-                return JsonResponse({'error': 'Method is not POST'}, status=405)
-            if not request.user.is_superuser:
-                return JsonResponse({'error': 'Permission denied'}, status=403)
-
-            token = self._get_admin_token()
-            if not token:
-                return JsonResponse({'error': 'Нет активного токена администратора Битрикс24'}, status=400)
-
-            handler_view_name = self._get_handler_view_name()
-            if not handler_view_name:
-                return JsonResponse({'error': 'HANDLER_VIEW_NAME не задан'}, status=400)
-
-            try:
-                self.model.install_or_update(handler_view_name, token)
-            except Exception as exc:
-                return JsonResponse({'error': str(exc)}, status=500)
-
-            self.message_user(request, f'Робот {self.model.CODE} установлен или обновлен.', level=messages.SUCCESS)
-            return JsonResponse({'success': True})
-
-        def uninstall_robot_view(self, request):
-            """
-            Что делает: удаляет робота через admin-эндпоинт.
-            Где используется: кнопка "Удалить" в админке.
-            """
-            if request.method != 'POST':
-                return JsonResponse({'error': 'Method is not POST'}, status=405)
-            if not request.user.is_superuser:
-                return JsonResponse({'error': 'Permission denied'}, status=403)
-
-            token = self._get_admin_token()
-            if not token:
-                return JsonResponse({'error': 'Нет активного токена администратора Битрикс24'}, status=400)
-
-            try:
-                self.model.uninstall(token)
-            except Exception as exc:
-                return JsonResponse({'error': str(exc)}, status=500)
-
-            self.message_user(request, f'Робот {self.model.CODE} удален.', level=messages.SUCCESS)
-            return JsonResponse({'success': True})
 
     def __str__(self):
         return '[{}] {} ({})'.format(self.id, self.token, self.dt_add)
