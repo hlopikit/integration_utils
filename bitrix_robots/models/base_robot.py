@@ -152,7 +152,6 @@ class BaseRobot(BaseBitrixRobot):
         Что делает: возвращает активный токен администратора Битрикс24.
         Где используется: проверка статуса установки и операции установки/удаления робота.
         """
-        from integration_utils.bitrix24.models import BitrixUserToken
         return BitrixUserToken.get_admin_token()
 
     @classmethod
