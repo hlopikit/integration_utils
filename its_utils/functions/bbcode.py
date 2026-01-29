@@ -1,7 +1,7 @@
 import html
 import re
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Text, Any
+from typing import Optional, Dict, Text, Any, Iterable
 from prettytable import PrettyTable
 
 
@@ -15,6 +15,53 @@ class BaseHandler(ABC):
         if self._next_handler:
             return self._next_handler.handle(text, context)
         return text
+
+
+def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected: Dict[str, Text]) -> Text:
+    while True:
+        match = pattern.search(text)
+        if not match:
+            return text
+        placeholder = f"__PROTECTED_{len(protected)}__"
+        protected[placeholder] = match.group(0)
+        text = text[:match.start()] + placeholder + text[match.end():]
+
+
+class ProtectedTagHandler(BaseHandler):
+    """Обработчик для защиты игнорируемых тегов"""
+
+    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+        ignore_tags = context.get('ignore_tags')
+        if not ignore_tags:
+            return super().handle(text, context)
+
+        protected = {}
+        result = text
+
+        for tag in ignore_tags:
+            if not tag:
+                continue
+
+            tag_escaped = re.escape(tag)
+            pattern_pair = re.compile(
+                rf'\[{tag_escaped}[^]]*].*?\[/\s*{tag_escaped}\s*]',
+                flags=re.DOTALL | re.IGNORECASE
+            )
+            pattern_open = re.compile(
+                rf'\[{tag_escaped}[^]]*]',
+                flags=re.IGNORECASE
+            )
+            result = _replace_with_placeholders(result, pattern_pair, protected)
+            result = _replace_with_placeholders(result, pattern_open, protected)
+
+        context['_protected_tags'] = protected
+
+        processed = super().handle(result, context)
+
+        for placeholder, original in protected.items():
+            processed = processed.replace(placeholder, original)
+
+        return processed
 
 
 class HTMLEncodeHandler(BaseHandler):
@@ -258,22 +305,40 @@ class BBCodeConverter:
     def __init__(self, domain: Optional[Text] = None):
         """Инициализирует конвертер и собирает цепочку обработчиков."""
         self.domain = domain
-        handler_classes = [
-            HTMLEncodeHandler, TableHandler, LinkHandler,
-            MediaHandler, FormattingHandler, SpoilerHandler, CleanupHandler
-        ]
-        self._handler_chain = None
-        for handler_class in reversed(handler_classes):
-            self._handler_chain = handler_class(self._handler_chain)
 
-    def convert(self, text: Text) -> Text:
+    def convert(self, text: Text, ignore_tags: Optional[Iterable[Text]] = None) -> Text:
         """Запускает процесс конвертации через цепочку."""
         if not text:
             return ""
-        return self._handler_chain.handle(text, {'domain': self.domain})
+
+        handler_classes = [
+            ProtectedTagHandler,
+            HTMLEncodeHandler,
+            TableHandler,
+            LinkHandler,
+            MediaHandler,
+            FormattingHandler,
+            SpoilerHandler,
+            CleanupHandler
+        ]
+
+        handler_chain = None
+        for handler_class in reversed(handler_classes):
+            handler_chain = handler_class(handler_chain)
+
+        context = {
+            'domain': self.domain,
+            'ignore_tags': list(ignore_tags) if ignore_tags else None
+        }
+
+        return handler_chain.handle(text, context)
 
 
-def bbcode_to_telegram(text: Text, domain: Optional[Text] = None) -> Text:
-    """Удобная обертка для быстрого доступа к конвертации."""
+def bbcode_to_telegram(
+    text: Text,
+    domain: Optional[Text] = None,
+    ignore_tags: Optional[Iterable[Text]] = None,
+) -> Text:
+    """Функция для перевода из bbcode в html для telegram"""
     converter = BBCodeConverter(domain)
-    return converter.convert(text)
+    return converter.convert(text, ignore_tags)
