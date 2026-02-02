@@ -10,7 +10,7 @@ __all__ = [
 ]
 
 
-def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store: Dict[str, Text]) -> Text:
+def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store: Dict[Text, Text]) -> Text:
     """Заменяет совпадения на токены, гарантируя уникальность ключа."""
 
     def _replacer(match: Match) -> Text:
@@ -23,6 +23,9 @@ def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store:
 
 
 class _BaseHandler(ABC):
+    """
+    Базовый обработчик тегов
+    """
 
     __slots__ = ("_next_handler",)
 
@@ -32,7 +35,7 @@ class _BaseHandler(ABC):
         self._next_handler = next_handler
 
     @abstractmethod
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         """Базовый метод обработки текста в цепочке."""
         if self._next_handler:
             return self._next_handler.handle(text, context)
@@ -98,7 +101,7 @@ class _TableHandler(_BaseHandler):
     [th] — заголовочная ячейка
     """
 
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         """Ищет и преобразует BBCode таблицы в текстовые таблицы PrettyTable."""
 
         bbcode_tables = re.findall(
@@ -162,7 +165,7 @@ class _LinkHandler(_BaseHandler):
     [user] — ссылка на профиль пользователя
     """
 
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         domain = context.get('domain')
 
         def _url_callback(match: Match) -> Text:
@@ -239,7 +242,7 @@ class _MediaHandler(_BaseHandler):
     [video] — видео
     """
 
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         domain = context.get('domain')
 
         def _get_full_url(url: Text) -> Text:
@@ -292,7 +295,7 @@ class _FormattingHandler(_BaseHandler):
     [p], [div], [br], [hr] — структура
     """
 
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
 
         text = self._process_code_blocks(text)
         text = self._process_sub_sup_scripts(text)
@@ -376,7 +379,7 @@ class _SpoilerHandler(_BaseHandler):
     [spoiler] — скрытый текст
     """
 
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         # Оборачиваем спойлер в тег <tg-spoiler>
         text = re.sub(
             r'\[spoiler.*?](.*?)\[/spoiler]',
@@ -387,6 +390,10 @@ class _SpoilerHandler(_BaseHandler):
 
 
 class _BBCodeConverter:
+    """
+    Основной конвертер BBCode в HTML для Telegram.
+    """
+
     _HANDLER_CLASSES: Tuple[Type[_BaseHandler], ...] = (
         _ProtectedTagHandler,
         _HTMLEncodeHandler,
@@ -404,10 +411,13 @@ class _BBCodeConverter:
             ignore_tags: Optional[Iterable[Text]] = None,
             domain: Optional[Text] = None,
     ) -> Text:
+        """Запускает процесс конвертации через цепочку."""
+
         if not text:
             return ""
 
         handler_chain = None
+
         for handler_class in reversed(self._HANDLER_CLASSES):
             handler_chain = handler_class(handler_chain)
 
