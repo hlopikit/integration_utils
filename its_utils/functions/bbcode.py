@@ -1,26 +1,25 @@
 import html
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterable, Optional, Text, Tuple, Type
+from typing import Any, Dict, Iterable, Optional, Tuple, Type, Match, Text
 
 from prettytable import PrettyTable
 
-__all__  = [
+__all__ = [
     "bbcode_to_telegram",
 ]
 
 
-def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected: Dict[str, Text]) -> Text:
-    while True:
+def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store: Dict[str, Text]) -> Text:
+    """Заменяет совпадения на токены, гарантируя уникальность ключа."""
 
-        match = pattern.search(text)
+    def _replacer(match: Match) -> Text:
+        # Используем длину словаря для уникальности токена
+        token = f"__PROTECTED_{len(protected_store)}__"
+        protected_store[token] = match.group(0)
+        return token
 
-        if not match:
-            return text
-
-        placeholder = f"__PROTECTED_{len(protected)}__"
-        protected[placeholder] = match.group()
-        text = text[:match.start()] + placeholder + text[match.end():]
+    return pattern.sub(_replacer, text)
 
 
 class _BaseHandler(ABC):
@@ -42,49 +41,62 @@ class _BaseHandler(ABC):
 
 
 class _ProtectedTagHandler(_BaseHandler):
-    """Обработчик для защиты игнорируемых тегов"""
+    """
+    Обрабатывает игнорируемые теги, временно скрывая их.
+    """
 
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         ignore_tags = context.get('ignore_tags')
 
         if not ignore_tags:
             return super().handle(text, context)
 
-        protected = {}
-        result = text
+        protected_store: Dict[Text, Text] = {}
+        processed_text = text
 
-        for ignore_tag in ignore_tags:
-            tag_escaped = re.escape(ignore_tag)
+        for tag in ignore_tags:
+            tag_escaped = re.escape(tag)
 
             pattern_pair = re.compile(
                 rf'\[{tag_escaped}[^]]*].*?\[/\s*{tag_escaped}\s*]',
                 flags=re.DOTALL | re.IGNORECASE,
             )
 
-            pattern_open = re.compile(
+            pattern_single = re.compile(
                 rf'\[{tag_escaped}[^]]*]',
                 flags=re.IGNORECASE,
             )
 
-            result = _replace_with_placeholders(result, pattern_pair, protected)
-            result = _replace_with_placeholders(result, pattern_open, protected)
+            processed_text = _replace_with_placeholders(processed_text, pattern_pair, protected_store)
+            processed_text = _replace_with_placeholders(processed_text, pattern_single, protected_store)
 
-        processed = super().handle(result, context)
+        processed_text = super().handle(processed_text, context)
 
-        for placeholder, original in protected.items():
-            processed = processed.replace(placeholder, original)
+        # Возвращаем скрытые теги обратно
+        for placeholder, original_content in protected_store.items():
+            processed_text = processed_text.replace(placeholder, original_content)
 
-        return processed
+        return processed_text
 
 
 class _HTMLEncodeHandler(_BaseHandler):
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
-        """Кодирует HTML-сущности для предотвращения конфликтов с разметкой."""
-        text = html.escape(str(text or ""), quote=False)
-        return super().handle(text, context)
+    """
+    Экранирует спецсимволы HTML.
+    """
+
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
+        safe_text = html.escape(str(text or ""), quote=False)
+        return super().handle(safe_text, context)
 
 
 class _TableHandler(_BaseHandler):
+    """
+    Обрабатывает таблицы:
+    [table] — таблица
+    [tr] — строка таблицы
+    [td] — ячейка таблицы
+    [th] — заголовочная ячейка
+    """
 
     def handle(self, text: Text, context: Dict[str, Any]) -> Text:
         """Ищет и преобразует BBCode таблицы в текстовые таблицы PrettyTable."""
@@ -95,12 +107,12 @@ class _TableHandler(_BaseHandler):
             flags=re.DOTALL | re.IGNORECASE,
         )
 
-        for bbcode_table in bbcode_tables:
-            formatted = self._convert_bbcode_table_to_pretty_table(bbcode_table)
+        for bbcode_content in bbcode_tables:
+            ascii_table = self._convert_bbcode_to_ascii(bbcode_content)
 
             text = re.sub(
                 r'\[table.*?](.*?)\[/table]',
-                f'\n<pre>{formatted}</pre>\n',
+                f'\n<pre>{ascii_table}</pre>\n',
                 text,
                 count=1,
                 flags=re.DOTALL | re.IGNORECASE,
@@ -109,95 +121,94 @@ class _TableHandler(_BaseHandler):
         return super().handle(text, context)
 
     @staticmethod
-    def _convert_bbcode_table_to_pretty_table(bbcode_table: Text) -> Text:
-        """Парсит структуру строк и ячеек BBCode для генерации ASCII-таблицы."""
-
-        rows = re.findall(r'\[tr](.*?)\[/tr]', bbcode_table, flags=re.DOTALL | re.IGNORECASE)
+    def _convert_bbcode_to_ascii(bbcode_content: Text) -> Text:
+        rows = re.findall(r'\[tr](.*?)\[/tr]', bbcode_content, flags=re.DOTALL | re.IGNORECASE)
 
         if not rows:
             return ""
 
-        table_data = []
-
+        parsed_data = []
         for row in rows:
             cells = re.findall(r'\[t[dh].*?](.*?)\[/t[dh]]', row, flags=re.DOTALL | re.IGNORECASE)
 
-            row_data = [
+            cleaned_row = [
                 re.sub(r'\s+', ' ', re.sub(r'\[/?[a-z].*?]', '', cell, flags=re.IGNORECASE)).strip()
                 for cell in cells
             ]
 
-            if row_data:
-                table_data.append(row_data)
+            if cleaned_row:
+                parsed_data.append(cleaned_row)
 
-        if not table_data:
+        if not parsed_data:
             return ""
 
         pt = PrettyTable()
         pt.header = False
 
-        max_columns = max(len(row) for row in table_data)
-
-        for row in table_data:
-            pt.add_row(row + [""] * (max_columns - len(row)))
+        max_cols = max(len(row) for row in parsed_data)
+        for row in parsed_data:
+            # Дополняем пустые ячейки для ровной таблицы
+            row += [""] * (max_cols - len(row))
+            pt.add_row(row)
 
         return pt.get_string()
 
 
 class _LinkHandler(_BaseHandler):
+    """
+    Обрабатывает ссылки и контакты:
+    [url] — гиперссылка
+    [email] — ссылка на email
+    [user] — ссылка на профиль пользователя
+    """
 
     def handle(self, text: Text, context: Dict[str, Any]) -> Text:
-        """Обрабатывает ссылки, email и упоминания пользователей."""
-
         domain = context.get('domain')
 
-        def _process_url_tag_callback(match: re.Match) -> Text:
+        def _url_callback(match: Match) -> Text:
             groups = match.groups()
 
             if len(groups) == 1:
-                url = groups[0]
-                content = url
+                url_raw = groups[0]
+                link_text = url_raw
             else:
                 attr_str = str(groups[0]).strip()
-                url = re.split(r'\s+', attr_str)[0].strip('"\'')
-                content = groups[1]
+                url_raw = re.split(r'\s+', attr_str)[0].strip('"\'')
+                link_text = groups[1]
 
-            final_url = self._normalize_link_url(url, domain)
+            final_url = self._normalize_url(url_raw, domain)
 
             if final_url:
-                return f'<a href="{final_url}">{content}</a>'
+                return f'<a href="{final_url}">{link_text}</a>'
+            return link_text
 
-            return content
-
-        text = re.sub(r'\[url](.*?)\[/url]', _process_url_tag_callback, text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r'\[url=(.*?)](.*?)\[/url]', _process_url_tag_callback, text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'\[url](.*?)\[/url]', _url_callback, text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'\[url=(.*?)](.*?)\[/url]', _url_callback, text, flags=re.DOTALL | re.IGNORECASE)
 
         text = re.sub(
             r'\[email](.*?)\[/email]',
-            lambda m: f'<a href="mailto:{m.group(1).strip() or m.group(1)}">{m.group(1)}</a>',
+            lambda m: f'<a href="mailto:{m.group(1).strip()}">{m.group(1)}</a>',
             text, flags=re.DOTALL | re.IGNORECASE
         )
         text = re.sub(
             r'\[email=(.*?)](.*?)\[/email]',
-            lambda m: f'<a href="mailto:{m.group(1).strip().strip(chr(34)+chr(39))}">{m.group(2)}</a>',
+            lambda m: f'<a href="mailto:{m.group(1).strip().strip(chr(34) + chr(39))}">{m.group(2)}</a>',
             text, flags=re.DOTALL | re.IGNORECASE
         )
 
-        def _process_user_tag_callback(match: re.Match) -> Text:
-            uid = match.group(1).strip('"\'')
-            name = match.group(2)
-
+        def _user_callback(match: Match) -> Text:
+            user_id = match.group(1).strip('"\'')
+            user_name = match.group(2)
             if domain:
-                return f'<a href="https://{domain}/company/personal/user/{uid}/">{name}</a>'
+                return f'<a href="https://{domain}/company/personal/user/{user_id}/">{user_name}</a>'
+            return user_name
 
-            return name
-
-        text = re.sub(r'\[user=(.*?)](.*?)\[/user]', _process_user_tag_callback, text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'\[user=(.*?)](.*?)\[/user]', _user_callback, text, flags=re.DOTALL | re.IGNORECASE)
 
         return super().handle(text, context)
 
     @staticmethod
-    def _normalize_link_url(url: Text, domain: Optional[Text]) -> Optional[Text]:
+    def _normalize_url(url: Text, domain: Optional[Text]) -> Optional[Text]:
         """Приводит относительные ссылки к абсолютным с учетом домена."""
 
         url = url.strip()
@@ -219,14 +230,20 @@ class _LinkHandler(_BaseHandler):
 
 
 class _MediaHandler(_BaseHandler):
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
-        """Обрабатывает теги изображений и видео."""
+    """
+    Обрабатывает изображения и видео:
+    [img] — изображение
+    [imgleft], [imgright], [imgcenter] — изображение с обтеканием
+    [image] — большое изображение
+    [imgmini] — миниатюра
+    [video] — видео
+    """
 
+    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
         domain = context.get('domain')
 
-        def _normalize_media_url(url: Text) -> Text:
-            url = url.strip()
-
+        def _get_full_url(url: Text) -> Text:
+            url = url.strip().strip('"\'')
             if not url or url.startswith(('http', 'data:')):
                 return url
 
@@ -236,20 +253,17 @@ class _MediaHandler(_BaseHandler):
 
             return url
 
-        tags = ['img', 'imgleft', 'imgright', 'imgcenter', 'image', 'imgmini']
-
-        for tag in tags:
-            pattern = rf'\[{tag}.*?](.*?)\[/{tag}]'
-
+        image_tags = ['img', 'imgleft', 'imgright', 'imgcenter', 'image', 'imgmini']
+        for tag in image_tags:
             text = re.sub(
-                pattern,
-                lambda m: f'<a href="{_normalize_media_url(m.group(1).strip(chr(34)+chr(39)))}">🖼 Изображение</a>',
+                rf'\[{tag}.*?](.*?)\[/{tag}]',
+                lambda m: f'<a href="{_get_full_url(m.group(1))}">🖼 Изображение</a>',
                 text, flags=re.DOTALL | re.IGNORECASE
             )
 
         text = re.sub(
             r'\[img=(.*?)](.*?)\[/img]',
-            lambda m: f'<a href="{_normalize_media_url(m.group(1).strip(chr(34)+chr(39)))}">🖼 {m.group(2)}</a>',
+            lambda m: f'<a href="{_get_full_url(m.group(1))}">🖼 {m.group(2)}</a>',
             text, flags=re.DOTALL | re.IGNORECASE
         )
 
@@ -263,27 +277,44 @@ class _MediaHandler(_BaseHandler):
 
 
 class _FormattingHandler(_BaseHandler):
+    """
+    Обрабатывает форматирование:
+    [b], [bold] — жирный
+    [i], [italic] — курсив
+    [u], [ins] — подчёркнутый
+    [s], [del], [strike] — зачёркнутый
+    [tt] — моноширинный
+    [sub], [sup] — индексы
+    [h1]-[h6] — заголовки
+    [quote], [q], [cite], [acronym], [abbr], [dfn] — цитаты
+    [list], [ul], [ol], [*] — списки
+    [code], [prog], [php], [html], [sql]... — код
+    [p], [div], [br], [hr] — структура
+    """
 
     def handle(self, text: Text, context: Dict[str, Any]) -> Text:
-        """Обрабатывает блоки кода, текстовые эффекты, заголовки и списки."""
 
         text = self._process_code_blocks(text)
         text = self._process_sub_sup_scripts(text)
 
-        tags_mapping = {
-            r'\[b](.*?)\[/b]': r'<b>\1</b>', r'\[bold](.*?)\[/bold]': r'<b>\1</b>',
-            r'\[i](.*?)\[/i]': r'<i>\1</i>', r'\[italic](.*?)\[/italic]': r'<i>\1</i>',
-            r'\[u](.*?)\[/u]': r'<u>\1</u>', r'\[ins](.*?)\[/ins]': r'<u>\1</u>',
-            r'\[s](.*?)\[/s]': r'<s>\1</s>', r'\[del](.*?)\[/del]': r'<s>\1</s>',
-            r'\[strike](.*?)\[/strike]': r'<s>\1</s>', r'\[tt](.*?)\[/tt]': r'<code>\1</code>'
+        simple_replacements = {
+            r'\[b](.*?)\[/b]': r'<b>\1</b>',
+            r'\[bold](.*?)\[/bold]': r'<b>\1</b>',
+            r'\[i](.*?)\[/i]': r'<i>\1</i>',
+            r'\[italic](.*?)\[/italic]': r'<i>\1</i>',
+            r'\[u](.*?)\[/u]': r'<u>\1</u>',
+            r'\[ins](.*?)\[/ins]': r'<u>\1</u>',
+            r'\[s](.*?)\[/s]': r'<s>\1</s>',
+            r'\[del](.*?)\[/del]': r'<s>\1</s>',
+            r'\[strike](.*?)\[/strike]': r'<s>\1</s>',
+            r'\[tt](.*?)\[/tt]': r'<code>\1</code>'
         }
 
-        for pattern, replacement in tags_mapping.items():
+        for pattern, replacement in simple_replacements.items():
             text = re.sub(pattern, replacement, text, flags=re.DOTALL | re.IGNORECASE)
 
-        quotes = ['quote', 'q', 'cite', 'acronym', 'abbr', 'dfn']
-
-        for tag in quotes:
+        quote_tags = ['quote', 'q', 'cite', 'acronym', 'abbr', 'dfn']
+        for tag in quote_tags:
             text = re.sub(rf'\[{tag}.*?](.*?)\[/{tag}]', r'<code>\1</code>', text, flags=re.DOTALL | re.IGNORECASE)
 
         for i in range(1, 7):
@@ -299,50 +330,40 @@ class _FormattingHandler(_BaseHandler):
 
     @staticmethod
     def _process_sub_sup_scripts(text: Text) -> Text:
-        """Заменяет теги индекса на соответствующие Unicode-символы."""
+        trans_sub = str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎")
+        trans_sup = str.maketrans("0123456789+-=()", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾")
 
-        trans = {
-            "sub": str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"),
-            "sup": str.maketrans("0123456789+-=()", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾")
-        }
-
-        text = re.sub(r'\[sub](.*?)\[/sub]', lambda m: m.group(1).translate(trans["sub"]), text, flags=re.IGNORECASE)
-        text = re.sub(r'\[sup](.*?)\[/sup]', lambda m: m.group(1).translate(trans["sup"]), text, flags=re.IGNORECASE)
-
+        text = re.sub(r'\[sub](.*?)\[/sub]', lambda m: m.group(1).translate(trans_sub), text, flags=re.IGNORECASE)
+        text = re.sub(r'\[sup](.*?)\[/sup]', lambda m: m.group(1).translate(trans_sup), text, flags=re.IGNORECASE)
         return text
 
     @staticmethod
     def _process_code_blocks(text: Text) -> Text:
-        """Оборачивает программный код в теги pre и code."""
-
-        def _wrap_code_in_html(content: Text, lang: Optional[Text] = None) -> Text:
+        def _wrap_code(content: Text, lang: Optional[Text] = None) -> Text:
             content = content.strip('\n')
-
             if lang:
                 return f'<pre><code class="language-{lang}">{content}</code></pre>'
-
             return f'<code>{content}</code>'
 
         text = re.sub(
             r'\[code\s*=\s*["\']?(.*?)["\']?](.*?)\[/code]',
-            lambda m: _wrap_code_in_html(m.group(2), m.group(1).lower().strip()),
+            lambda m: _wrap_code(m.group(2), m.group(1).lower().strip()),
             text, flags=re.DOTALL | re.IGNORECASE
         )
 
         text = re.sub(
             r'\[prog(?:=|\s+lang=)["\']?(.*?)["\']?](.*?)\[/prog]',
-            lambda m: _wrap_code_in_html(m.group(2), m.group(1).lower().strip()),
+            lambda m: _wrap_code(m.group(2), m.group(1).lower().strip()),
             text, flags=re.DOTALL | re.IGNORECASE
         )
 
-        text = re.sub(r'\[code](.*?)\[/code]', lambda m: _wrap_code_in_html(m.group(1)), text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'\[code](.*?)\[/code]', lambda m: _wrap_code(m.group(1)), text, flags=re.DOTALL | re.IGNORECASE)
 
-        languages = ['php', 'html', 'sql', 'python', 'javascript', 'css']
-
-        for lang in languages:
+        specific_langs = ['php', 'html', 'sql', 'python', 'javascript', 'css', 'bash', 'java']
+        for lang in specific_langs:
             text = re.sub(
                 rf'\[{lang}](.*?)\[/{lang}]',
-                lambda m, l=lang: _wrap_code_in_html(m.group(1), l),
+                lambda m, l=lang: _wrap_code(m.group(1), l),
                 text, flags=re.DOTALL | re.IGNORECASE
             )
 
@@ -350,33 +371,22 @@ class _FormattingHandler(_BaseHandler):
 
 
 class _SpoilerHandler(_BaseHandler):
+    """
+    Обрабатывает спойлер:
+    [spoiler] — скрытый текст
+    """
 
     def handle(self, text: Text, context: Dict[str, Any]) -> Text:
-        """Оборачивает спойлер в текстовые маркеры."""
-
+        # Оборачиваем спойлер в тег <tg-spoiler>
         text = re.sub(
             r'\[spoiler.*?](.*?)\[/spoiler]',
-            r'**спойлер**( \1 )**спойлер**',
+            r'<tg-spoiler>\1</tg-spoiler>',
             text, flags=re.DOTALL | re.IGNORECASE
         )
-
-        return super().handle(text, context)
-
-
-class _CleanupHandler(_BaseHandler):
-
-    def handle(self, text: Text, context: Dict[str, Any]) -> Text:
-        """Выполняет финальную чистку текста от нераспознанных тегов и лишних пробелов."""
-
-        text = re.sub(r'\[/?[a-z0-9=_-]+.*?]', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text).strip()
-
         return super().handle(text, context)
 
 
 class _BBCodeConverter:
-    """"""
-
     _HANDLER_CLASSES: Tuple[Type[_BaseHandler], ...] = (
         _ProtectedTagHandler,
         _HTMLEncodeHandler,
@@ -385,7 +395,6 @@ class _BBCodeConverter:
         _MediaHandler,
         _FormattingHandler,
         _SpoilerHandler,
-        _CleanupHandler,
     )
 
     def __call__(
@@ -395,13 +404,10 @@ class _BBCodeConverter:
             ignore_tags: Optional[Iterable[Text]] = None,
             domain: Optional[Text] = None,
     ) -> Text:
-        """Запускает процесс конвертации через цепочку."""
-
         if not text:
             return ""
 
         handler_chain = None
-
         for handler_class in reversed(self._HANDLER_CLASSES):
             handler_chain = handler_class(handler_chain)
 
@@ -410,13 +416,15 @@ class _BBCodeConverter:
             'domain': domain,
         }
 
-        return handler_chain.handle(text, context)
+        if handler_chain:
+            return handler_chain.handle(text, context)
+        return text
 
 
 def bbcode_to_telegram(
-    text: Text,
-    domain: Optional[Text] = None,
-    ignore_tags: Optional[Iterable[Text]] = None,
+        text: Text,
+        domain: Optional[Text] = None,
+        ignore_tags: Optional[Iterable[Text]] = None,
 ) -> Text:
     """Функция для перевода из bbcode в html для telegram"""
     converter = _BBCodeConverter()
