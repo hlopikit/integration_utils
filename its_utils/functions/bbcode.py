@@ -98,7 +98,10 @@ PROCESSED_TAGS: Tuple[BBCodeTagLiteral, ...] = (
     'table', 'tr', 'td', 'th',
 
     # Обрабатываются _LinkHandler
-    'url', 'email', 'user',
+    'url', 'email',
+
+    # Обрабатывается _UserHandler
+    'user',
 
     # Обрабатываются _MediaHandler
     'img', 'imgleft', 'imgright', 'imgcenter', 'image', 'imgmini', 'video',
@@ -279,7 +282,6 @@ class _LinkHandler(_BaseHandler):
     Обрабатывает ссылки и контакты:
     [url] — гиперссылка
     [email] — ссылка на email
-    [user] — ссылка на профиль пользователя
     """
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
@@ -320,15 +322,6 @@ class _LinkHandler(_BaseHandler):
             text, flags=re.DOTALL | re.IGNORECASE
         )
 
-        def _user_callback(match: Match) -> Text:
-            user_id = match.group(1).strip('"\'')
-            user_name = match.group(2)
-            if domain:
-                return f'<a href="https://{domain}/company/personal/user/{user_id}/">{user_name}</a>'
-            return user_name
-
-        text = re.sub(r'\[user=(.*?)](.*?)\[/user]', _user_callback, text, flags=re.DOTALL | re.IGNORECASE)
-
         return super().handle(text, context)
 
     @staticmethod
@@ -355,6 +348,32 @@ class _LinkHandler(_BaseHandler):
             return f'https://{domain}{separator}{url}'
 
         return url
+
+
+class _UserHandler(_BaseHandler):
+    """
+    Обрабатывает ссылки на профили пользователей:
+    [user] — ссылка на профиль пользователя
+    """
+
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
+        domain = context.get('domain')
+
+        def _user_callback(match: Match) -> Text:
+            user_id = match.group(1).strip('"\'')
+            user_name = match.group(2)
+
+            # Создаем ссылку на профиль пользователя, если указан домен
+            if domain:
+                return f'<a href="https://{domain}/company/personal/user/{user_id}/">{user_name}</a>'
+
+            # Если домен не указан, возвращаем просто имя пользователя
+            return user_name
+
+        # Обрабатываем тег [user=ID]Имя пользователя[/user]
+        text = re.sub(r'\[user=(.*?)](.*?)\[/user]', _user_callback, text, flags=re.DOTALL | re.IGNORECASE)
+
+        return super().handle(text, context)
 
 
 class _MediaHandler(_BaseHandler):
@@ -580,6 +599,7 @@ class _BBCodeConverter:
         _HTMLEncodeHandler,
         _TableHandler,
         _LinkHandler,
+        _UserHandler,
         _MediaHandler,
         _FormattingHandler,
         _SpoilerHandler,
@@ -600,11 +620,9 @@ class _BBCodeConverter:
 
         handler_chain = None
 
-        # Строим цепочку обработчиков в обратном порядке
         for handler_class in reversed(self._HANDLER_CLASSES):
             handler_chain = handler_class(handler_chain)
 
-        # Подготавливаем контекст для обработчиков
         context = {
             'ignore_tags': tuple(ignore_tags) if ignore_tags else None,
             'domain': domain,
