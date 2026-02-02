@@ -1,13 +1,121 @@
 import html
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterable, Optional, Tuple, Type, Match, Text
+from typing import Any, Dict, Iterable, Optional, Tuple, Type, Match, Text, TypeAlias
 
 from prettytable import PrettyTable
 
 __all__ = [
+    "ALL_BBCODE_TAGS",
     "bbcode_to_telegram",
 ]
+
+BBCodeTagLiteral: TypeAlias = Text
+
+# Полный список тегов BBCode
+ALL_BBCODE_TAGS: Tuple[BBCodeTagLiteral, ...] = (
+    # Текстовое форматирование и шрифты
+    'b', 'i', 'u', 's', 'strike', 'tt', 'sub', 'sup', 'bold', 'italic',
+    'small', 'ins', 'del', 'color', 'size', 'font', 'bg',
+
+    # Структура документа и абзацы
+    'p', 'div', 'span', 'br', 'hr', 'noparse', 'nobb', 'noindex',
+
+    # Заголовки
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+
+    # Цитаты и сноски
+    'quote', 'q', 'cite', 'acronym', 'abbr', 'dfn',
+
+    # Выравнивание
+    'align', 'left', 'center', 'right', 'justify',
+    'pleft', 'pcenter', 'pright', 'pjustify', 'indent',
+
+    # Списки
+    'list', 'ul', 'ol', '*', 'dl', 'dt', 'dd',
+
+    # Ссылки и контакты
+    'url', 'email', 'icq', 'skype', 'wmid', 'wiki',
+    'user', 'forum', 'blog', 'thread', 'topic', 'post',
+    'snapback', 'entry',
+
+    # Изображения
+    'img', 'imgleft', 'imgright', 'imgcenter', 'image', 'imgmini',
+
+    # Таблицы
+    'table', 'tr', 'td', 'th', 'caption',
+
+    # Мультимедиа и Flash
+    'video', 'youtube', 'rutube', 'googlevideo', 'veoh',
+    'smotri', 'smotricomvideo', 'mailvideo', 'yandexvideo', 'flash',
+
+    # Отображение кода
+    'code', 'prog', 'php', 'html', 'sql', 'python', 'javascript',
+    'css', 'bash', 'java',
+
+    # Специальные и служебные теги
+    'pre', 'spoiler', 'extract', 'address', 'ucase', 'lcase',
+    'highlight', 'bs', 'tab', 'text-demo',
+)
+
+# Теги, которые не обрабатываются
+TAGS_TO_REMOVE: Tuple[BBCodeTagLiteral, ...] = (
+    # Цвет и стили
+    'color', 'size', 'font', 'bg', 'small',
+
+    # Выравнивание
+    'align', 'left', 'center', 'right', 'justify',
+    'pleft', 'pcenter', 'pright', 'pjustify', 'indent',
+
+    # Специальные теги
+    'span', 'noparse', 'nobb', 'noindex', 'pre',
+
+    # Устаревшие ссылки
+    'icq', 'skype', 'wmid',
+
+    # Внутренние ссылки
+    'wiki', 'forum', 'blog', 'thread', 'topic', 'post',
+    'snapback', 'entry',
+
+    # Сложные медиа
+    'youtube', 'rutube', 'googlevideo', 'veoh',
+    'smotri', 'smotricomvideo', 'mailvideo', 'yandexvideo', 'flash',
+
+    # Специальные теги
+    'extract', 'address', 'ucase', 'lcase', 'highlight',
+    'bs', 'tab', 'text-demo',
+
+    # Табличные теги
+    'caption',
+
+    # Списки
+    'dl', 'dt', 'dd',
+)
+
+# Теги, которые обрабатываются текущим кодом
+PROCESSED_TAGS: Tuple[BBCodeTagLiteral, ...] = (
+    # Обрабатываются _TableHandler
+    'table', 'tr', 'td', 'th',
+
+    # Обрабатываются _LinkHandler
+    'url', 'email', 'user',
+
+    # Обрабатываются _MediaHandler
+    'img', 'imgleft', 'imgright', 'imgcenter', 'image', 'imgmini', 'video',
+
+    # Обрабатываются _FormattingHandler
+    'b', 'bold', 'i', 'italic', 'u', 'ins', 's', 'del', 'strike', 'tt',
+    'sub', 'sup', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'quote', 'q', 'cite', 'acronym', 'abbr', 'dfn',
+    'list', 'ul', 'ol', '*', 'p', 'div', 'br', 'hr',
+
+    # Обрабатываются _FormattingHandler для кода
+    'code', 'prog', 'php', 'html', 'sql', 'python', 'javascript',
+    'css', 'bash', 'java',
+
+    # Обрабатывается _SpoilerHandler
+    'spoiler',
+)
 
 
 def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store: Dict[Text, Text]) -> Text:
@@ -428,6 +536,40 @@ class _SpoilerHandler(_BaseHandler):
         return super().handle(text, context)
 
 
+class _CleanupHandler(_BaseHandler):
+    """
+    Обрабатывает удаление необрабатываемых тегов и финальную чистку текста.
+    Удаляет теги из TAGS_TO_REMOVE, оставляя только их содержимое.
+    """
+
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
+        """Выполняет финальную чистку текста от необрабатываемых тегов и лишних пробелов."""
+
+        # Удаляем только теги из TAGS_TO_REMOVE, оставляя содержимое
+        for tag in TAGS_TO_REMOVE:
+
+            # Удаляем парные теги: [tag]содержимое[/tag] → содержимое
+            text = re.sub(
+                rf'\[{re.escape(tag)}[^]]*](.*?)\[/\s*{re.escape(tag)}\s*]',
+                r'\1',
+                text,
+                flags=re.DOTALL | re.IGNORECASE
+            )
+
+            # Удаляем одиночные теги: [tag] → пусто
+            text = re.sub(
+                rf'\[{re.escape(tag)}[^]]*]',
+                '',
+                text,
+                flags=re.IGNORECASE
+            )
+
+        # Убираем лишние переносы строк (3+ подряд заменяем на 2)
+        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text).strip()
+
+        return super().handle(text, context)
+
+
 class _BBCodeConverter:
     """
     Основной конвертер BBCode в HTML для Telegram.
@@ -441,6 +583,7 @@ class _BBCodeConverter:
         _MediaHandler,
         _FormattingHandler,
         _SpoilerHandler,
+        _CleanupHandler,
     )
 
     def __call__(
