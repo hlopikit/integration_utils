@@ -1,19 +1,16 @@
 import html
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterable, Optional, Tuple, Type, Match, Text, TypeAlias
+from typing import Any, Dict, Iterable, Optional, Tuple, Type, Match, Text, TypeAlias, Literal
 
 from prettytable import PrettyTable
 
 __all__ = [
-    "ALL_BBCODE_TAGS",
     "bbcode_to_telegram",
 ]
 
-BBCodeTagLiteral: TypeAlias = Text
+BBCodeTagLiteral: TypeAlias = Literal[
 
-# Полный список тегов BBCode
-ALL_BBCODE_TAGS: Tuple[BBCodeTagLiteral, ...] = (
     # Текстовое форматирование и шрифты
     "b", "i", "u", "s", "strike", "tt", "sub", "sup", "bold", "italic",
     "small", "ins", "del", "color", "size", "font", "bg",
@@ -56,7 +53,7 @@ ALL_BBCODE_TAGS: Tuple[BBCodeTagLiteral, ...] = (
     # Специальные и служебные теги
     "pre", "spoiler", "extract", "address", "ucase", "lcase",
     "highlight", "bs", "tab", "text-demo",
-)
+]
 
 # Теги, которые не обрабатываются
 TAGS_TO_REMOVE: Tuple[BBCodeTagLiteral, ...] = (
@@ -159,6 +156,8 @@ class _ProtectedTagHandler(_BaseHandler):
     Обрабатывает игнорируемые теги, временно скрывая их.
     """
 
+    __slots__ = ()
+
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         ignore_tags = context.get("ignore_tags")
 
@@ -202,6 +201,8 @@ class _HTMLEncodeHandler(_BaseHandler):
     Экранирует спецсимволы HTML.
     """
 
+    __slots__ = ()
+
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         # Экранируем HTML-символы для безопасности
         safe_text = html.escape(str(text or ""), quote=False)
@@ -216,6 +217,8 @@ class _TableHandler(_BaseHandler):
     [td] — ячейка таблицы
     [th] — заголовочная ячейка
     """
+
+    __slots__ = ()
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         """Ищет и преобразует BBCode таблицы в текстовые таблицы PrettyTable."""
@@ -290,6 +293,8 @@ class _LinkHandler(_BaseHandler):
     [email] — ссылка на email
     """
 
+    __slots__ = ()
+
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         domain = context.get('domain')
 
@@ -363,6 +368,8 @@ class _UserHandler(_BaseHandler):
     [user] — ссылка на профиль пользователя
     """
 
+    __slots__ = ()
+
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         domain = context.get('domain')
 
@@ -392,6 +399,8 @@ class _MediaHandler(_BaseHandler):
     [imgmini] — миниатюра
     [video] — видео
     """
+
+    __slots__ = ()
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         domain = context.get('domain')
@@ -438,75 +447,17 @@ class _MediaHandler(_BaseHandler):
         return super().handle(text, context)
 
 
-class _FormattingHandler(_BaseHandler):
+class _CodeBlockHandler(_BaseHandler):
     """
-    Обрабатывает форматирование (жирный, курсив, списки, код и др.).
+    Обрабрабатывает BBCode код [code] и языковые теги в [prog]-
     """
+
+    __slots__ = ()
+
+    CODE_LANGS = ('php', 'html', 'sql', 'python', 'javascript', 'css', 'bash', 'java')
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
-
-        # Обрабатываем код и скрипты в первую очередь
-        text = self._process_code_blocks(text)
-        text = self._process_sub_sup_scripts(text)
-
-        # Простые замены форматирования
-        simple_replacements = {
-            r'\[b](.*?)\[/b]': r'<b>\1</b>',
-            r'\[bold](.*?)\[/bold]': r'<b>\1</b>',
-            r'\[i](.*?)\[/i]': r'<i>\1</i>',
-            r'\[italic](.*?)\[/italic]': r'<i>\1</i>',
-            r'\[u](.*?)\[/u]': r'<u>\1</u>',
-            r'\[ins](.*?)\[/ins]': r'<u>\1</u>',
-            r'\[s](.*?)\[/s]': r'<s>\1</s>',
-            r'\[del](.*?)\[/del]': r'<s>\1</s>',
-            r'\[strike](.*?)\[/strike]': r'<s>\1</s>',
-            r'\[tt](.*?)\[/tt]': r'<code>\1</code>'
-        }
-
-        for pattern, replacement in simple_replacements.items():
-            text = re.sub(pattern, replacement, text, flags=re.DOTALL | re.IGNORECASE)
-
-        # Цитаты оформляем как код
-        quote_tags = ['quote', 'q', 'cite', 'acronym', 'abbr', 'dfn']
-
-        for tag in quote_tags:
-            text = re.sub(rf'\[{tag}.*?](.*?)\[/{tag}]', r'<code>\1</code>', text, flags=re.DOTALL | re.IGNORECASE)
-
-        # Заголовки
-        for i in range(1, 7):
-            text = re.sub(rf'\[h{i}](.*?)\[/h{i}]', r'<b>\1</b>\n', text, flags=re.DOTALL | re.IGNORECASE)
-
-        # Структурные элементы
-        text = re.sub(r'\[/?(?:list|ul|ol).*?]', '\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'\[\*]', '\n• ', text, flags=re.IGNORECASE)
-        text = re.sub(r'\[/?(?:p|div)]', '\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'\[br\s*/?]', '\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'\[hr\s*/?]', '\n-------------------\n', text, flags=re.IGNORECASE)
-
-        return super().handle(text, context)
-
-    @staticmethod
-    def _process_sub_sup_scripts(text: Text) -> Text:
-        """
-        Заменяет текст в тегах [sub] и [sup]
-        """
-
-        # Таблицы преобразования для подстрочных и надстрочных символов
-        trans_sub = str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎")
-        trans_sup = str.maketrans("0123456789+-=()", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾")
-
-        text = re.sub(r'\[sub](.*?)\[/sub]', lambda m: m.group(1).translate(trans_sub), text, flags=re.IGNORECASE)
-        text = re.sub(r'\[sup](.*?)\[/sup]', lambda m: m.group(1).translate(trans_sup), text, flags=re.IGNORECASE)
-
-        return text
-
-    @staticmethod
-    def _process_code_blocks(text: Text) -> Text:
-        """
-        Преобразует теги [code] и специализированные языковые теги (напр. [python])
-        """
         def _wrap_code(content: Text, lang: Optional[Text] = None) -> Text:
-
             content = content.strip('\n')
 
             if lang:
@@ -533,23 +484,91 @@ class _FormattingHandler(_BaseHandler):
         # Простой тег [code] без языка
         text = re.sub(r'\[code](.*?)\[/code]', lambda m: _wrap_code(m.group(1)), text, flags=re.DOTALL | re.IGNORECASE)
 
-        # Специфические языки программирования
-        specific_langs = ['php', 'html', 'sql', 'python', 'javascript', 'css', 'bash', 'java']
-
-        for lang in specific_langs:
+        for lang in self.CODE_LANGS:
             text = re.sub(
                 rf'\[{lang}](.*?)\[/{lang}]',
                 lambda m, l=lang: _wrap_code(m.group(1), l),
                 text, flags=re.DOTALL | re.IGNORECASE
             )
 
-        return text
+        return super().handle(text, context)
+
+
+class _SubSupHandler(_BaseHandler):
+    """
+    Обрабрабатывает теги [sub] и [sup].
+    """
+
+    __slots__ = ()
+
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
+        # Таблицы преобразования для подстрочных и надстрочных символов
+        trans_sub = str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎")
+        trans_sup = str.maketrans("0123456789+-=()", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾")
+
+        text = re.sub(r'\[sub](.*?)\[/sub]', lambda m: m.group(1).translate(trans_sub), text, flags=re.IGNORECASE)
+        text = re.sub(r'\[sup](.*?)\[/sup]', lambda m: m.group(1).translate(trans_sup), text, flags=re.IGNORECASE)
+
+        return super().handle(text, context)
+
+
+class _FormattingHandler(_BaseHandler):
+    """
+    Обрабатывает форматирование (жирный, курсив, списки, код и др.).
+
+    Теги: "[b]", "[bold]", "[i]", "[italic]", "[u]", "[ins]", "[s]", "[del]", "[strike]", "[tt]", "[sub]", "[sup]",
+    "[h1]", "[h2]", "[h3]", "[h4]", "[h5]", "[h6]", "[quote]", "[q]", "[cite]", "[acronym]", "[abbr]", "[dfn]", "[list]",
+    "[ul]", "[ol]", "[*]", "[p]", "[div]", "[br]", "[hr]", "[code]", "[prog]", "[php]", "[html]", "[sql]", "[python]",
+    "[javascript]", "[css]", "[bash]", "[java]"
+    """
+
+    __slots__ = ()
+
+    QUOTE_TAGS: Tuple[BBCodeTagLiteral, ...] = ("quote", "q", "cite", "acronym", "abbr", "dfn")
+
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
+
+        # Простые замены форматирования
+        simple_replacements = {
+            r'\[b](.*?)\[/b]': r'<b>\1</b>',
+            r'\[bold](.*?)\[/bold]': r'<b>\1</b>',
+            r'\[i](.*?)\[/i]': r'<i>\1</i>',
+            r'\[italic](.*?)\[/italic]': r'<i>\1</i>',
+            r'\[u](.*?)\[/u]': r'<u>\1</u>',
+            r'\[ins](.*?)\[/ins]': r'<u>\1</u>',
+            r'\[s](.*?)\[/s]': r'<s>\1</s>',
+            r'\[del](.*?)\[/del]': r'<s>\1</s>',
+            r'\[strike](.*?)\[/strike]': r'<s>\1</s>',
+            r'\[tt](.*?)\[/tt]': r'<code>\1</code>'
+        }
+
+        for pattern, replacement in simple_replacements.items():
+            text = re.sub(pattern, replacement, text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Цитаты оформляем как код
+        for tag in self.QUOTE_TAGS:
+            text = re.sub(rf'\[{tag}.*?](.*?)\[/{tag}]', r'<code>\1</code>', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Заголовки
+        for i in range(1, 7):
+            text = re.sub(rf'\[h{i}](.*?)\[/h{i}]', r'<b>\1</b>\n', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Структурные элементы
+        text = re.sub(r'\[/?(?:list|ul|ol).*?]', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'\[\*]', '\n• ', text, flags=re.IGNORECASE)
+        text = re.sub(r'\[/?(?:p|div)]', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'\[br\s*/?]', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'\[hr\s*/?]', '\n-------------------\n', text, flags=re.IGNORECASE)
+
+        return super().handle(text, context)
 
 
 class _SpoilerHandler(_BaseHandler):
     """
     Обрабатывает спойлер: [spoiler]
     """
+
+    __slots__ = ()
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
 
@@ -566,6 +585,8 @@ class _CleanupHandler(_BaseHandler):
     """
     Удаляет необрабатываемые теги
     """
+
+    __slots__ = ()
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         """Выполняет финальную чистку текста от необрабатываемых тегов и лишних пробелов."""
@@ -600,6 +621,8 @@ class _BBCodeConverter:
     Основной конвертер BBCode в HTML для Telegram.
     """
 
+    __slots__ = ()
+
     _HANDLER_CLASSES: Tuple[Type[_BaseHandler], ...] = (
         _ProtectedTagHandler,
         _HTMLEncodeHandler,
@@ -607,6 +630,8 @@ class _BBCodeConverter:
         _LinkHandler,
         _UserHandler,
         _MediaHandler,
+        _CodeBlockHandler,
+        _SubSupHandler,
         _FormattingHandler,
         _SpoilerHandler,
         _CleanupHandler,
@@ -616,7 +641,7 @@ class _BBCodeConverter:
             self,
             text: Text,
             *,
-            ignore_tags: Optional[Iterable[Text]] = None,
+            ignore_tags: Optional[Iterable[BBCodeTagLiteral]] = None,
             domain: Optional[Text] = None,
     ) -> Text:
         """Запускает процесс конвертации через цепочку."""
@@ -643,7 +668,7 @@ class _BBCodeConverter:
 def bbcode_to_telegram(
         text: Text,
         *,
-        ignore_tags: Optional[Iterable[Text]] = None,
+        ignore_tags: Optional[Iterable[BBCodeTagLiteral]] = None,
         domain: Optional[Text] = None,
 ) -> Text:
     """Функция для перевода из bbcode в html для Telegram"""
