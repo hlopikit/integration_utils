@@ -242,6 +242,9 @@ class _TableHandler(_BaseHandler):
 
     @staticmethod
     def _convert_bbcode_to_ascii(bbcode_content: Text) -> Text:
+        """
+        Преобразует внутреннее содержимое тега [table] в строковое ASCII-представление.
+        """
         # Ищем все строки таблицы (теги [tr])
         rows = re.findall(r'\[tr](.*?)\[/tr]', bbcode_content, flags=re.DOTALL | re.IGNORECASE)
 
@@ -326,8 +329,9 @@ class _LinkHandler(_BaseHandler):
 
     @staticmethod
     def _normalize_url(url: Text, domain: Optional[Text]) -> Optional[Text]:
-        """Приводит относительные ссылки к абсолютным с учетом домена."""
-
+        """
+        Добавляет протокол 'https:' для ссылок вида '//example.com' и базовый домен для относительных путей.
+        """
         url = url.strip()
 
         # Игнорируем специальные ссылки
@@ -390,6 +394,9 @@ class _MediaHandler(_BaseHandler):
         domain = context.get('domain')
 
         def _get_full_url(url: Text) -> Text:
+            """
+            Превращает относительный URL медиафайла в абсолютный.
+            """
             url = url.strip().strip('"\'')
             # Если уже абсолютная ссылка, возвращаем как есть
             if not url or url.startswith(('http', 'data:')):
@@ -430,18 +437,7 @@ class _MediaHandler(_BaseHandler):
 
 class _FormattingHandler(_BaseHandler):
     """
-    Обрабатывает форматирование:
-    [b], [bold] — жирный
-    [i], [italic] — курсив
-    [u], [ins] — подчёркнутый
-    [s], [del], [strike] — зачёркнутый
-    [tt] — моноширинный
-    [sub], [sup] — индексы
-    [h1]-[h6] — заголовки
-    [quote], [q], [cite], [acronym], [abbr], [dfn] — цитаты
-    [list], [ul], [ol], [*] — списки
-    [code], [prog], [php], [html], [sql]... — код
-    [p], [div], [br], [hr] — структура
+    Обрабатывает форматирование (жирный, курсив, списки, код и др.).
     """
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
@@ -487,7 +483,9 @@ class _FormattingHandler(_BaseHandler):
 
     @staticmethod
     def _process_sub_sup_scripts(text: Text) -> Text:
-
+        """
+        Заменяет текст в тегах [sub] и [sup]
+        """
         # Таблицы преобразования для подстрочных и надстрочных символов
         trans_sub = str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎")
         trans_sup = str.maketrans("0123456789+-=()", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾")
@@ -498,6 +496,9 @@ class _FormattingHandler(_BaseHandler):
 
     @staticmethod
     def _process_code_blocks(text: Text) -> Text:
+        """
+        Преобразует теги [code] и специализированные языковые теги (напр. [python])
+        """
         def _wrap_code(content: Text, lang: Optional[Text] = None) -> Text:
 
             content = content.strip('\n')
@@ -540,8 +541,7 @@ class _FormattingHandler(_BaseHandler):
 
 class _SpoilerHandler(_BaseHandler):
     """
-    Обрабатывает спойлер:
-    [spoiler] — скрытый текст
+    Обрабатывает спойлер: [spoiler]
     """
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
@@ -557,8 +557,7 @@ class _SpoilerHandler(_BaseHandler):
 
 class _CleanupHandler(_BaseHandler):
     """
-    Обрабатывает удаление необрабатываемых тегов и финальную чистку текста.
-    Удаляет теги из TAGS_TO_REMOVE, оставляя только их содержимое.
+    Удаляет необрабатываемые теги
     """
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
