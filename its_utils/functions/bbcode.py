@@ -449,7 +449,7 @@ class _MediaHandler(_BaseHandler):
 
 class _CodeBlockHandler(_BaseHandler):
     """
-    Обрабрабатывает BBCode код и языковые теги -
+    Обрабрабатывает BBCode код [code] и языковые теги в [prog]-
     """
 
     __slots__ = ()
