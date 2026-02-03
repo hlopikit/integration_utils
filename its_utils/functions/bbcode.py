@@ -15,109 +15,109 @@ BBCodeTagLiteral: TypeAlias = Text
 # Полный список тегов BBCode
 ALL_BBCODE_TAGS: Tuple[BBCodeTagLiteral, ...] = (
     # Текстовое форматирование и шрифты
-    'b', 'i', 'u', 's', 'strike', 'tt', 'sub', 'sup', 'bold', 'italic',
-    'small', 'ins', 'del', 'color', 'size', 'font', 'bg',
+    "b", "i", "u", "s", "strike", "tt", "sub", "sup", "bold", "italic",
+    "small", "ins", "del", "color", "size", "font", "bg",
 
     # Структура документа и абзацы
-    'p', 'div', 'span', 'br', 'hr', 'noparse', 'nobb', 'noindex',
+    "p", "div", "span", "br", "hr", "noparse", "nobb", "noindex",
 
     # Заголовки
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    "h1", "h2", "h3", "h4", "h5", "h6",
 
     # Цитаты и сноски
-    'quote', 'q', 'cite', 'acronym', 'abbr', 'dfn',
+    "quote", "q", "cite", "acronym", "abbr", "dfn",
 
     # Выравнивание
-    'align', 'left', 'center', 'right', 'justify',
-    'pleft', 'pcenter', 'pright', 'pjustify', 'indent',
+    "align", "left", "center", "right", "justify",
+    "pleft", "pcenter", "pright", "pjustify", "indent",
 
     # Списки
-    'list', 'ul', 'ol', '*', 'dl', 'dt', 'dd',
+    "list", "ul", "ol", "*", "dl", "dt", "dd",
 
     # Ссылки и контакты
-    'url', 'email', 'icq', 'skype', 'wmid', 'wiki',
-    'user', 'forum', 'blog', 'thread', 'topic', 'post',
-    'snapback', 'entry',
+    "url", "email", "icq", "skype", "wmid", "wiki",
+    "user", "forum", "blog", "thread", "topic", "post",
+    "snapback", "entry",
 
     # Изображения
-    'img', 'imgleft', 'imgright', 'imgcenter', 'image', 'imgmini',
+    "img", "imgleft", "imgright", "imgcenter", "image", "imgmini",
 
     # Таблицы
-    'table', 'tr', 'td', 'th', 'caption',
+    "table", "tr", "td", "th", "caption",
 
     # Мультимедиа и Flash
-    'video', 'youtube', 'rutube', 'googlevideo', 'veoh',
-    'smotri', 'smotricomvideo', 'mailvideo', 'yandexvideo', 'flash',
+    "video", "youtube", "rutube", "googlevideo", "veoh",
+    "smotri", "smotricomvideo", "mailvideo", "yandexvideo", "flash",
 
     # Отображение кода
-    'code', 'prog', 'php', 'html', 'sql', 'python', 'javascript',
-    'css', 'bash', 'java',
+    "code", "prog", "php", "html", "sql", "python", "javascript",
+    "css", "bash", "java",
 
     # Специальные и служебные теги
-    'pre', 'spoiler', 'extract', 'address', 'ucase', 'lcase',
-    'highlight', 'bs', 'tab', 'text-demo',
+    "pre", "spoiler", "extract", "address", "ucase", "lcase",
+    "highlight", "bs", "tab", "text-demo",
 )
 
 # Теги, которые не обрабатываются
 TAGS_TO_REMOVE: Tuple[BBCodeTagLiteral, ...] = (
     # Цвет и стили
-    'color', 'size', 'font', 'bg', 'small',
+    "color", "size", "font", "bg", "small",
 
     # Выравнивание
-    'align', 'left', 'center', 'right', 'justify',
-    'pleft', 'pcenter', 'pright', 'pjustify', 'indent',
+    "align", "left", "center", "right", "justify",
+    "pleft", "pcenter", "pright", "pjustify", "indent",
 
     # Специальные теги
-    'span', 'noparse', 'nobb', 'noindex', 'pre',
+    "span", "noparse", "nobb", "noindex", "pre",
 
     # Устаревшие ссылки
-    'icq', 'skype', 'wmid',
+    "icq", "skype", "wmid",
 
     # Внутренние ссылки
-    'wiki', 'forum', 'blog', 'thread', 'topic', 'post',
-    'snapback', 'entry',
+    "wiki", "forum", "blog", "thread", "topic", "post",
+    "snapback", "entry",
 
     # Сложные медиа
-    'youtube', 'rutube', 'googlevideo', 'veoh',
-    'smotri', 'smotricomvideo', 'mailvideo', 'yandexvideo', 'flash',
+    "youtube", "rutube", "googlevideo", "veoh",
+    "smotri", "smotricomvideo", "mailvideo", "yandexvideo", "flash",
 
     # Специальные теги
-    'extract', 'address', 'ucase', 'lcase', 'highlight',
-    'bs', 'tab', 'text-demo',
+    "extract", "address", "ucase", "lcase", "highlight",
+    "bs", "tab", "text-demo",
 
     # Табличные теги
-    'caption',
+    "caption",
 
     # Списки
-    'dl', 'dt', 'dd',
+    "dl", "dt", "dd",
 )
 
 # Теги, которые обрабатываются текущим кодом
 PROCESSED_TAGS: Tuple[BBCodeTagLiteral, ...] = (
     # Обрабатываются _TableHandler
-    'table', 'tr', 'td', 'th',
+    "table", "tr", "td", "th",
 
     # Обрабатываются _LinkHandler
-    'url', 'email',
+    "url", "email",
 
     # Обрабатывается _UserHandler
-    'user',
+    "user",
 
     # Обрабатываются _MediaHandler
-    'img', 'imgleft', 'imgright', 'imgcenter', 'image', 'imgmini', 'video',
+    "img", "imgleft", "imgright", "imgcenter", "image", "imgmini", "video",
 
     # Обрабатываются _FormattingHandler
-    'b', 'bold', 'i', 'italic', 'u', 'ins', 's', 'del', 'strike', 'tt',
-    'sub', 'sup', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'quote', 'q', 'cite', 'acronym', 'abbr', 'dfn',
-    'list', 'ul', 'ol', '*', 'p', 'div', 'br', 'hr',
+    "b", "bold", "i", "italic", "u", "ins", "s", "del", "strike", "tt",
+    "sub", "sup", "h1", "h2", "h3", "h4", "h5", "h6",
+    "quote", "q", "cite", "acronym", "abbr", "dfn",
+    "list", "ul", "ol", "*", "p", "div", "br", "hr",
 
     # Обрабатываются _FormattingHandler для кода
-    'code', 'prog', 'php', 'html', 'sql', 'python', 'javascript',
-    'css', 'bash', 'java',
+    "code", "prog", "php", "html", "sql", "python", "javascript",
+    "css", "bash", "java",
 
     # Обрабатывается _SpoilerHandler
-    'spoiler',
+    "spoiler",
 )
 
 
@@ -127,7 +127,7 @@ def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store:
     def _replacer(match: Match) -> Text:
         # Используем длину словаря для уникальности токена
         token = f"__PROTECTED_{len(protected_store)}__"
-        protected_store[token] = match.group(0)
+        protected_store[token] = match.group()
         return token
 
     return pattern.sub(_replacer, text)
@@ -140,9 +140,9 @@ class _BaseHandler(ABC):
 
     __slots__ = ("_next_handler",)
 
-    _next_handler: Optional['_BaseHandler']
+    _next_handler: Optional["_BaseHandler"]
 
-    def __init__(self, next_handler: Optional['_BaseHandler'] = None):
+    def __init__(self, next_handler: Optional["_BaseHandler"] = None):
         self._next_handler = next_handler
 
     @abstractmethod
@@ -160,7 +160,7 @@ class _ProtectedTagHandler(_BaseHandler):
     """
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
-        ignore_tags = context.get('ignore_tags')
+        ignore_tags = context.get("ignore_tags")
 
         if not ignore_tags:
             return super().handle(text, context)
@@ -245,6 +245,7 @@ class _TableHandler(_BaseHandler):
         """
         Преобразует внутреннее содержимое тега [table] в строковое ASCII-представление.
         """
+
         # Ищем все строки таблицы (теги [tr])
         rows = re.findall(r'\[tr](.*?)\[/tr]', bbcode_content, flags=re.DOTALL | re.IGNORECASE)
 
@@ -252,6 +253,7 @@ class _TableHandler(_BaseHandler):
             return ""
 
         parsed_data = []
+
         for row in rows:
             # Ищем все ячейки в строке (теги [td] или [th])
             cells = re.findall(r'\[t[dh].*?](.*?)\[/t[dh]]', row, flags=re.DOTALL | re.IGNORECASE)
@@ -272,6 +274,7 @@ class _TableHandler(_BaseHandler):
         pt.header = False
 
         max_cols = max(len(row) for row in parsed_data)
+
         for row in parsed_data:
             # Дополняем пустые ячейки для ровной таблицы
             row += [""] * (max_cols - len(row))
@@ -330,7 +333,7 @@ class _LinkHandler(_BaseHandler):
     @staticmethod
     def _normalize_url(url: Text, domain: Optional[Text]) -> Optional[Text]:
         """
-        Добавляет протокол 'https:' для ссылок вида '//example.com' и базовый домен для относительных путей.
+        Добавляет протокол 'https:' для ссылок вида '//example.com" и базовый домен для относительных путей.
         """
         url = url.strip()
 
@@ -465,6 +468,7 @@ class _FormattingHandler(_BaseHandler):
 
         # Цитаты оформляем как код
         quote_tags = ['quote', 'q', 'cite', 'acronym', 'abbr', 'dfn']
+
         for tag in quote_tags:
             text = re.sub(rf'\[{tag}.*?](.*?)\[/{tag}]', r'<code>\1</code>', text, flags=re.DOTALL | re.IGNORECASE)
 
@@ -486,12 +490,14 @@ class _FormattingHandler(_BaseHandler):
         """
         Заменяет текст в тегах [sub] и [sup]
         """
+
         # Таблицы преобразования для подстрочных и надстрочных символов
         trans_sub = str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎")
         trans_sup = str.maketrans("0123456789+-=()", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾")
 
         text = re.sub(r'\[sub](.*?)\[/sub]', lambda m: m.group(1).translate(trans_sub), text, flags=re.IGNORECASE)
         text = re.sub(r'\[sup](.*?)\[/sup]', lambda m: m.group(1).translate(trans_sup), text, flags=re.IGNORECASE)
+
         return text
 
     @staticmethod
@@ -529,6 +535,7 @@ class _FormattingHandler(_BaseHandler):
 
         # Специфические языки программирования
         specific_langs = ['php', 'html', 'sql', 'python', 'javascript', 'css', 'bash', 'java']
+
         for lang in specific_langs:
             text = re.sub(
                 rf'\[{lang}](.*?)\[/{lang}]',
@@ -634,8 +641,9 @@ class _BBCodeConverter:
 
 def bbcode_to_telegram(
         text: Text,
-        domain: Optional[Text] = None,
+        *,
         ignore_tags: Optional[Iterable[Text]] = None,
+        domain: Optional[Text] = None,
 ) -> Text:
     """Функция для перевода из bbcode в html для telegram"""
     converter = _BBCodeConverter()
