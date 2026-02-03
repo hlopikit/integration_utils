@@ -636,6 +636,7 @@ class _BBCodeConverter:
 
         if handler_chain:
             return handler_chain.handle(text, context)
+
         return text
 
 
@@ -645,6 +646,6 @@ def bbcode_to_telegram(
         ignore_tags: Optional[Iterable[Text]] = None,
         domain: Optional[Text] = None,
 ) -> Text:
-    """Функция для перевода из bbcode в html для telegram"""
+    """Функция для перевода из bbcode в html для Telegram"""
     converter = _BBCodeConverter()
     return converter(text, ignore_tags=ignore_tags, domain=domain)
