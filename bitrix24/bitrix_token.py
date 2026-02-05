@@ -3,9 +3,9 @@ from typing import Optional, Iterable, Any, Union
 
 from django.conf import settings
 
-from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
+from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixApiError, ExpiredToken, get_bitrix_api_error
+from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, get_bitrix_api_error
 
 
 class BaseBitrixToken:
@@ -52,6 +52,24 @@ class BaseBitrixToken:
         raise get_bitrix_api_error(json_response=json_response, status_code=response.status_code, message='')
 
     call_api_method_v2 = call_api_method
+
+    def call_api_method_v3(self, api_method: str, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
+        """
+        Метод для взаимодействия с REST API 3.0 Битрикс24.
+        В случае ошибки - кидаем исключение.
+
+        :raises ValueError: Неправильное значение аргумента.
+        :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
+        :raises BitrixTimeout: requests.Timeout.
+        :raises BitrixApiServerError: Ответ не является JSON.
+        :raises BitrixApiError: JSON-ответ содержит "error".
+        """
+        return api_call_v3(
+            domain=self.domain, api_method=api_method, auth_token=self.auth_token,
+            web_hook_auth=self.web_hook_auth, params=params, timeout=timeout,
+        )
+
+    call_method = call_api_method_v3
 
     def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
