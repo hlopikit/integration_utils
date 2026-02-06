@@ -185,6 +185,14 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'insufficient_scope'
 
     @property
+    def is_method_not_found(self):
+        """
+        Нету такого REST-метода на портале. Часто возникает из-за ограничений тарифа.
+        Пример: error='ERROR_METHOD_NOT_FOUND', error_description='Method not found!', status_code=404
+        """
+        return self.error == 'ERROR_METHOD_NOT_FOUND'
+
+    @property
     def is_no_auth_found(self):
         """
         Случайная фигня от Битрикс, когда он сам заворачивает свои же токены.
