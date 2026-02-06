@@ -1,0 +1,1 @@
+from .bbcode_to_telegram import bbcode_to_telegram
