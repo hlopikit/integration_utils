@@ -211,11 +211,8 @@ class _HTMLEncodeHandler(_BaseHandler):
 
 class _TableHandler(_BaseHandler):
     """
-    Обрабатывает таблицы:
-    [table] — таблица
-    [tr] — строка таблицы
-    [td] — ячейка таблицы
-    [th] — заголовочная ячейка
+    Обрабатывает таблицы.
+    ИСПРАВЛЕНО: Теперь использует callback в re.sub, чтобы избежать ошибки bad escape \o
     """
 
     __slots__ = ()
@@ -223,23 +220,19 @@ class _TableHandler(_BaseHandler):
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         """Ищет и преобразует BBCode таблицы в текстовые таблицы PrettyTable."""
 
-        bbcode_tables: List[Text] = re.findall(
-            pattern=r"\[table.*?](.*?)\[/table]",
-            string=text,
+        def _table_replacer(match: Match) -> Text:
+            table_content = match.group(1)
+
+            ascii_table = self._convert_bbcode_to_ascii(table_content)
+
+            return f"\n<pre>{ascii_table}</pre>\n"
+
+        text = re.sub(
+            r"\[table.*?](.*?)\[/table]",
+            _table_replacer,
+            text,
             flags=re.DOTALL | re.IGNORECASE,
         )
-
-        for bbcode_content in bbcode_tables:
-            ascii_table = self._convert_bbcode_to_ascii(bbcode_content)
-
-            # Заменяем BBCode таблицу на HTML-представление
-            text = re.sub(
-                r"\[table.*?](.*?)\[/table]",
-                f"\n<pre>{ascii_table}</pre>\n",
-                text,
-                count=1,
-                flags=re.DOTALL | re.IGNORECASE,
-            )
 
         return super().handle(text, context)
 
@@ -565,8 +558,30 @@ class _FormattingHandler(_BaseHandler):
         for i in range(1, 7):
             text = re.sub(rf"\[h{i}](.*?)\[/h{i}]", r"<b>\1</b>\n", text, flags=re.DOTALL | re.IGNORECASE)
 
-        # Структурные элементы
-        text = re.sub(r"\[/?(?:list|ul|ol).*?]", "\n", text, flags=re.IGNORECASE)
+        def _process_ordered_list(match):
+            """Преобразует [ol]...[/ol] или [list=1] в нумерованный текст"""
+
+            content = match.group(2)
+            items = re.split(r'\[\*]', content)
+            result_lines = []
+            counter = 1
+
+            for item in items:
+                clean_item = item.strip()
+                if clean_item:
+                    result_lines.append(f"{counter}. {clean_item}")
+                    counter += 1
+
+            return "\n" + "\n".join(result_lines) + "\n"
+
+        text = re.sub(
+            r"\[(ol|list=1)](.*?)\[/(?:ol|list)]",
+            _process_ordered_list,
+            text,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+
+        text = re.sub(r"\[/?(?:list|ul).*?]", "\n", text, flags=re.IGNORECASE)
         text = re.sub(r"\[\*]", "\n• ", text, flags=re.IGNORECASE)
         text = re.sub(r"\[/?(?:p|div)]", "\n", text, flags=re.IGNORECASE)
         text = re.sub(r"\[br\s*/?]", "\n", text, flags=re.IGNORECASE)
