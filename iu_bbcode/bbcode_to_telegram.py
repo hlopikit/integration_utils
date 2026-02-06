@@ -34,7 +34,7 @@ BBCodeTagLiteral = Literal[
     # Ссылки и контакты
     "url", "email", "icq", "skype", "wmid", "wiki",
     "user", "forum", "blog", "thread", "topic", "post",
-    "snapback", "entry",
+    "snapback", "entry", "disk",
 
     # Изображения
     "img", "imgleft", "imgright", "imgcenter", "image", "imgmini",
@@ -72,7 +72,7 @@ _TAGS_TO_REMOVE: Final[Tuple[BBCodeTagLiteral, ...]] = (
 
     # Внутренние ссылки
     "wiki", "forum", "blog", "thread", "topic", "post",
-    "snapback", "entry",
+    "snapback", "entry", "disk",
 
     # Сложные медиа
     "youtube", "rutube", "googlevideo", "veoh",
