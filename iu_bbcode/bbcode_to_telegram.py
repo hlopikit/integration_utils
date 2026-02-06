@@ -212,7 +212,10 @@ class _HTMLEncodeHandler(_BaseHandler):
 class _TableHandler(_BaseHandler):
     """
     Обрабатывает таблицы.
-    ИСПРАВЛЕНО: Теперь использует callback в re.sub, чтобы избежать ошибки bad escape \o
+    [table] — таблица
+    [tr] — строка таблицы
+    [td] — ячейка таблицы
+    [th] — заголовочная ячейка
     """
 
     __slots__ = ()
