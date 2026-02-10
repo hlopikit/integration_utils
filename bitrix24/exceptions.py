@@ -191,6 +191,10 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'APPLICATION_NOT_FOUND'
 
     @property
+    def is_application_not_installed(self):
+        return self.error == 'ERROR_OAUTH' and self.error_description == 'Application not installed'
+
+    @property
     def is_status_gte_500(self):
         return self.status_code >= 500
 
