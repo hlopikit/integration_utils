@@ -624,6 +624,9 @@ class _CleanupHandler(_BaseHandler):
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         """Выполняет финальную чистку текста от необрабатываемых тегов и лишних пробелов."""
 
+        # Удаляем HEX-коды эмодзи вида (:f09f98b4:)
+        text = re.sub(r"\(:[a-f0-9]{4,}:\)", "", text, flags=re.IGNORECASE)
+
         # Удаляем только теги из _TAGS_TO_REMOVE, оставляя содержимое
         for tag in _TAGS_TO_REMOVE:
 
