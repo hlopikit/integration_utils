@@ -205,6 +205,7 @@ class _HTMLEncodeHandler(_BaseHandler):
 
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         # Экранируем HTML-символы для безопасности
+        text = str(text or "").replace("&quot;", '"')
         safe_text = html.escape(str(text or ""), quote=False)
         return super().handle(safe_text, context)
 
@@ -553,9 +554,9 @@ class _FormattingHandler(_BaseHandler):
         for pattern, replacement in simple_replacements.items():
             text = re.sub(pattern, replacement, text, flags=re.DOTALL | re.IGNORECASE)
 
-        # Цитаты оформляем как код
+        # Цитаты оформляем как блок кода (pre)
         for tag in self._QUOTE_TAGS:
-            text = re.sub(rf"\[{tag}.*?](.*?)\[/{tag}]", r"<code>\1</code>", text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(rf"\[{tag}.*?](.*?)\[/{tag}]", r"<pre>\1</pre>", text, flags=re.DOTALL | re.IGNORECASE)
 
         # Заголовки
         for i in range(1, 7):
