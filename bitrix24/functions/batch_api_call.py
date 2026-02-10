@@ -151,6 +151,7 @@ def to_chunks(lst, chunk_size=50):
 def _batch_api_call(
             methods,  # type: Methods
             bitrix_user_token,  # type: BitrixUserToken
+            function_calling_from_bitrix_user_token_think_before_use,
             halt=0,  # type: int
             chunk_size=50,  # type: int
             timeout=DEFAULT_TIMEOUT,  # type: int
@@ -317,34 +318,41 @@ def _batch_api_call(
             data = response.json()
 
             try:
-                operating = max([v.get('operating', 0) for k,v in data['result']['result_time'].items()])
-                operating = max(operating, data['time'].get('operating', 0))
+                operating = max([v['operating'] for k,v in data['result']['result_time'].items()])
+                operating = max(operating, data['time']['operating'])
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
                     log_method('method_operating', '{}, batch({}): {}'.format(
                         domain, ', '.join({m for _, m, _ in normalized_methods}), operating,
                     ))
-                    time.sleep(operating - 300)
-            except Exception as e:
-                ilogger.error('method_operating_exception', f"({e}): data={data}")
+                    time.sleep(operating-300)
+            except:
+                pass
 
         except ValueError:  # response - не json
+            # Если апи вернуло ошибку, не связанную с токеном, логируем
             try:
                 response_text = response.text
             except UnicodeError:
-                response_text = response.content.decode(response.apparent_encoding, errors=DECODE_ERRORS)
-            ilogger.warning(f'{log_prefix}json_decode_batch_failed', f"response_text={response_text}")
+                response_text = response.content \
+                    .decode(response.apparent_encoding, errors=DECODE_ERRORS)
+            ilogger.warning(u'%sbitrix_api_error' % log_prefix, response_text)
 
             # Нет смысла возвращать None, т.к.:
-            # - либо вызов проигнорируют и будет ошибка в бизнес-логике
+            # - либо вызов проигнорируют и будет оошибка в бизнес-логике
             # - либо будут ожидать словарь и будет TypeError
             raise JsonDecodeBatchFailed(reason=response)
 
-        else:  # response - json
+        else:
             error = data.get('error')
-            if error == 'expired_token' and bitrix_user_token and bitrix_user_token.refresh(timeout=timeout):
+            if error == 'expired_token' and bitrix_user_token and \
+                    bitrix_user_token.refresh(timeout=timeout):
                 # Если обновление токена прошло успешно, повторить запрос
-                return _batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout)
+                return _batch_api_call(methods, bitrix_user_token,
+                                        function_calling_from_bitrix_user_token_think_before_use=True,
+                                        halt=halt,
+                                        chunk_size=chunk_size,
+                                        timeout=timeout)
             elif error:
                 raise BatchApiCallError(reason=response)
 

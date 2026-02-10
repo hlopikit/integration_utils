@@ -346,17 +346,17 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
             verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
         )
     except (requests.ConnectionError, requests.exceptions.SSLError) as e:
-        raise ConnectionToBitrixError(requests_connection_error=e) from e
+        raise ConnectionToBitrixError(requests_connection_error=e)
     except requests.Timeout as e:
-        raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
+        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
 
     status_code = response.status_code
     message = response.text
 
     try:
         json_response = response.json()
-    except JSONDecodeError as e:
-        raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from e
+    except JSONDecodeError:
+        raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message)
 
     if json_response.get('error'):
         raise BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=status_code, message=message)
