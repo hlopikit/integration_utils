@@ -317,14 +317,22 @@ def _batch_api_call(
             data = response.json()
 
             try:
-                operating = max([v.get('operating', 0) for k,v in data['result']['result_time'].items()])
-                operating = max(operating, data['time'].get('operating', 0))
+                operating = 0
+
+                # Может прийти error без result или time
+                # Может прийти result, но с result_error и пустым списком в result_time
+                result_time = data.get('result', {}).get('result_time')
+                if isinstance(result_time, dict):
+                    operating = max([v.get('operating', 0) for k, v in result_time.items()])
+                operating = max(operating, data.get('time', {}).get('operating', 0))
+
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
                     log_method('method_operating', '{}, batch({}): {}'.format(
                         domain, ', '.join({m for _, m, _ in normalized_methods}), operating,
                     ))
                     time.sleep(operating - 300)
+
             except Exception as e:
                 ilogger.error('method_operating_exception', f"({e}): data={data}")
 
