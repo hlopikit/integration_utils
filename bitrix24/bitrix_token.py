@@ -90,7 +90,7 @@ class BaseBitrixToken:
         timeout: Optional[int] = DEFAULT_TIMEOUT,
         limit: Optional[int] = None,
         batch_size=50,
-    ) -> Generator[Dict]:
+    ) -> Generator[Dict, None, None]:
         """Списочный запрос с параметром ?start=-1
         см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
 

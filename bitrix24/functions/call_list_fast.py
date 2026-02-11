@@ -236,7 +236,7 @@ def call_list_fast(
     timeout: Optional[int] = DEFAULT_TIMEOUT,
     limit: Optional[int] = None,
     batch_size=50,
-) -> Generator[Dict]:
+) -> Generator[Dict, None, None]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
     https://dev.1c-bitrix.ru/rest_help/rest_sum/start.php
