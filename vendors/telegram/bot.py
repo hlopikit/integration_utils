@@ -313,6 +313,7 @@ class Bot(TelegramObject):
         protect_content: bool = None,
         message_thread_id: int = None,
         business_connection_id: int = None,
+        direct_messages_topic_id: Optional[int] = None,
     ) -> Union[bool, Message]:
         if reply_to_message_id is not None:
             data['reply_to_message_id'] = reply_to_message_id
@@ -325,6 +326,9 @@ class Bot(TelegramObject):
 
         if business_connection_id is not None:
                     data["business_connection_id"] = business_connection_id
+
+        if direct_messages_topic_id is not None:
+            data['direct_messages_topic_id'] = direct_messages_topic_id
 
         # We don't check if (DEFAULT_)None here, so that _put is able to insert the defaults
         # correctly, if necessary
@@ -482,6 +486,7 @@ class Bot(TelegramObject):
         protect_content: bool = None,
         message_thread_id: int = None,
         business_connection_id: int = None,
+        direct_messages_topic_id: Optional[int] = None,
     ) -> Message:
         """Use this method to send text messages.
 
@@ -548,6 +553,7 @@ class Bot(TelegramObject):
             protect_content=protect_content,
             message_thread_id=message_thread_id,
             business_connection_id=business_connection_id,
+            direct_messages_topic_id=direct_messages_topic_id,
         )
 
     @log
@@ -684,6 +690,7 @@ class Bot(TelegramObject):
         filename: str = None,
         protect_content: bool = None,
         message_thread_id: int = None,
+        direct_messages_topic_id: Optional[int] = None,
     ) -> Message:
         """Use this method to send photos.
 
@@ -767,6 +774,7 @@ class Bot(TelegramObject):
             api_kwargs=api_kwargs,
             protect_content=protect_content,
             message_thread_id=message_thread_id,
+            direct_messages_topic_id=direct_messages_topic_id,
         )
 
     @log
@@ -921,6 +929,7 @@ class Bot(TelegramObject):
         caption_entities: Union[List['MessageEntity'], Tuple['MessageEntity', ...]] = None,
         protect_content: bool = None,
         message_thread_id: int = None,
+        direct_messages_topic_id: Optional[int] = None,
     ) -> Message:
         """
         Use this method to send general files.
@@ -1021,6 +1030,7 @@ class Bot(TelegramObject):
             api_kwargs=api_kwargs,
             protect_content=protect_content,
             message_thread_id=message_thread_id,
+            direct_messages_topic_id=direct_messages_topic_id,
         )
 
     @log
@@ -1254,6 +1264,7 @@ class Bot(TelegramObject):
         filename: str = None,
         protect_content: bool = None,
         message_thread_id: int = None,
+        direct_messages_topic_id: Optional[int] = None,
     ) -> Message:
         """
         As of v.4.0, Telegram clients support rounded square mp4 videos of up to 1 minute long.
@@ -1346,6 +1357,7 @@ class Bot(TelegramObject):
             api_kwargs=api_kwargs,
             protect_content=protect_content,
             message_thread_id=message_thread_id,
+            direct_messages_topic_id=direct_messages_topic_id,
         )
 
     @log

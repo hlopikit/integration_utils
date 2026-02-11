@@ -33,31 +33,18 @@ from typing import Any, Union
 import certifi
 
 try:
-    # import ..vendor.ptb_urllib3.urllib3 as urllib3
-    # import ..vendor.ptb_urllib3.urllib3.contrib.appengine as appengine
-    from ..vendor.ptb_urllib3 import urllib3 as urllib3
-    from ..vendor.ptb_urllib3.urllib3.contrib import appengine as appengine
-    from ..vendor.ptb_urllib3.urllib3.connection import HTTPConnection
-    from ..vendor.ptb_urllib3.urllib3.fields import RequestField
-    from ..vendor.ptb_urllib3.urllib3.util.timeout import Timeout
-except ImportError:  # pragma: no cover
-    try:
-        import urllib3  # type: ignore[no-redef]
-        import urllib3.contrib.appengine as appengine  # type: ignore[no-redef]
-        from urllib3.connection import HTTPConnection  # type: ignore[no-redef]
-        from urllib3.fields import RequestField  # type: ignore[no-redef]
-        from urllib3.util.timeout import Timeout  # type: ignore[no-redef]
+    import urllib3  # type: ignore[no-redef]
+    #import urllib3.contrib.appengine as appengine  # type: ignore[no-redef]
+    from urllib3.connection import HTTPConnection  # type: ignore[no-redef]
+    from urllib3.fields import RequestField  # type: ignore[no-redef]
+    from urllib3.util.timeout import Timeout  # type: ignore[no-redef]
 
-        warnings.warn(
-            'python-telegram-bot is using upstream urllib3. This is allowed but not '
-            'supported by python-telegram-bot maintainers.'
-        )
-    except ImportError:
-        warnings.warn(
-            "python-telegram-bot wasn't properly installed. Please refer to README.rst on "
-            "how to properly install."
-        )
-        raise
+except ImportError:
+    warnings.warn(
+        "python-telegram-bot wasn't properly installed. Please refer to README.rst on "
+        "how to properly install."
+    )
+    raise
 
 # pylint: disable=C0412
 from .. import InputFile, TelegramError
@@ -164,18 +151,9 @@ class Request:
         if not proxy_url:
             proxy_url = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
 
-        self._con_pool: Union[
-            urllib3.PoolManager,
-            appengine.AppEngineManager,
-            'SOCKSProxyManager',  # noqa: F821
-            urllib3.ProxyManager,
-        ] = None  # type: ignore
+        self._con_pool = None  # type: ignore
         if not proxy_url:
-            if appengine.is_appengine_sandbox():
-                # Use URLFetch service if running in App Engine
-                self._con_pool = appengine.AppEngineManager()
-            else:
-                self._con_pool = urllib3.PoolManager(**kwargs)
+            self._con_pool = urllib3.PoolManager(**kwargs)
         else:
             kwargs.update(urllib3_proxy_kwargs)
             if proxy_url.startswith('socks'):

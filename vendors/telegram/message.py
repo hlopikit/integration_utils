@@ -59,6 +59,7 @@ from . import (
     VideoChatParticipantsInvited,
     WebAppData,
     VideoChatScheduled,
+    DirectMessagesTopic,
 )
 from .forumtopic import ForumTopicClosed, ForumTopicCreated, ForumTopicReopened, ForumTopicEdited
 from .utils.helpers import (
@@ -69,6 +70,7 @@ from .utils.helpers import (
     DEFAULT_20,
 )
 from .utils.types import JSONDict, FileInput, ODVInput, DVInput
+from .utils.argumentparsing import de_json_optional
 
 if TYPE_CHECKING:
     from . import (
@@ -525,6 +527,7 @@ class Message(TelegramObject):
         'forum_topic_closed',
         'forum_topic_reopened',
         'forum_topic_edited',
+        'direct_messages_topic',
         '_id_attrs',
     )
 
@@ -640,6 +643,7 @@ class Message(TelegramObject):
         forum_topic_closed: ForumTopicClosed = None,
         forum_topic_reopened: ForumTopicReopened = None,
         forum_topic_edited: ForumTopicEdited = None,
+        direct_messages_topic: Optional[DirectMessagesTopic] = None,
         **_kwargs: Any,
     ):
         if (
@@ -750,6 +754,7 @@ class Message(TelegramObject):
         self.forum_topic_reopened = forum_topic_reopened
         self.forum_topic_edited = forum_topic_edited
         self.bot = bot
+        self.direct_messages_topic: Optional[DirectMessagesTopic] = direct_messages_topic
 
         self._effective_attachment = DEFAULT_NONE
 
@@ -849,6 +854,9 @@ class Message(TelegramObject):
         data['forum_topic_edited'] = ForumTopicEdited.de_json(
             data.get('forum_topic_edited'), bot
         )
+        data["direct_messages_topic"] = de_json_optional(
+            data.get("direct_messages_topic"), DirectMessagesTopic, bot
+        )
 
         return cls(bot=bot, **data)
 
@@ -946,6 +954,10 @@ class Message(TelegramObject):
                 return self.message_id
 
         return None
+
+    def _extract_direct_messages_topic_id(self) -> Optional[int]:
+        """Return the topic id of the direct messages chat, if it is present."""
+        return self.direct_messages_topic.topic_id if self.direct_messages_topic else None
 
     def reply_text(
         self,

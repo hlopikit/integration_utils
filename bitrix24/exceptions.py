@@ -1,5 +1,5 @@
-from django.http import JsonResponse
 import six
+from django.http import JsonResponse
 
 STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
@@ -12,19 +12,35 @@ NO_AUTH_FOUND = 'NO_AUTH_FOUND'
 APPLICATION_NOT_FOUND = 'APPLICATION_NOT_FOUND'
 QUERY_LIMIT_EXCEEDED = 'QUERY_LIMIT_EXCEEDED'
 
+"""
+Наследование исключений:
+Exception
+└── BitrixApiException
+    ├── BitrixApiError
+    │   ├── ExpiredToken
+    │   ├── BitrixTokenRefreshError
+    │   ├── BitrixApiServerError
+    │   ├── SnapiError
+    │   └── BitrixApiErrorNotFound
+    ├── BatchFailed
+    │   └── BatchApiCallError
+    │   └── JsonDecodeBatchFailed
+    ├── BaseConnectionError
+    │   ├── ConnectionToBitrixError
+    │   └── BitrixOauthConnectionError
+    └── BaseTimeout
+        ├── BitrixTimeout
+        └── BitrixOauthRefreshTimeout
+"""
 
 class BitrixApiException(Exception):
     """
-    Ошибки от АПИ
+    Ошибка при работе с API Битрикс.
     """
-    pass
+    @property
+    def is_not_logic_error(self):
+        return False
 
-
-# Статус коды добавленные
-# 600
-# raise BitrixApiError(has_resp='deprecated', json_response={'error': 'ConnectionToBitrixError'}, status_code=600, message='')
-# 601
-# raise BitrixApiError(has_resp='deprecated', json_response={"error": "json ValueError"}, status_code=601, message='')
 
 def get_bitrix_api_error(json_response, status_code, message=''):
     bitrix_api_error = BitrixApiError(has_resp='deprecated', json_response=json_response, status_code=status_code, message=message)
@@ -35,47 +51,58 @@ def get_bitrix_api_error(json_response, status_code, message=''):
 
 
 class BitrixApiError(BitrixApiException):
+    """
+    Ошибка при одиночном запросе к Битрикс.
+    Обычно означает JSON-ответ от Битрикс с ошибкой.
+    Бывают внутренние ошибки сервера Битрикс без JSON в ответе.
+    Иногда формируем ошибку сами (не ответ Битрикс).
+    """
     TOKEN_DEACTIVATED = 'token_deactivated'
 
-    def __init__(self, has_resp, json_response, status_code, message, refresh_error=None, token=None):
-        # :has_resp - has response похоже на атавизм, не нашел применения достойного в коде УДАЛИТЬ?
-        # :json_response - используется как минимум для анализа, что же там в ошибке было.
-        # :status_code - http статус код ответа
-        # message - укороченное пояснение ошибке не через json_response
-        # refresh_error - пок тоже не понятно как применяется УДАЛИТЬ?
-
-        # В integration_utils раньше применялись
-        # raise BitrixApiError(401, dict(error='expired_token'))
-        # Нужно переделать на
-        # raise BitrixApiError(has_resp='deprecated', json_response=dict(error='expired_token'), status_code=401, message='expired_token')
-
-        super(BitrixApiError, self).__init__(dict(
-            has_resp=has_resp,
-            json_response=json_response,
-            status_code=status_code,
-            message=message,
-            refresh_error=refresh_error,
-            token=token
-        ))
+    def __init__(self, has_resp, json_response, status_code, message, token=None):
+        """
+        :param has_resp: Не используется (ставить 'deprecated').
+        :param json_response: JSON-ответ с ошибкой, если есть.
+        :param status_code: HTTP-статус ответа с ошибкой.
+        :param message: Укороченное пояснение.
+        :param token: Токен, использовавшийся для запроса.
+        """
+        super().__init__(has_resp, json_response, status_code, message, token)
         self.has_resp = has_resp
         self.json_response = json_response
         self.status_code = status_code
         self.message = message
-        self.refresh_error = refresh_error
         self.token = token
 
     @property
-    def error(self):  # 'error' из json-ответа
+    def error(self):
         if isinstance(self.json_response, dict):
             return self.json_response.get('error')
 
     @property
-    def error_description(self):  # 'error_description' из json-ответа
+    def error_description(self):
         if isinstance(self.json_response, dict):
             return self.json_response.get('error_description')
 
     @property
+    def is_not_logic_error(self):
+        from integration_utils.bitrix24.exceptions_filter_v1 import is_not_logic_error
+        return is_not_logic_error(self)
+
+    @property
+    def is_error_core(self):
+        """
+        Пример: error='ERROR_CORE',
+        error_description='Command has unprocessed exception: "OOM command not allowed when used memory > \'maxmemory\'.". Code: "0"',
+        status_code=400
+        """
+        return self.error == "ERROR_CORE"
+
+    @property
     def is_token_deactivated(self):
+        """
+        Ошибка формируется нами, когда деактивируем токен.
+        """
         return self.message == 'token_deactivated'
 
     @property
@@ -92,6 +119,9 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_cant_refresh(self):
+        """
+        Ошибка формируется нами, когда не удалось обновить протухший токен.
+        """
         return self.error == 'expired_token' and self.message == 'cant_refresh'
 
     @property
@@ -104,42 +134,77 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_internal_server_error(self):
-        # {'message': 'api_error', 'status_code': 500, 'refresh_error': None,
-        #  'json_response': {'error_description': 'Internal server error',
-        #                    'error': 'INTERNAL_SERVER_ERROR'}, 'has_resp': False}
+        """
+        Внутренняя ошибка сервера Битрикс.
+        Пример: error='INTERNAL_SERVER_ERROR', error_description='Internal server error', status_code=500
+        """
         return self.error == "INTERNAL_SERVER_ERROR"
 
     @property
+    def is_sphinx_connect_error(self):
+        return isinstance(self.error_description, str) and "Sphinx connect error" in self.error_description and self.status_code == 400
+
+    @property
     def is_connection_to_bitrix_error(self):
-        # {'refresh_error': None, 'message': 'ConnectionToBitrixError', 'has_resp': False,
-        #  'json_response': {'error': 'ConnectionToBitrixError'}, 'status_code': 600}
+        """
+        Deprecated.
+        Ошибка формировалась нами в call_api_method через превращение ConnectionToBitrixError в BitrixApiError.
+        Данное превращение убрано из-за нелогичности, теперь нужно перехватывать ConnectionToBitrixError.
+        """
         return self.error == "ConnectionToBitrixError"
 
     @property
+    def is_connection_error(self):
+        """
+        Пример: error='CONNECTION_ERROR', error_description='Error connecting to authorization server', status_code=401
+        """
+        return self.error == 'CONNECTION_ERROR'
+
+    @property
     def is_error_connecting_to_authorization_server(self):
-        # {'refresh_error': None, 'message': 'api_error',
-        #  'json_response': {'error_description': 'Error connecting to authorization server',
-        #                    'error': 'CONNECTION_ERROR'},
-        #  'has_resp': False, 'status_code': 401}
+        """
+        Пример: error='CONNECTION_ERROR', error_description='Error connecting to authorization server', status_code=401
+        """
         return self.error_description == "Error connecting to authorization server"
 
     @property
     def is_license_check_failed(self):
-        # {'refresh_error': None, 'status_code': 401, 'message': 'api_error', 'json_response': {'error': 'verification_needed', 'error_description': 'License check failed.'}
+        """
+        У портала проблемы с лицензией (облачным тарифом).
+        Пример: error='verification_needed', error_description='License check failed.', status_code=401
+        """
         return self.error_description == "License check failed."
 
     @property
     def is_insufficient_scope(self):
-        # Допустим нет права crm, а мы пробуем выполнить crm.lead.get
+        """
+        Не хватает разрешения (scope) у приложения.
+        Пример: error='insufficient_scope',
+        error_description='The request requires higher privileges than provided by the access token', status_code=401
+        """
         return self.error == 'insufficient_scope'
 
     @property
+    def is_method_not_found(self):
+        """
+        Нету такого REST-метода на портале. Часто возникает из-за ограничений тарифа.
+        Пример: error='ERROR_METHOD_NOT_FOUND', error_description='Method not found!', status_code=404
+        """
+        return self.error == 'ERROR_METHOD_NOT_FOUND'
+
+    @property
     def is_no_auth_found(self):
-        # Случайная фигня от Битрикс, когда он сам заворачивает свои же токены
+        """
+        Случайная фигня от Битрикс, когда он сам заворачивает свои же токены.
+        TODO: Объяснить более подробно с примером.
+        """
         return self.error == 'NO_AUTH_FOUND'
 
     @property
     def is_portal_deleted(self):
+        """
+        Означает, что публичная часть портала скрыта (не всегда значит, что удалён).
+        """
         return self.error == 'PORTAL_DELETED'
 
     @property
@@ -151,21 +216,35 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'APPLICATION_NOT_FOUND'
 
     @property
+    def is_application_not_installed(self):
+        """
+        Пример: error='ERROR_OAUTH', error_description='Application not installed', status_code=401
+        """
+        return self.error_description == 'Application not installed'
+
+    @property
     def is_status_gte_500(self):
         return self.status_code >= 500
 
     @property
     def is_out_of_disc_space_error(self):
-        return self.error == 'ACCESS_DENIED' and self.error_description in [
+        """
+        Пример: error='ERROR_OAUTH', error_description='Исчерпан выделенный дисковый ресурс.<br>', status_code=401
+        """
+        return self.error_description in [
             # Тут надо собрать description для этой ошибки на каждом языке
             'Вичерпано виділений дисковий ресурс.<br>',
-            'Исчерпан выделенный дисковый ресурс.<br>'
+            'Исчерпан выделенный дисковый ресурс.<br>',
+            'Disk quota exceeded.<br>',
         ]
 
     @property
     def is_token_expired(self):
-        # {'has_resp': True, 'json_response': {'error': 'expired_token', 'error_description': 'The access token provided has expired.'},
-        # 'status_code': 401, 'message': 'cant_refresh', 'refresh_error': None}
+        """
+        Протухший токен.
+        Пример: error='expired_token',
+        error_description='The access token provided has expired.', status_code=401
+        """
         return self.error_description == 'The access token provided has expired.'
 
     @property
@@ -195,6 +274,10 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_unauthorized_any(self):
         return self.status_code == 401
+
+    @property
+    def is_operation_time_limit(self):
+        return self.error == 'OPERATION_TIME_LIMIT'
 
     def dict(self):
         if isinstance(self.json_response, dict):
@@ -229,67 +312,125 @@ class BitrixApiError(BitrixApiException):
 
 
 class ExpiredToken(BitrixApiError):
-    # Наследуется от BitrixApiError, чтобы отлавливать одним исключением все ошибки АПИ.
-    # Возможно, нужно наследовать от BitrixApiException.
-    # TODO ошибки еще надо в порядок приводить
-
+    """
+    Ошибка для обработки протухшего токена.
+    """
     def __init__(self, status_code=401):
         # from collections import namedtuple
         # json_response = namedtuple('Response', ['text'], defaults=['expired_token'])()
         # это было сделано чтобы можно было обращаться json_response.text
-        super().__init__(has_resp=False, json_response={"error": "expired_token"}, status_code=status_code, message='expired_token', refresh_error=None)
-
-
-class ConnectionToBitrixError(BitrixApiException):
-    pass
-
-
-class BatchApiCallError(BitrixApiException):
-    def __init__(self, reason=None):
-        self.reason = reason
-
-
-class BatchFailed(BitrixApiException):
-    def __init__(self, reason=None):
-        self.reason = reason
+        super().__init__(has_resp='deprecated', json_response={'error': 'expired_token'}, status_code=status_code, message='expired_token')
 
 
 class BitrixTokenRefreshError(BitrixApiError):
+    """
+    Ошибка обновления токена Битрикс.
+    """
     pass
 
 
 class BitrixApiServerError(BitrixApiError):
+    """
+    Внутренняя ошибка сервера Битрикс.
+    Обычно означает, что сервер вернул не JSON в ответе.
+    """
     is_internal_server_error = True
 
 
 class SnapiError(BitrixApiError):
+    """
+    Ошибка вызова Snapi-метода.
+    Смотреть: bitrix_utils.BitrixUserToken.call_snapi_method.
+    """
+    pass
+
+
+class BitrixApiErrorNotFound(BitrixApiError):
+    """
+    Ошибка BitrixApiError.is_not_found.
+    TODO: Объяснить, почему сделана отдельным классом.
+    """
+    pass
+
+
+class BatchFailed(BitrixApiException):
+    """
+    Ошибка batch-запроса.
+    """
+    def __init__(self, reason=None):
+        super().__init__(reason)
+        self.reason = reason
+
+
+class BatchApiCallError(BatchFailed):
+    """
+    Сервер вернул JSON-ответ с ошибкой на batch-запрос.
+    """
     pass
 
 
 class JsonDecodeBatchFailed(BatchFailed):
+    """
+    Сервер вернул не JSON в ответе на batch-запрос.
+    Обычно означает внутреннюю ошибку сервера Битрикс.
+    """
+    pass
+
+
+class BaseConnectionError(BitrixApiException):
+    """
+    Ошибка соединения при запросе.
+    Соответствует исключению requests.ConnectionError.
+    """
+    def __init__(self, requests_connection_error=None):
+        super().__init__(requests_connection_error)
+        self.requests_connection_error = requests_connection_error
+
+    @property
+    def is_not_logic_error(self):
+        return True
+
+
+class ConnectionToBitrixError(BaseConnectionError):
+    """
+    Ошибка соединения при запросе к порталу Битрикс.
+    """
+    pass
+
+
+class BitrixOauthConnectionError(BaseConnectionError):
+    """
+    Ошибка соединения при запросе к серверу авторизации Битрикс при обновлении токена.
+    """
     pass
 
 
 class BaseTimeout(BitrixApiException):
+    """
+    Таймаут при запросе.
+    Соответствует исключению requests.Timeout.
+    """
     def __init__(self, requests_timeout, timeout):
+        super().__init__(requests_timeout, timeout)
         self.request_timeout = requests_timeout
         self.timeout = timeout
 
-    def __repr__(self):
-        rv = '<BitrixTimeout {!s}>'.format(self)
-        return rv
+    @property
+    def is_not_logic_error(self):
+        return True
 
 
 class BitrixTimeout(BaseTimeout):
+    """
+    Таймаут при запросе к порталу Битрикс.
+    """
     def __str__(self):
-        return '[{self.timeout} sec.] ' 'requests_timeout={self.request_timeout!r} ' 'request={self.request_timeout.request!r}'.format(self=self)
+        return f"[{self.timeout} sec.] requests_timeout={self.request_timeout!r} request={self.request_timeout.request!r}"
 
 
 class BitrixOauthRefreshTimeout(BaseTimeout):
+    """
+    Таймаут при запросе к серверу авторизации Битрикс при обновлении токена.
+    """
     def __str__(self):
-        return 'oauth.bitrix.info - timeout {self.timeout} sec.'.format(self=self)
-
-
-class BitrixApiErrorNotFound(BitrixApiError):
-    # Ошибка когда не найдена Компания, или Контакт, или Лид или тп.
-    pass
+        return f"oauth.bitrix.info - timeout {self.timeout} sec."

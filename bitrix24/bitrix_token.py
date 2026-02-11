@@ -1,11 +1,11 @@
 # -*- coding: UTF-8 -*-
-from typing import Optional, Iterable, Any, Union
+from typing import Optional, Any, Union, Dict, Generator
 
 from django.conf import settings
 
-from integration_utils.bitrix24.functions.api_call import api_call, ConnectionToBitrixError
+from integration_utils.bitrix24.exceptions import ExpiredToken, get_bitrix_api_error, BitrixApiServerError
+from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, get_bitrix_api_error
 
 
 class BaseBitrixToken:
@@ -20,38 +20,53 @@ class BaseBitrixToken:
 
     def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT):
         auth, webhook = self.get_auth()
+        response = api_call(
+            domain=self.domain,
+            api_method=api_method,
+            auth_token=auth,
+            webhook=webhook,
+            params=params,
+            timeout=timeout,
+        )
 
-        try:
-            response = api_call(
-                domain=self.domain,
-                api_method=api_method,
-                auth_token=auth,
-                webhook=webhook,
-                params=params,
-                timeout=timeout,
-            )
-        except ConnectionToBitrixError:
-            # fixme: BitrixApiError явно не ожидает, что туда передадут словарь
-            #raise BitrixApiError(600, {'error': 'ConnectionToBitrixError'})
-            raise BitrixApiError(has_resp='deprecated', json_response={'error': 'ConnectionToBitrixError'}, status_code=600, message='')
+        status_code = response.status_code
+        message = response.text
 
         # Пробуем раскодировать json
         try:
             json_response = response.json()
-        except ValueError:
-            #raise BitrixApiError(600, response)
-            raise BitrixApiError(has_resp='deprecated', json_response={"error": "json ValueError"}, status_code=601, message='')
+        except ValueError as e:
+            # Ранее здесь был BitrixApiError("error": "json ValueError", status_code=601)
+            raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from e
 
-        if response.status_code in [200, 201] and not json_response.get('error'):
+        if status_code in [200, 201] and not json_response.get('error'):
             return json_response
 
-        if response.status_code == 401 and json_response['error'] == 'expired_token':
+        if status_code == 401 and json_response['error'] == 'expired_token':
             raise ExpiredToken
 
         #raise BitrixApiError(response.status_code, response)
-        raise get_bitrix_api_error(json_response=json_response, status_code=response.status_code, message='')
+        raise get_bitrix_api_error(json_response=json_response, status_code=response.status_code, message=message)
 
     call_api_method_v2 = call_api_method
+
+    def call_api_method_v3(self, api_method: str, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
+        """
+        Метод для взаимодействия с REST API 3.0 Битрикс24.
+        В случае ошибки - кидаем исключение.
+
+        :raises ValueError: Неправильное значение аргумента.
+        :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
+        :raises BitrixTimeout: requests.Timeout.
+        :raises BitrixApiServerError: Ответ не является JSON.
+        :raises BitrixApiError: JSON-ответ содержит "error".
+        """
+        return api_call_v3(
+            domain=self.domain, api_method=api_method, auth_token=self.auth_token,
+            web_hook_auth=self.web_hook_auth, params=params, timeout=timeout,
+        )
+
+    call_method = call_api_method_v3
 
     def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
@@ -59,7 +74,6 @@ class BaseBitrixToken:
         from .functions.batch_api_call import _batch_api_call
         return _batch_api_call(methods=methods,
                                bitrix_user_token=self,
-                               function_calling_from_bitrix_user_token_think_before_use=True,
                                timeout=timeout,
                                chunk_size=chunk_size,
                                halt=halt,
@@ -68,16 +82,15 @@ class BaseBitrixToken:
     batch_api_call_v3 = batch_api_call
 
     def call_list_fast(
-            self,
-            method,  # type: str
-            params=None,  # type: Optional[dict]
-            descending=False,  # type: bool
-            timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-            log_prefix='',  # type: str
-            limit=None,  # type: Optional[int]
-            batch_size=50,  # type: int
-    ):
-        # type: (...) -> Iterable[Any]
+        self,
+        method: str,
+        params: Dict[str, Any] = None,
+        descending=False,
+        log_prefix='',
+        timeout: Optional[int] = DEFAULT_TIMEOUT,
+        limit: Optional[int] = None,
+        batch_size=50,
+    ) -> Generator[Dict]:
         """Списочный запрос с параметром ?start=-1
         см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
 
