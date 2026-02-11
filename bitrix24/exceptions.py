@@ -191,15 +191,26 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'APPLICATION_NOT_FOUND'
 
     @property
+    def is_application_not_installed(self):
+        """
+        Пример: error='ERROR_OAUTH', error_description='Application not installed', status_code=401
+        """
+        return self.error_description == 'Application not installed'
+
+    @property
     def is_status_gte_500(self):
         return self.status_code >= 500
 
     @property
     def is_out_of_disc_space_error(self):
-        return self.error == 'ACCESS_DENIED' and self.error_description in [
+        """
+        Пример: error='ERROR_OAUTH', error_description='Исчерпан выделенный дисковый ресурс.<br>', status_code=401
+        """
+        return self.error_description in [
             # Тут надо собрать description для этой ошибки на каждом языке
             'Вичерпано виділений дисковий ресурс.<br>',
-            'Исчерпан выделенный дисковый ресурс.<br>'
+            'Исчерпан выделенный дисковый ресурс.<br>',
+            'Disk quota exceeded.<br>',
         ]
 
     @property
