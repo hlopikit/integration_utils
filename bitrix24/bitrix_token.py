@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-from typing import Optional, Iterable, Any, Union
+from typing import Optional, Any, Union, Dict, Generator
 
 from django.conf import settings
 
@@ -82,16 +82,15 @@ class BaseBitrixToken:
     batch_api_call_v3 = batch_api_call
 
     def call_list_fast(
-            self,
-            method,  # type: str
-            params=None,  # type: Optional[dict]
-            descending=False,  # type: bool
-            timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-            log_prefix='',  # type: str
-            limit=None,  # type: Optional[int]
-            batch_size=50,  # type: int
-    ):
-        # type: (...) -> Iterable[Any]
+        self,
+        method: str,
+        params: Dict[str, Any] = None,
+        descending=False,
+        log_prefix='',
+        timeout: Optional[int] = DEFAULT_TIMEOUT,
+        limit: Optional[int] = None,
+        batch_size=50,
+    ) -> Generator[Dict]:
         """Списочный запрос с параметром ?start=-1
         см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
 
