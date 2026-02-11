@@ -1,8 +1,13 @@
+import typing
+
 from django.db import models
 from django.utils import timezone
 
-from integration_utils.bitrix24.exceptions import BitrixApiError
+from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiException
 from settings import ilogger
+
+if typing.TYPE_CHECKING:
+    from integration_utils.bitrix24.models import BitrixUserToken
 
 
 class BitrixUser(models.Model):
@@ -63,23 +68,45 @@ class BitrixUser(models.Model):
 
     @classmethod
     def update_portal_staff(cls):
-        # метод пометит всем сотрудникам портала user_is_active = Тру
-        # всем не сотрудникам или не актиным Фалс
-        from crm.functions.get_token import get_super_token
-        active_users = [item['ID'] for item in get_super_token().call_list_fast('user.get', {"filter":{"ACTIVE":True}})]
+        """
+        Метод обновит user_is_active для всех BitrixUser на основе user.get.
+        :return: (число активных BitrixUser, число неактивных BitrixUser)
+        """
+        from integration_utils.bitrix24.models import BitrixUserToken
+        admin_token = BitrixUserToken.get_random_token(is_admin=True)
+        active_users = [item['ID'] for item in admin_token.call_list_fast('user.get', {"filter": {"ACTIVE": True}})]
         return (cls.objects.filter(bitrix_id__in=active_users).update(user_is_active=True),
                 cls.objects.exclude(bitrix_id__in=active_users).update(user_is_active=False))
 
-    def update_is_admin(self, bx_user_token, save=True, save_is_admin=True, save_is_active=False):
+    def update_is_admin(self, bx_user_token: 'BitrixUserToken', save=True, save_is_admin=True, save_is_active=False, fail_silently=True):
         """
-        Узнать от Битрикс, активный ли пользователь и админ ли он,
-        установить поле is_admin и user_is_active у пользователя.
+        Узнать от Битрикс, активный ли пользователь и админ ли он.
+        Обновляет поля is_admin и user_is_active у пользователя.
 
         :param bx_user_token: токен пользователя
         :param save: сохранить в БД
         :param save_is_admin: сохранить в БД статус админа
         :param save_is_active: сохранить в БД статус активности
+        :param fail_silently: при ошибке делаем лог, если True; кидаем исключение, если False
+        :raise BitrixApiException: ошибки API Битрикс
+        :raise Exception: иные ошибки функции
         """
+        log_tag = 'integration_utils.BitrixUser.update_is_admin'
+
+        def handle_exception(exc, log_function, log_type):
+            if fail_silently:
+                log_function(log_type, f"({exc}): user={self}, token={bx_user_token}", tag=log_tag, exc_info=True)
+            else:
+                raise exc
+
+        def handle_bitrix_exception(exc, log_type):
+            log_function = ilogger.warning if exc.is_not_logic_error else ilogger.error
+            handle_exception(exc, log_function, log_type)
+
+        if bx_user_token.user_id != self.id:
+            e = Exception("token doesn't match user")
+            handle_exception(e, ilogger.error, 'token_mismatch')
+            return
 
         is_active = True
         is_admin = False
@@ -88,17 +115,28 @@ class BitrixUser(models.Model):
         if self.bitrix_id > 0:
             is_active = self.user_is_active
             is_admin = self.is_admin
+
             try:
-                is_admin = bx_user_token.call_api_method('user.admin')['result']
+                is_admin = bx_user_token.call_api_method('user.admin', timeout=(3.05, 10))['result']
             except BitrixApiError as e:
-                if e.error_description == 'Unable to authorize user':
-                    # Возможно, что пользователь уволен на портале
+                if e.error_description in [
+                    'Unable to authorize user',
+                    "Current user can't be authorized in this context",
+                ]:
+                    # Вероятно, пользователь уволен на портале
                     is_active = False
-                    ilogger.debug('unable_to_authorize_user', 'BitrixUser {}: {}'.format(self.id, repr(e)))
+                    ilogger.debug('is_admin_user_likely_inactive', f"({e}): user={self}, token={bx_user_token}", tag=log_tag)
                 else:
-                    raise e
+                    handle_bitrix_exception(e, 'is_admin_bitrix_api_error')
+                    return
+            except BitrixApiException as e:
+                handle_bitrix_exception(e, 'is_admin_bitrix_api_exception')
+                return
+
             if not isinstance(is_admin, bool):
-                raise ValueError('user.admin did not return bool: {}'.format(repr(is_admin)))
+                e = Exception(f"user.admin returned {is_admin!r} instead of bool")
+                handle_exception(e, ilogger.error, 'is_admin_not_bool')
+                return
 
         self.user_is_active = is_active
         self.is_admin = is_admin
