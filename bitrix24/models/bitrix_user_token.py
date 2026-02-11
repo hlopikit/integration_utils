@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 
 import hashlib
+import typing
 
 import requests
 from django.conf import settings
@@ -9,8 +10,13 @@ from django.db import models
 from django.utils import timezone
 
 from integration_utils.bitrix24.functions.api_call import BitrixTimeout
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
+from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
+from settings import ilogger
+
+if typing.TYPE_CHECKING:
+    from integration_utils.bitrix24.models import BitrixUser
 
 
 def refresh_all():
@@ -111,16 +117,21 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             return pk
 
     @classmethod
-    def get_random_token(cls, is_admin=True, pk_desc=False):
+    def get_random_token(cls, is_admin=True, pk_desc=False, bitrix_unavailable_attempts = 2):
         """
         Получить один любой активный токен
 
-        :param is_admin: токен должен иметь права администратора
-        :param pk_desc: брать сначала более новые токены
-
-        :raise BitrixUserToken.DoesNotExist: если запрошенного токена не существует
-        :return: BitrixUserToken
+        :param is_admin: токен должен иметь права администратора (True - да, False - админский при наличии, иначе простого юзера)
+        :param pk_desc: брать сначала последние токены
+        :param bitrix_unavailable_attempts: число запросов в Битрикс, если он недоступен
+        :raise BitrixUserTokenDoesNotExist: не найден подходящий токен
+        :raise BaseConnectionError/BaseTimeout: не удалось достучаться до Битрикс после всех попыток
         """
+        log_tag = 'integration_utils.BitrixUserToken.get_random_token'
+
+        @retry_decorator(bitrix_unavailable_attempts, (BaseConnectionError, BaseTimeout))
+        def update_is_admin_with_retries(bx_user: 'BitrixUser', bx_token):
+            bx_user.update_is_admin(bx_token, save_is_admin=True, save_is_active=False, fail_silently=False)
 
         tokens = cls.objects.filter(
             user__user_is_active=True,
@@ -142,9 +153,13 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         for token in tokens:
             user = token.user
 
-            # Обновляем статус админа и активности пользователя
-            # Не сохраняем статус активности, пока не проверим через user.get
-            user.update_is_admin(token, save_is_admin=True, save_is_active=False)
+            try:
+                update_is_admin_with_retries(user, token)
+            except BitrixApiError as e:
+                log_function = ilogger.warning if e.is_not_logic_error else ilogger.error
+                log_function('update_is_admin_bitrix_api_exception', f"({e}): user={user}, token={token}", tag=log_tag, exc_info=True)
+                continue
+
             user_is_active = user.user_is_active
             user_is_admin = user.is_admin
 
@@ -158,30 +173,46 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                 break
 
         if result_token is None:
-            raise BitrixUserToken.DoesNotExist
+            raise BitrixUserToken.DoesNotExist()
         else:
             # Смотрим, были ли найдены потенциально неактивные пользователи
             if likely_inactive_user_dict:
                 likely_inactive_user_bitrix_ids = list(likely_inactive_user_dict.keys())
 
-                bitrix_users = result_token.call_api_method('user.get', {
-                    'FILTER': {
-                        'ID': likely_inactive_user_bitrix_ids,
-                    },
-                })['result']
+                try:
+                    # Делаем запрос в Битрикс для проверки потенциально неактивных пользователей
+                    bitrix_users = result_token.call_api_method('user.get', {
+                        'FILTER': {
+                            'ID': likely_inactive_user_bitrix_ids,
+                        },
+                    })['result']
+                except BitrixApiException as e:
+                    log_function = ilogger.warning if e.is_not_logic_error else ilogger.error
+                    log_function(
+                        'user_get_bitrix_api_exception',
+                        f"({e}): result_token={result_token}, likely_inactive_user_bitrix_ids={likely_inactive_user_bitrix_ids}",
+                        tag=log_tag, exc_info=True,
+                    )
+                except Exception as e:
+                    ilogger.error(
+                        'user_get_exception',
+                        f"({e}): result_token={result_token}, likely_inactive_user_bitrix_ids={likely_inactive_user_bitrix_ids}",
+                        tag=log_tag,
+                    )
+                else:
+                    bulk_update_users = []
+                    for bitrix_user in bitrix_users:
+                        bitrix_user_id = str(bitrix_user['ID'])
+                        bitrix_user_active = bitrix_user.get('ACTIVE', None)
+                        if bitrix_user_active is not None and not bitrix_user_active:
+                            # Добавляем реально неактивных пользователей в массив для обновления
+                            bulk_update_user = likely_inactive_user_dict.get(bitrix_user_id)
+                            if bulk_update_user:
+                                bulk_update_users.append(bulk_update_user)
 
-                bulk_update_users = []
-                for bitrix_user in bitrix_users:
-                    bitrix_user_id = str(bitrix_user['ID'])
-                    bitrix_user_active = bitrix_user.get('ACTIVE', None)
-                    if bitrix_user_active is not None and not bitrix_user_active:
-                        bulk_update_user = likely_inactive_user_dict.get(bitrix_user_id)
-                        if bulk_update_user:
-                            bulk_update_users.append(bulk_update_user)
-
-                if bulk_update_users:
-                    from integration_utils.bitrix24.models import BitrixUser
-                    BitrixUser.objects.bulk_update(bulk_update_users, ['user_is_active'])
+                    if bulk_update_users:
+                        from bitrix_utils.bitrix_auth.models import BitrixUser
+                        BitrixUser.objects.bulk_update(bulk_update_users, ['user_is_active'])
 
         return result_token
 
