@@ -44,6 +44,7 @@ def is_not_logic_error(exception: BitrixApiException):
             exception.is_application_not_installed,
             exception.is_sphinx_connect_error,
             exception.is_error_core,
+            exception.is_connection_error,
         ]
         if any(error_conditions):
             return True

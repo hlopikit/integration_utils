@@ -8,7 +8,8 @@ from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.exceptions import BatchApiCallError
 
 if not six.PY2:
-    from typing import Optional, Iterable, Any, Hashable, Dict, Callable, TYPE_CHECKING
+    from typing import Optional, Any, Hashable, Dict, Callable, TYPE_CHECKING, Generator
+
     if TYPE_CHECKING:
         from ..models import BitrixUserToken
 
@@ -227,15 +228,15 @@ def is_invalid_filter_error(method, batch):
 
 
 def call_list_fast(
-    tok,  # type: BitrixUserToken
-    method,  # type: str
-    params=None,  # type: Dict[str, Any]
-    descending=False,  # type: bool
-    log_prefix='',  # type: str
-    timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-    limit=None,  # type: Optional[int]
-    batch_size=50,  # type: int
-):  # type: (...) -> Iterable[Any]
+    tok: BitrixUserToken,
+    method: str,
+    params: Dict[str, Any] = None,
+    descending=False,
+    log_prefix='',
+    timeout: Optional[int] = DEFAULT_TIMEOUT,
+    limit: Optional[int] = None,
+    batch_size=50,
+) -> Generator[Dict, None, None]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
     https://dev.1c-bitrix.ru/rest_help/rest_sum/start.php
