@@ -118,6 +118,23 @@ _PROCESSED_TAGS: Final[Tuple[BBCodeTagLiteral, ...]] = (
 )
 
 
+_HEX_EMOJI_RE = re.compile(r"\(:([0-9a-fA-F]{4,}):\)")
+
+
+def _decode_hex_emojis(text: Text) -> Text:
+    if not text:
+        return text or ""
+
+    def _replace(match: Match) -> Text:
+        hex_str = match.group(1)
+        try:
+            return bytes.fromhex(hex_str).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return ""
+
+    return _HEX_EMOJI_RE.sub(_replace, text)
+
+
 def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store: Dict[Text, Text]) -> Text:
     """Заменяет совпадения на токены, гарантируя уникальность ключа."""
 
@@ -624,9 +641,6 @@ class _CleanupHandler(_BaseHandler):
     def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
         """Выполняет финальную чистку текста от необрабатываемых тегов и лишних пробелов."""
 
-        # Удаляем HEX-коды эмодзи вида (:f09f98b4:)
-        text = re.sub(r"\(:[a-f0-9]{4,}:\)", "", text, flags=re.IGNORECASE)
-
         # Удаляем только теги из _TAGS_TO_REMOVE, оставляя содержимое
         for tag in _TAGS_TO_REMOVE:
 
@@ -684,6 +698,8 @@ class _BBCodeConverter:
 
         if not text:
             return ""
+
+        text = _decode_hex_emojis(text)
 
         handler_chain = None
 
