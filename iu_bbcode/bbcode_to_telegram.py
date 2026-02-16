@@ -118,7 +118,7 @@ _PROCESSED_TAGS: Final[Tuple[BBCodeTagLiteral, ...]] = (
 )
 
 
-_HEX_EMOJI_RE = re.compile(r"\(:([0-9a-fA-F]{4,}):\)")
+_HEX_EMOJI_RE = re.compile(r":([0-9a-fA-F]{4,}):")
 
 
 def _decode_hex_emojis(text: Text) -> Text:
