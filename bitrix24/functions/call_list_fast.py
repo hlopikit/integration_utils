@@ -228,7 +228,7 @@ def is_invalid_filter_error(method, batch):
 
 
 def call_list_fast(
-    tok: BitrixUserToken,
+    tok: 'BitrixUserToken',
     method: str,
     params: Dict[str, Any] = None,
     descending=False,
