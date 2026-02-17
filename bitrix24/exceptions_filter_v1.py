@@ -41,7 +41,6 @@ def is_not_logic_error(exception: BitrixApiException):
             exception.is_out_of_disc_space_error,
             exception.is_status_gte_500,
             exception.is_application_not_found,
-            exception.is_application_not_installed,
             exception.is_sphinx_connect_error,
             exception.is_error_core,
             exception.is_cant_refresh,
