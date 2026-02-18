@@ -108,7 +108,7 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_invalid_token(self):
         """
-        Неправильный токен, скорее всего, не для того портала.
+        Неправильный токен, скорее всего, не для того портала/приложения.
         """
         return self.error == INVALID_TOKEN
 
@@ -135,7 +135,16 @@ class BitrixApiError(BitrixApiException):
         Но желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
         Пример: error='authorization_error', error_description='Unable to authorize user'
         """
-        return self.error_description == 'Unable to authorize user'
+        return self.error_description == "Unable to authorize user"
+
+    @property
+    def is_user_cant_be_authorized_in_context(self):
+        """
+        Сотрудник, скорее всего, удалён с коробки или не подтвердил регистрацию.
+        Но желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
+        Пример: error='ACCESS_DENIED', error_description='Current user can't be authorized in this context'
+        """
+        return self.error_description == "Current user can't be authorized in this context"
 
     @property
     def is_cant_refresh(self):
