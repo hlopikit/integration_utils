@@ -108,7 +108,8 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_invalid_token(self):
         """
-        Неправильный токен, скорее всего, не для того портала/приложения.
+        Неправильный токен. Скорее всего, не для того портала/приложения.
+        Пример: error='invalid_token', error_description='Unable to get application by token', status_code=401
         """
         return self.error == INVALID_TOKEN
 
@@ -116,6 +117,7 @@ class BitrixApiError(BitrixApiException):
     def is_user_access_error(self):
         """
         У сотрудника нет доступа к приложению (настраивается администратором портала).
+        Пример: error='user_access_error', error_description='The user does not have access to the application.', status_code=401
         """
         return self.error == USER_ACCESS_ERROR
 
@@ -162,7 +164,7 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_not_found(self):
-        return self.error_description == 'Not found' and self.status_code == 400
+        return self.error_description == "Not found" and self.status_code == 400
 
     @property
     def is_error_not_found(self):
@@ -174,7 +176,7 @@ class BitrixApiError(BitrixApiException):
         Внутренняя ошибка сервера Битрикс.
         Пример: error='INTERNAL_SERVER_ERROR', error_description='Internal server error', status_code=500
         """
-        return self.error == "INTERNAL_SERVER_ERROR"
+        return self.error == 'INTERNAL_SERVER_ERROR'
 
     @property
     def is_sphinx_connect_error(self):
@@ -187,7 +189,7 @@ class BitrixApiError(BitrixApiException):
         Ошибка формировалась нами в call_api_method через превращение ConnectionToBitrixError в BitrixApiError.
         Данное превращение убрано из-за нелогичности, теперь нужно перехватывать ConnectionToBitrixError.
         """
-        return self.error == "ConnectionToBitrixError"
+        return self.error == 'ConnectionToBitrixError'
 
     @property
     def is_connection_error(self):
