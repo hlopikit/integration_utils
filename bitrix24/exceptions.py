@@ -158,9 +158,17 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_free_plan_error(self):
         """
-        REST доступен только на платных тарифах.
+        Бесплатный тариф на портале (недоступен REST).
         """
         return self.error_description == "REST is available only on commercial plans."
+
+    @property
+    def is_payment_required(self):
+        """
+        Отсутствует или закончилась подписка портала на Маркетплейс (недоступен REST).
+        Пример: error='PAYMENT_REQUIRED', error_description='Subscription has been ended', status_code=401
+        """
+        return self.error == 'PAYMENT_REQUIRED'
 
     @property
     def is_not_found(self):

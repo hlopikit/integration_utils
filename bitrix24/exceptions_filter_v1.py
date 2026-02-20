@@ -36,6 +36,7 @@ def is_not_logic_error(exception: BitrixApiException):
             exception.is_no_auth_found,
             exception.is_portal_deleted,
             exception.is_free_plan_error,
+            exception.is_payment_required,
             exception.is_wrong_encoding,
             exception.is_authorization_error,
             exception.is_out_of_disc_space_error,
