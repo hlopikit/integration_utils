@@ -1,3 +1,5 @@
+from datetime import date
+
 WORK = True
 REST = False
 
@@ -436,3 +438,14 @@ WORK_AND_REST_DAYS = {
     (2026, 11, 4): REST,
     (2026, 12, 31): REST,
 }
+
+
+def is_work_day(check_date: date) -> bool:
+    key = (check_date.year, check_date.month, check_date.day)
+    if key in WORK_AND_REST_DAYS:
+        return WORK_AND_REST_DAYS[key]
+    return check_date.weekday() < 5
+
+
+def is_today_work_day() -> bool:
+    return is_work_day(date.today())
