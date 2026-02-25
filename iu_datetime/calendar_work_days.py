@@ -1,9 +1,19 @@
+from typing import Dict, Tuple
+
 from datetime import date
 
-WORK = True
-REST = False
+__all__ = [
+    "REST",
+    "WORK",
+    "WORK_AND_REST_DAYS",
+    "is_today_workday",
+    "is_workday",
+]
 
-WORK_AND_REST_DAYS = {
+REST: bool = False
+WORK: bool = True
+
+WORK_AND_REST_DAYS: Dict[Tuple[int, int, int], bool] = {
     (2003, 1, 1): REST,
     (2003, 1, 2): REST,
     (2003, 1, 3): REST,
@@ -439,13 +449,9 @@ WORK_AND_REST_DAYS = {
     (2026, 12, 31): REST,
 }
 
+def is_workday(check_date: date) -> bool:
+    day_tuple = check_date.timetuple()[:3]  # (year, month, day)
+    return WORK_AND_REST_DAYS.get(day_tuple, check_date.weekday() < 5)
 
-def is_work_day(check_date: date) -> bool:
-    key = (check_date.year, check_date.month, check_date.day)
-    if key in WORK_AND_REST_DAYS:
-        return WORK_AND_REST_DAYS[key]
-    return check_date.weekday() < 5
-
-
-def is_today_work_day() -> bool:
-    return is_work_day(date.today())
+def is_today_workday() -> bool:
+    return is_workday(date.today())
