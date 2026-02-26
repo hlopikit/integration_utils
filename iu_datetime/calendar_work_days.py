@@ -1,6 +1,8 @@
 from datetime import date
 from typing import Dict, Tuple
 
+from django.utils import timezone
+
 REST: bool = False
 WORK: bool = True
 
@@ -445,4 +447,4 @@ def is_workday(check_date: date) -> bool:
     return WORK_AND_REST_DAYS.get(day_tuple, check_date.weekday() < 5)
 
 def is_today_workday() -> bool:
-    return is_workday(date.today())
+    return is_workday(timezone.localdate())
