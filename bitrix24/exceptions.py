@@ -5,6 +5,7 @@ STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
 
 ERROR_NOT_FOUND = 'ERROR_NOT_FOUND'
+ACCESS_ERROR = 'ACCESS_ERROR'
 USER_ACCESS_ERROR = 'user_access_error'
 AUTHORIZATION_ERROR = 'authorization_error'
 INVALID_TOKEN = 'invalid_token'
@@ -112,6 +113,14 @@ class BitrixApiError(BitrixApiException):
         Пример: error='invalid_token', error_description='Unable to get application by token', status_code=401
         """
         return self.error == INVALID_TOKEN
+
+    @property
+    def is_access_error(self):
+        """
+        У токена нет доступа.
+        Пример:  {'error': 'ACCESS_ERROR', 'error_description': 'You do not have access to the specified dialog'}, 403, '403_or_404',
+        """
+        return self.error == ACCESS_ERROR
 
     @property
     def is_user_access_error(self):
