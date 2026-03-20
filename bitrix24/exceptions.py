@@ -118,7 +118,7 @@ class BitrixApiError(BitrixApiException):
     def is_access_error(self):
         """
         У токена нет доступа.
-        Пример:  {'error': 'ACCESS_ERROR', 'error_description': 'You do not have access to the specified dialog'}, 403, '403_or_404',
+        Пример: error='ACCESS_ERROR', error_description='You do not have access to the specified dialog', status_code=403
         """
         return self.error == ACCESS_ERROR
 

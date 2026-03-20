@@ -9,7 +9,13 @@ import urllib
 
 from django.conf import settings
 from django.utils.encoding import force_str
-from requests import JSONDecodeError
+
+try:
+    from requests import JSONDecodeError
+except ImportError:
+    # В старых версиях requests не было своей ошибки.
+    # Использовалась ошибка из модуля json.
+    from json import JSONDecodeError
 
 from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError
 from settings import ilogger
