@@ -103,6 +103,7 @@ from .utils.helpers import (
     is_local_file,
     parse_file_input,
     DEFAULT_20,
+    DEFAULT_TIMEOUT,
 )
 from .utils.request import Request
 from .utils.types import FileInput, JSONDict, ODVInput, DVInput
@@ -290,7 +291,7 @@ class Bot(TelegramObject):
 
         # Insert is in-place, so no return value for data
         if endpoint != 'getUpdates':
-            effective_timeout = self._insert_defaults(data, timeout)
+            effective_timeout = self._insert_defaults(data, timeout or DEFAULT_TIMEOUT)
         else:
             effective_timeout = cast(float, timeout)
         # Drop any None values because Telegram doesn't handle them well

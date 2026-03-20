@@ -594,3 +594,6 @@ DEFAULT_FALSE: DefaultValue = DefaultValue(False)
 
 DEFAULT_20: DefaultValue = DefaultValue(20)
 """:class:`DefaultValue`: Default :obj:`20`"""
+
+DEFAULT_TIMEOUT: DefaultValue = DefaultValue(10)
+""""""
