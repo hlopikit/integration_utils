@@ -18,7 +18,7 @@ class BaseBitrixToken:
     def get_auth(self):
         return (self.web_hook_auth or self.auth_token), bool(self.web_hook_auth)
 
-    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT):
+    def call_api_method(self, api_method, params={}, timeout=DEFAULT_TIMEOUT):
         auth, webhook = self.get_auth()
         response = api_call(
             domain=self.domain,
