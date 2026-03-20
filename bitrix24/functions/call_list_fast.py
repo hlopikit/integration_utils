@@ -77,6 +77,8 @@ METHOD_TO_ORDER = {
 
     'rpa.item.list': simple_order_lower,
 
+    'lists.section.get': simple_order,
+
     # TODO:  в этот и прочие словари надо добавлять описания прочих методов,
     #   скорее всего достаточно будет скопировать то что сейчас описано
     #   для crm.deal.list. НО не надо добавлять сюда методы, которые 100%
@@ -168,6 +170,8 @@ METHOD_TO_FILTER = {
     'catalog.product.offer.list': filter_id_lower,
 
     'rpa.item.list': filter_id_lower,
+
+    'lists.section.get': filter_id_upper,
 }
 
 
@@ -201,6 +205,8 @@ METHOD_TO_ID = {
     'catalog.product.offer.list': itemgetter('id'),
 
     'rpa.item.list': itemgetter('id'),
+
+    'lists.section.get': itemgetter('ID'),
 }
 
 
