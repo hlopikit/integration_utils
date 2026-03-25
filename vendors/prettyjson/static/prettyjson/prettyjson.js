@@ -19,7 +19,7 @@ $('button.parseraw').click(function(e){
     if (validjson) {
       rawarea.hide();
       widget.find('.parsed').show();
-      parsedarea.JSONView(rawarea.val(), {strict: true}).css({
+      parsedarea.JSONView(rawarea.val(), {strict: true, nl2br: true}).css({
         overflow: "auto",
         resize: "both"
       });
