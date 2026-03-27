@@ -277,8 +277,8 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     if api_method != 'batch':
         try:
             data = response.json()
-        except JSONDecodeError:
-            ilogger.warning('response_json_decode_error', f"response.text: {response.text}", tag=log_tag)
+        except JSONDecodeError as e:
+            ilogger.warning('response_json_decode_error', f"({e}): domain={domain}, response.text={response.text}", exc_info=True, tag=log_tag)
         except Exception as e:
             ilogger.error('response_json_exception', repr(e), tag=log_tag)
         else:
