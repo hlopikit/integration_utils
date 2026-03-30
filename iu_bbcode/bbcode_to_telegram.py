@@ -137,19 +137,6 @@ def _decode_hex_emojis(text: Text) -> Text:
     return _HEX_EMOJI_RE.sub(_replace, text)
 
 
-def _replace_bitrix_timestamps(text: Text) -> Text:
-    if not text:
-        return text or ""
-
-    def _replace(match: Match) -> Text:
-        dt = datetime.fromtimestamp(int(match.group(1)))
-        if match.group(2) == "LONG_DATE_FORMAT":
-            return dt.strftime("%d.%m.%Y")
-        return dt.strftime("%H:%M")
-
-    return _BITRIX_TIMESTAMP_RE.sub(_replace, text)
-
-
 def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store: Dict[Text, Text]) -> Text:
     """Заменяет совпадения на токены, гарантируя уникальность ключа."""
 
@@ -226,6 +213,24 @@ class _ProtectedTagHandler(_BaseHandler):
             processed_text = processed_text.replace(placeholder, original_content)
 
         return processed_text
+
+
+class _TimestampHandler(_BaseHandler):
+    """
+    Обрабатывает Bitrix-теги [TIMESTAMP=... FORMAT=...].
+    """
+
+    __slots__ = ()
+
+    def handle(self, text: Text, context: Dict[Text, Any]) -> Text:
+        def _replace(match: Match) -> Text:
+            dt = datetime.fromtimestamp(int(match.group(1)))
+            if match.group(2) == "LONG_DATE_FORMAT":
+                return dt.strftime("%d.%m.%Y")
+            return dt.strftime("%H:%M")
+
+        text = _BITRIX_TIMESTAMP_RE.sub(_replace, text)
+        return super().handle(text, context)
 
 
 class _HTMLEncodeHandler(_BaseHandler):
@@ -690,6 +695,7 @@ class _BBCodeConverter:
 
     _HANDLER_CLASSES: Tuple[Type[_BaseHandler], ...] = (
         _ProtectedTagHandler,
+        _TimestampHandler,
         _HTMLEncodeHandler,
         _TableHandler,
         _LinkHandler,
@@ -715,7 +721,6 @@ class _BBCodeConverter:
             return ""
 
         text = _decode_hex_emojis(text)
-        text = _replace_bitrix_timestamps(text)
 
         handler_chain = None
 
