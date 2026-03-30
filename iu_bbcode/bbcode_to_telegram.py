@@ -1,5 +1,6 @@
 import html
 import re
+from datetime import datetime
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Final, Iterable, List, Literal, Match, Optional, Text, Tuple, Type
 
@@ -119,6 +120,7 @@ _PROCESSED_TAGS: Final[Tuple[BBCodeTagLiteral, ...]] = (
 
 
 _HEX_EMOJI_RE = re.compile(r":([0-9a-fA-F]{4,}):")
+_BITRIX_TIMESTAMP_RE = re.compile(r"\[TIMESTAMP=(\d+)\s+FORMAT=(LONG_DATE_FORMAT|SHORT_TIME_FORMAT)\]")
 
 
 def _decode_hex_emojis(text: Text) -> Text:
@@ -133,6 +135,19 @@ def _decode_hex_emojis(text: Text) -> Text:
             return ""
 
     return _HEX_EMOJI_RE.sub(_replace, text)
+
+
+def _replace_bitrix_timestamps(text: Text) -> Text:
+    if not text:
+        return text or ""
+
+    def _replace(match: Match) -> Text:
+        dt = datetime.fromtimestamp(int(match.group(1)))
+        if match.group(2) == "LONG_DATE_FORMAT":
+            return dt.strftime("%d.%m.%Y")
+        return dt.strftime("%H:%M")
+
+    return _BITRIX_TIMESTAMP_RE.sub(_replace, text)
 
 
 def _replace_with_placeholders(text: Text, pattern: re.Pattern, protected_store: Dict[Text, Text]) -> Text:
@@ -700,6 +715,7 @@ class _BBCodeConverter:
             return ""
 
         text = _decode_hex_emojis(text)
+        text = _replace_bitrix_timestamps(text)
 
         handler_chain = None
 
