@@ -591,6 +591,7 @@ class BaseBitrixRobot(models.Model):
             if self.VALIDATE_PROPS:
                 self.validate_props()
 
+            self.prepare_process()
             self.result = self.process()
             self.is_success = True
 
@@ -618,6 +619,9 @@ class BaseBitrixRobot(models.Model):
         self.save(update_fields=['finished', 'result', 'is_success'])
         self.send_result()
         return self.result
+
+    def prepare_process(self):
+        return None
 
     @staticmethod
     def get_error_result(exc: Exception) -> dict:
