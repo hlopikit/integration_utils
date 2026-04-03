@@ -384,7 +384,8 @@ class BitrixTokenRefreshError(BitrixApiError):
     """
     Ошибка обновления токена Битрикс.
     """
-    pass
+    def __init__(self, has_resp, json_response, status_code, message='cant_refresh', token=None):
+        super().__init__(has_resp, json_response, status_code, message, token)
 
 
 class BitrixApiServerError(BitrixApiError):
