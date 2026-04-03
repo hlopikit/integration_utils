@@ -75,6 +75,9 @@ class BitrixApiError(BitrixApiException):
         self.message = message
         self.token = token
 
+    def __str__(self):
+        return f"{self.json_response}, {self.status_code}, {self.message}, token={self.token}"
+
     @property
     def error(self):
         if isinstance(self.json_response, dict):
