@@ -212,7 +212,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                                 bulk_update_users.append(bulk_update_user)
 
                     if bulk_update_users:
-                        from bitrix_utils.bitrix_auth.models import BitrixUser
+                        from integration_utils.bitrix24.models.bitrix_user import BitrixUser
                         BitrixUser.objects.bulk_update(bulk_update_users, ['user_is_active'])
 
         return result_token
