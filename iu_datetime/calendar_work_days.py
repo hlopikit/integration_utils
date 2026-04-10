@@ -1,7 +1,9 @@
-WORK = True
-REST = False
+from typing import Dict, Tuple
 
-WORK_AND_REST_DAYS = {
+REST: bool = False
+WORK: bool = True
+
+WORK_AND_REST_DAYS: Dict[Tuple[int, int, int], bool] = {
     (2003, 1, 1): REST,
     (2003, 1, 2): REST,
     (2003, 1, 3): REST,

@@ -18,7 +18,7 @@ class BaseBitrixToken:
     def get_auth(self):
         return (self.web_hook_auth or self.auth_token), bool(self.web_hook_auth)
 
-    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT):
+    def call_api_method(self, api_method, params={}, timeout=DEFAULT_TIMEOUT):
         auth, webhook = self.get_auth()
         response = api_call(
             domain=self.domain,
@@ -107,6 +107,7 @@ class BaseBitrixToken:
             method,  # type: str
             fields=None,  # type: Optional[dict]
             limit=None,  # type: Optional[int]
+            return_total=False,  # type: bool
             allowable_error=None,  # type: Optional[int]
             timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
             force_total=None,  # type: Optional[int]  # TODO: Убрать когда-нибудь
@@ -115,6 +116,7 @@ class BaseBitrixToken:
     ):  # type: (...) -> Union[list, dict]
         result = call_list_method(self, method, fields=fields,
                                        limit=limit,
+                                       return_total=return_total,
                                        force_total=force_total,
                                        allowable_error=allowable_error,
                                        timeout=timeout,

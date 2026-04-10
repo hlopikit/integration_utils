@@ -245,6 +245,7 @@ def call_list_method(
         method,  # type: str
         fields=None,  # type: Union[dict, list, None]
         limit=None,  # type: Optional[int]
+        return_total=False,  # type: bool
         allowable_error=None,  # type: Optional[int]
         unwrap_batch_res_method=unwrap_batch_res,
         timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
@@ -262,6 +263,9 @@ def call_list_method(
 
     :param limit: максимальное количество объектов, которые нужно получить.
                   Если None, получить все. Должно быть кратно 50
+
+    :param return_total: если True, дополнительно возвращает словарь с `total` по полной выборке Bitrix24,
+                         даже если результат был ограничен параметром `limit`
 
     :param DEPRECATED force_total: максимальное количество объектов, которые нужно получить.
                                    Если None, получить все. Должно быть кратно 50
@@ -283,7 +287,7 @@ def call_list_method(
 
     :param v:
 
-    :return: кортеж (результат или None, ошибка или None)
+    :return: старый результат либо кортеж `(результат, {"total": <полное количество>})`, если `return_total=True`
     """
 
     if force_total:
@@ -326,6 +330,8 @@ def call_list_method(
 
         result = unwrap_batch_res_method(batch,
                                          wrapper=METHOD_WRAPPERS.get(method))
+        if return_total:
+            return result, {"total": len(result)}
         return result
     # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
 
@@ -408,4 +414,6 @@ def call_list_method(
                 length_error, allowable_error
             ))
 
+    if return_total:
+        return result, {"total": total_param or len(result)}
     return result

@@ -5,6 +5,7 @@ STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
 
 ERROR_NOT_FOUND = 'ERROR_NOT_FOUND'
+ACCESS_ERROR = 'ACCESS_ERROR'
 USER_ACCESS_ERROR = 'user_access_error'
 AUTHORIZATION_ERROR = 'authorization_error'
 INVALID_TOKEN = 'invalid_token'
@@ -74,6 +75,9 @@ class BitrixApiError(BitrixApiException):
         self.message = message
         self.token = token
 
+    def __str__(self):
+        return f"{self.json_response}, {self.status_code}, {self.message}, token={self.token}"
+
     @property
     def error(self):
         if isinstance(self.json_response, dict):
@@ -96,41 +100,95 @@ class BitrixApiError(BitrixApiException):
         error_description='Command has unprocessed exception: "OOM command not allowed when used memory > \'maxmemory\'.". Code: "0"',
         status_code=400
         """
-        return self.error == "ERROR_CORE"
+        return self.error == 'ERROR_CORE'
 
     @property
     def is_token_deactivated(self):
         """
         Ошибка формируется нами, когда деактивируем токен.
         """
-        return self.message == 'token_deactivated'
+        return self.message == self.TOKEN_DEACTIVATED
 
     @property
     def is_invalid_token(self):
-        return self.error == "invalid_token"
+        """
+        Неправильный токен. Скорее всего, не для того портала/приложения.
+        Пример: error='invalid_token', error_description='Unable to get application by token', status_code=401
+        """
+        return self.error == INVALID_TOKEN
+
+    @property
+    def is_access_error(self):
+        """
+        У токена нет доступа.
+        Пример: error='ACCESS_ERROR', error_description='You do not have access to the specified dialog', status_code=403
+        """
+        return self.error == ACCESS_ERROR
 
     @property
     def is_user_access_error(self):
-        return self.error == "user_access_error"
+        """
+        У сотрудника нет доступа к приложению (настраивается администратором портала).
+        Пример: error='user_access_error', error_description='The user does not have access to the application.', status_code=401
+        """
+        return self.error == USER_ACCESS_ERROR
 
     @property
     def is_authorization_error(self):
-        return self.error == 'authorization_error'
+        """
+        Ошибка авторизации. Может быть из-за увольнения/блокировки, может быть и по другим причинам.
+        TODO: Разобраться с REST_OAUTH_ERROR_LOGOUT_BEFORE в \Bitrix\Rest\OAuth\Auth::onRestCheckAuth.
+        Пример: error='authorization_error', error_description='Unable to authorize user'
+        """
+        return self.error == AUTHORIZATION_ERROR
+
+    @property
+    def is_unable_to_authorize_user(self):
+        """
+        Сотрудник, скорее всего, уволен или заблокирован.
+        Но желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
+        Пример: error='authorization_error', error_description='Unable to authorize user'
+        """
+        return self.error_description == "Unable to authorize user"
+
+    @property
+    def is_user_cant_be_authorized_in_context(self):
+        """
+        Сотрудник, скорее всего, удалён с коробки или не подтвердил регистрацию.
+        Но желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
+        Пример: error='ACCESS_DENIED', error_description='Current user can't be authorized in this context'
+        """
+        return self.error_description == "Current user can't be authorized in this context"
 
     @property
     def is_cant_refresh(self):
         """
         Ошибка формируется нами, когда не удалось обновить протухший токен.
         """
-        return self.error == 'expired_token' and self.message == 'cant_refresh'
+        return self.message == 'cant_refresh'
 
     @property
     def is_free_plan_error(self):
+        """
+        Бесплатный тариф на портале (недоступен REST).
+        """
         return self.error_description == "REST is available only on commercial plans."
 
     @property
+    def is_payment_required(self):
+        """
+        Отсутствует или закончилась подписка портала на Маркетплейс (недоступен REST).
+        Пример: error='PAYMENT_REQUIRED', error_description='Subscription has been ended', status_code=401
+        """
+        return self.error == 'PAYMENT_REQUIRED'
+
+    @property
     def is_not_found(self):
-        return self.error_description == 'Not found' and self.status_code == 400
+        return self.error_description == "Not found" and self.status_code == 400
+
+    @property
+    def is_error_not_found(self):
+        return self.error == ERROR_NOT_FOUND
 
     @property
     def is_internal_server_error(self):
@@ -138,7 +196,7 @@ class BitrixApiError(BitrixApiException):
         Внутренняя ошибка сервера Битрикс.
         Пример: error='INTERNAL_SERVER_ERROR', error_description='Internal server error', status_code=500
         """
-        return self.error == "INTERNAL_SERVER_ERROR"
+        return self.error == 'INTERNAL_SERVER_ERROR'
 
     @property
     def is_sphinx_connect_error(self):
@@ -151,7 +209,7 @@ class BitrixApiError(BitrixApiException):
         Ошибка формировалась нами в call_api_method через превращение ConnectionToBitrixError в BitrixApiError.
         Данное превращение убрано из-за нелогичности, теперь нужно перехватывать ConnectionToBitrixError.
         """
-        return self.error == "ConnectionToBitrixError"
+        return self.error == 'ConnectionToBitrixError'
 
     @property
     def is_connection_error(self):
@@ -198,7 +256,7 @@ class BitrixApiError(BitrixApiException):
         Случайная фигня от Битрикс, когда он сам заворачивает свои же токены.
         TODO: Объяснить более подробно с примером.
         """
-        return self.error == 'NO_AUTH_FOUND'
+        return self.error == NO_AUTH_FOUND
 
     @property
     def is_portal_deleted(self):
@@ -213,7 +271,7 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_application_not_found(self):
-        return self.error == 'APPLICATION_NOT_FOUND'
+        return self.error == APPLICATION_NOT_FOUND
 
     @property
     def is_application_not_installed(self):
@@ -326,7 +384,8 @@ class BitrixTokenRefreshError(BitrixApiError):
     """
     Ошибка обновления токена Битрикс.
     """
-    pass
+    def __init__(self, has_resp, json_response, status_code, message='cant_refresh', token=None):
+        super().__init__(has_resp, json_response, status_code, message, token)
 
 
 class BitrixApiServerError(BitrixApiError):

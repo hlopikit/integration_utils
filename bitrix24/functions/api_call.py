@@ -9,7 +9,13 @@ import urllib
 
 from django.conf import settings
 from django.utils.encoding import force_str
-from requests import JSONDecodeError
+
+try:
+    from requests import JSONDecodeError
+except ImportError:
+    # В старых версиях requests не было своей ошибки.
+    # Использовалась ошибка из модуля json.
+    from json import JSONDecodeError
 
 from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError
 from settings import ilogger
@@ -271,8 +277,8 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     if api_method != 'batch':
         try:
             data = response.json()
-        except JSONDecodeError:
-            ilogger.warning('response_json_decode_error', f"response.text: {response.text}", tag=log_tag)
+        except JSONDecodeError as e:
+            ilogger.warning('response_json_decode_error', f"({e}): domain={domain}, response.text={response.text}", exc_info=True, tag=log_tag)
         except Exception as e:
             ilogger.error('response_json_exception', repr(e), tag=log_tag)
         else:

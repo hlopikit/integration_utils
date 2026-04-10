@@ -1,6 +1,8 @@
 from arrow import Arrow, ArrowFactory
 
 from integration_utils.iu_datetime.calendar_work_days import WORK_AND_REST_DAYS
+from integration_utils.iu_datetime.functions import is_workday
+
 from settings import ilogger
 
 # https://pypi.org/project/arrow/
@@ -109,13 +111,7 @@ class DtIts(Arrow):
         return result.shift()
 
     def is_workday(self):
-        day_type = WORK_AND_REST_DAYS.get((self.year, self.month, self.day), None)
-        if day_type is not None:
-            return day_type
-        if self.weekday() in [5, 6]:
-            return False
-        else:
-            return True
+        return is_workday(self.date())
 
     @staticmethod
     def workdays_diff(dt1: 'DtIts', dt2: 'DtIts') -> int:
