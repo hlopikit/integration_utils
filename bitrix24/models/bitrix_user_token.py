@@ -156,9 +156,10 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             try:
                 update_is_admin_with_retries(user, token)
             except BitrixApiError as e:
-                log_function = ilogger.warning if e.is_not_logic_error else ilogger.error
-                log_function('update_is_admin_bitrix_api_exception', f"({e}): user={user}, token={token}", tag=log_tag, exc_info=True)
-                continue
+                if e.is_user_access_error or e.is_token_expired:
+                    ilogger.warning('update_is_admin_bitrix_api_exception', f"({e}): token={token}", exc_info=True, tag=log_tag)
+                    continue
+                raise e
 
             user_is_active = user.user_is_active
             user_is_admin = user.is_admin
