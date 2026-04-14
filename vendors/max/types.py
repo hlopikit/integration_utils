@@ -1,5 +1,7 @@
 # from dataclasses import dataclass
+import mimetypes
 from datetime import datetime
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from .apihelper import Api
@@ -428,12 +430,47 @@ class InputMedia(JsonDeserializable):
         :return: Ответ API после загрузки
         :rtype: Dict[str, Any]
         """
+        media = self.media
+        media_name = file_name
+
+        if isinstance(media, str):
+            media_path = Path(media)
+            if media_path.is_file():
+                media_name = media_name or media_path.name
+                media_type = mimetypes.guess_type(media_path.name)[0] or "application/octet-stream"
+                with media_path.open("rb") as media_file:
+                    files = {"data": (media_name, media_file.read(), media_type)}
+                    return self.api.load_file(url=url, files=files, content_types=None)
+
         if file_name:
-            files = {"data": (file_name, self.media, "text/plain")}
+            media_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+            files = {"data": (file_name, media, media_type)}
             return self.api.load_file(url=url, files=files, content_types=None)
-        else:
-            files = {"data": self.media}
-            return self.api.load_file(url=url, files=files)
+
+        files = {"data": media}
+        return self.api.load_file(url=url, files=files)
+
+    @staticmethod
+    def _extract_upload_payload(load_file_result: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(load_file_result, dict):
+            raise ValueError(f"Unexpected upload response type: {type(load_file_result)}")
+
+        if load_file_result.get("token"):
+            return {"token": load_file_result["token"]}
+
+        for value in load_file_result.values():
+            if isinstance(value, list) and value:
+                first_item = value[0]
+                if isinstance(first_item, dict):
+                    return first_item
+            if isinstance(value, dict):
+                if value.get("token"):
+                    return {"token": value["token"]}
+                for nested_value in value.values():
+                    if isinstance(nested_value, dict) and nested_value.get("token"):
+                        return {"token": nested_value["token"]}
+
+        raise ValueError(f"Unexpected upload response format: {load_file_result}")
 
     def to_dict(self, api: Api, file_name: str = None) -> Dict[str, Any]:
         """
@@ -455,10 +492,7 @@ class InputMedia(JsonDeserializable):
         if is_pil_image(self.media):
             self.media = pil_image_to_bytes(self.media)
         load_file_result = self._load_file_to_max(url=upload_url, file_name=file_name)
-        if file_name:
-            token_dict = {"token": load_file_result.get("token")}
-        else:
-            token_dict = list(list(load_file_result.values())[0].values())[0]
+        token_dict = self._extract_upload_payload(load_file_result)
         return {
             "type": self.compare_types.get(self.type),
             "payload": token_dict
