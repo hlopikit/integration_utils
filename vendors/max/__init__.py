@@ -600,7 +600,8 @@ class MaxiBot:
         attachments: Optional[List[Dict[str, Any]]] = None,
         reply_markup: Optional[Any] = None,
         parse_mode: str = "markdown",
-        notify: bool = True
+        notify: bool = True,
+        link: Optional[Dict[str, Any]] = None,
     ) -> Message:
         """
         Отправляет ответ на текущее сообщение/обновление
@@ -637,7 +638,8 @@ class MaxiBot:
                 text=text,
                 attachments=final_attachments,
                 parse_mode=parse_mode.lower(),
-                notify=notify
+                notify=notify,
+                link=link,
             ),
             api=self.api
         )

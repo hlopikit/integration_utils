@@ -63,7 +63,8 @@ class Api:
         method: str = "POST",
         attachments: Optional[List[Dict[str, Any]]] = None,
         parse_mode: str = "markdown",
-        notify: bool = True
+        notify: bool = True,
+        link: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Отправляет/удаляет/обновляет сообщение в чате
@@ -101,6 +102,8 @@ class Api:
 
         if notify:
             data["notify"] = notify
+        if link is not None:
+            data["link"] = link
 
         return self.client.request(method, "/messages", params=params, data=data)
 
