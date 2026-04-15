@@ -10,6 +10,8 @@ import urllib
 from django.conf import settings
 from django.utils.encoding import force_str
 
+from bitrix24.exceptions import BitrixRequestException
+
 try:
     from requests import JSONDecodeError
 except ImportError:
@@ -64,10 +66,12 @@ def call_with_retries(url, converted_params,
             allow_redirects=False,
             verify=verify
         )
-    except (requests.ConnectionError, requests.exceptions.SSLError) as e:
+    except requests.ConnectionError as e:
         raise ConnectionToBitrixError(requests_connection_error=e)
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+    except requests.HTTPError as e:
+        raise BitrixRequestException(requests_error=e)
     else:
         # Ошибка Nginx - 403 Forbidden
         if response.status_code == 403 and 'nginx' in response.text:
