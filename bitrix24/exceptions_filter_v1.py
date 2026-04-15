@@ -16,9 +16,12 @@ Exception
     ├── BatchFailed
     │   └── BatchApiCallError
     │   └── JsonDecodeBatchFailed
-    └── BaseTimeout
-        ├── BitrixTimeout
-        └── BitrixOauthRefreshTimeout
+    ├── BaseTimeout
+    │   ├── BitrixTimeout
+    │   └── BitrixOauthRefreshTimeout
+    └── BaseRequestException
+        ├── BitrixRequestException
+        └── BitrixOauthRequestException
 """
 
 def is_not_logic_error(exception: BitrixApiException):
