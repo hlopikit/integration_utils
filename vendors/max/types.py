@@ -27,6 +27,7 @@ class UpdateType:
     MESSAGE_EDITED = "message_edited"
     MESSAGE_DELETED = "message_deleted"
     MESSAGE_CHAT_CREATED = "message_chat_created"
+    CHAT_TITLE_CHANGED = "chat_title_changed"
     BOT_ADDED = "bot_added"
 
 
@@ -276,7 +277,7 @@ class User(JsonDeserializable):
             self.username = update.get("callback").get("user").get("name")
             self.last_name = update.get("callback").get("user").get("last_name")
             self.language_code = update.get("user_locale")
-        elif update.get("update_type") == UpdateType.BOT_STARTED or update.get("update_type") == UpdateType.BOT_ADDED:
+        elif update.get("update_type") in (UpdateType.BOT_STARTED, UpdateType.BOT_ADDED, UpdateType.CHAT_TITLE_CHANGED):
             self.id = update.get("chat_id")
             self.real_id = update.get("user").get("user_id")
             self.is_bot = update.get("user").get("is_bot")
@@ -312,6 +313,11 @@ class Chat(JsonDeserializable):
         elif update.get("update_type") == UpdateType.BOT_ADDED:
             self.id = update.get("chat_id")
             self.title = self.get_chat_title(chat_id=self.id)
+            self.type = None
+            self.user_id = None
+        elif update.get("update_type") == UpdateType.CHAT_TITLE_CHANGED:
+            self.id = update.get("chat_id")
+            self.title = update.get("title")
             self.type = None
             self.user_id = None
         else:
@@ -589,8 +595,8 @@ class Message(JsonDeserializable):
             else:
                 return "text"
         except Exception:
-            if update.get("update_type") == UpdateType.BOT_ADDED:
-                return UpdateType.BOT_ADDED
+            if update.get("update_type") in (UpdateType.BOT_ADDED, UpdateType.CHAT_TITLE_CHANGED):
+                return update.get("update_type")
             else:
                 return "text"
 

@@ -3,6 +3,8 @@ import json
 
 from typing import Dict, Any, Optional
 
+from ...exceptions import MaxApiError
+
 
 class Client:
     """
@@ -104,15 +106,20 @@ class Client:
             return result
         except requests.exceptions.HTTPError as e:
             error_text = f"HTTP error: {e}"
+            error_code = None
+            error_data = None
             try:
-                error_json = response.json()
-                error_text = f"{error_text}, API response: {error_json}"
+                error_data = response.json()
+                error_code = error_data.get("code")
+                error_text = f"{error_text}, API response: {error_data}"
             except Exception:
                 error_text = f"{error_text}, Response text: {response.text}"
-
-            print(error_text)
-            # raise Exception(error_text)
-            return error_text
+            raise MaxApiError(
+                error_text,
+                status_code=response.status_code,
+                error_code=error_code,
+                response_data=error_data,
+            ) from e
         except Exception as e:
             print(f"Request error: {e}")
             raise
