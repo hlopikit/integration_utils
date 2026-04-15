@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Callable, Union
 
 from .apihelper import Api
+from .exceptions import MaxApiError
 from .types import Message, CallbackQuery, InputMedia
 from .types import UpdateType, InlineKeyboardMarkup
 from .util import extract_command, get_text, get_parse_mode, get_edit_message_data
@@ -44,6 +45,7 @@ class MaxiBot:
             UpdateType.MESSAGE_EDITED: [],
             UpdateType.MESSAGE_DELETED: [],
             UpdateType.MESSAGE_CHAT_CREATED: [],
+            UpdateType.CHAT_TITLE_CHANGED: [],
         }
         self.message_handlers = []
         self.callback_query_handlers = []
@@ -233,7 +235,8 @@ class MaxiBot:
 
             update_type = update.get("update_type")
             if update_type == UpdateType.MESSAGE_CREATED and "message" in update.keys() or \
-               update_type == UpdateType.BOT_STARTED or update_type == UpdateType.BOT_ADDED:
+               update_type == UpdateType.BOT_STARTED or update_type == UpdateType.BOT_ADDED or \
+               update_type == UpdateType.CHAT_TITLE_CHANGED:
                 context = Message(update, self.api)
                 if context.from_user.id in self._next_steps:
                     handler = self._next_steps.pop(context.from_user.id)
@@ -419,16 +422,19 @@ class MaxiBot:
             else:
                 final_attachments.append(reply_markup)
         for _ in range(self.count_retries):
-            response = self.api.send_message(
-                chat_id=chat_id,
-                text=caption,
-                attachments=final_attachments,
-                parse_mode=parse_mode.lower() if parse_mode else None
-            )
-            if isinstance(response, str):
-                time.sleep(1)
-                continue
-            break
+            try:
+                response = self.api.send_message(
+                    chat_id=chat_id,
+                    text=caption,
+                    attachments=final_attachments,
+                    parse_mode=parse_mode.lower() if parse_mode else None
+                )
+                break
+            except MaxApiError as exc:
+                if exc.error_code == "attachment.not.ready":
+                    time.sleep(1)
+                    continue
+                raise
         return Message(update=response, api=self.api)
 
     def delete_message(
