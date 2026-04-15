@@ -32,6 +32,12 @@ class Api:
         """
         return self.client.request("GET", "/me")
 
+    def update_bot_info(self, commands: Optional[List[Dict[str, Any]]] = None):
+        data = {}
+        if commands is not None:
+            data["commands"] = commands
+        return self.client.request("PATCH", "/me", data=data)
+
     def get_updates(self, allowed_updates: List[str], extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Получает новые обновления от API через лонгполлинг
