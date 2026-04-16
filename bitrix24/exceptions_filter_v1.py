@@ -1,4 +1,4 @@
-from integration_utils.bitrix24.exceptions import BitrixApiException, ConnectionToBitrixError
+from integration_utils.bitrix24.exceptions import BitrixRequestException, BitrixApiException, ConnectionToBitrixError
 
 from integration_utils.bitrix24.exceptions import BitrixApiError
 
