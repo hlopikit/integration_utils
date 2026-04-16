@@ -8,7 +8,6 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.functions.api_call import BitrixTimeout
 from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 
@@ -135,7 +134,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             response = requests.get(url, timeout=timeout)
         except requests.Timeout as e:
             raise BitrixTimeout(requests_timeout=e, timeout=timeout)
-
+        except requests.RequestException as e:
+            raise BitrixOauthRequestException(requests_error=e)
 
         if response.status_code >= 500:
             return False
