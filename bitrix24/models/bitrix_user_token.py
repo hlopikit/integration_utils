@@ -217,13 +217,17 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     def refresh(self, timeout=60):
         """
         Если успешно обновился токен, то возвращаем True
-        Если что-то пошло не так то False
+        Если что-то пошло не так то, False
 
         :param timeout: таймаут запроса
+        :raises BitrixApiError: ошибка обновления.
+        :raises BitrixOauthRefreshTimeout: таймаут при обновлении токена.
+        :raises BitrixOauthConnectionError: ошибка соединения при обновлении токена.
+        :raises BitrixOauthRequestException: прочая ошибка при обновлении токена.
         """
         if not self.pk:
             # Динамический токен
-            #raise BitrixApiError(401, dict(error='expired_token'))
+            # raise BitrixApiError(401, dict(error='expired_token'))
             raise BitrixApiError(has_resp='deprecated', json_response=dict(error='expired_token'), status_code=401, message='expired_token')
 
         params = {

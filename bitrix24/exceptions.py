@@ -37,6 +37,7 @@ Exception
         └── BitrixOauthRequestException
 """
 
+
 class BitrixApiException(Exception):
     """
     Ошибка при работе с API Битрикс.
@@ -500,7 +501,7 @@ class BitrixOauthRefreshTimeout(BaseTimeout):
 
 class BaseRequestException(BitrixApiException):
     """
-    Ошибка при запросе к Bitrix.
+    Ошибка выполнения HTTP-запроса.
     Соответствует исключению requests.RequestException.
     """
     def __init__(self, requests_error=None):
@@ -514,13 +515,13 @@ class BaseRequestException(BitrixApiException):
 
 class BitrixRequestException(BaseRequestException):
     """
-    Ошибка обычного запроса к Bitrix API.
+    Ошибка выполнения HTTP-запроса к порталу Bitrix.
     """
     pass
 
 
 class BitrixOauthRequestException(BaseRequestException):
     """
-    Ошибка OAuth-запроса к Bitrix.
+    Ошибка выполнения OAuth HTTP-запроса к порталу Bitrix.
     """
     pass

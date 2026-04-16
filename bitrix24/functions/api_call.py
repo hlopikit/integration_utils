@@ -28,7 +28,6 @@ from settings import ilogger
 DEFAULT_TIMEOUT = 60
 
 
-
 class RawStringParam:
     # Параметр, к которому не нужно применять urlquote
 
@@ -47,6 +46,7 @@ def call_with_retries(url, converted_params,
 
     :raises ConnectionToBitrixError: Проблема с соединением или ошибка SSL при запросе requests
     :raises BitrixTimeout: Таймаут запроса requests
+    :raises BitrixRequestException: Ошибка HTTP-сервера при запросе requests
     :raises BitrixApiServerError: Ошибка HTTP-сервера Битрикс или ошибка API без JSON-ответа
     """
     verify = getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True)
@@ -302,6 +302,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
 
     return response
 
+
 def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_auth: str = None, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
     """
     POST-запрос к REST API 3.0 Битрикс24.
@@ -310,6 +311,7 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     :raises ValueError: Неправильное значение аргумента.
     :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
     :raises BitrixTimeout: requests.Timeout.
+    :raises BitrixRequestException: requests.RequestException.
     :raises BitrixApiServerError: Ответ не является JSON.
     :raises BitrixApiError: JSON-ответ содержит "error".
     """
