@@ -1,4 +1,4 @@
-class MaxApiError(Exception):
+class MaxError(Exception):
     def __init__(self, message: str, status_code=None, error_code=None, response_data=None):
         super().__init__(message)
         self.status_code = status_code
