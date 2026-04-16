@@ -3,7 +3,7 @@ import json
 
 from typing import Dict, Any, Optional
 
-from ...errors import MaxApiError
+from ...errors import MaxError
 
 
 class Client:
@@ -114,7 +114,7 @@ class Client:
                 error_text = f"{error_text}, API response: {error_data}"
             except Exception:
                 error_text = f"{error_text}, Response text: {response.text}"
-            raise MaxApiError(
+            raise MaxError(
                 error_text,
                 status_code=response.status_code,
                 error_code=error_code,

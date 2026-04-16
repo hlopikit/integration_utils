@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Callable, Union
 
 from .apihelper import Api
-from .errors import MaxApiError
+from .errors import MaxError
 from .types import Message, CallbackQuery, InputMedia
 from .types import UpdateType, InlineKeyboardMarkup
 from .util import extract_command, get_text, get_parse_mode, get_edit_message_data
@@ -430,7 +430,7 @@ class MaxiBot:
                     parse_mode=parse_mode.lower() if parse_mode else None
                 )
                 break
-            except MaxApiError as exc:
+            except MaxError as exc:
                 if exc.error_code == "attachment.not.ready":
                     time.sleep(1)
                     continue
