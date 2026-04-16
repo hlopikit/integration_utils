@@ -10,8 +10,6 @@ import urllib
 from django.conf import settings
 from django.utils.encoding import force_str
 
-from bitrix24.exceptions import BitrixRequestException
-
 try:
     from requests import JSONDecodeError
 except ImportError:
@@ -19,7 +17,7 @@ except ImportError:
     # Использовалась ошибка из модуля json.
     from json import JSONDecodeError
 
-from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError
+from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiServerError, BitrixRequestException, BitrixTimeout, ConnectionToBitrixError
 from settings import ilogger
 
 
@@ -70,7 +68,7 @@ def call_with_retries(url, converted_params,
         raise ConnectionToBitrixError(requests_connection_error=e)
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout)
-    except requests.HTTPError as e:
+    except requests.RequestException as e:
         raise BitrixRequestException(requests_error=e)
     else:
         # Ошибка Nginx - 403 Forbidden
@@ -358,7 +356,9 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     except (requests.ConnectionError, requests.exceptions.SSLError) as e:
         raise ConnectionToBitrixError(requests_connection_error=e) from e
     except requests.Timeout as e:
-        raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
+        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+    except requests.RequestException as e:
+        raise BitrixRequestException(requests_error=e)
 
     status_code = response.status_code
     message = response.text
