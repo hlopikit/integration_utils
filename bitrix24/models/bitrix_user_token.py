@@ -8,7 +8,7 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BitrixOauthConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRequestException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 
 
@@ -132,8 +132,10 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         # url = 'https://{}/oauth/token/?{}'.format(self.user.portal.domain, params)
         try:
             response = requests.get(url, timeout=timeout)
+        except requests.ConnectionError as e:
+            raise BitrixOauthConnectionError(requests_connection_error=e)
         except requests.Timeout as e:
-            raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+            raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout)
         except requests.RequestException as e:
             raise BitrixOauthRequestException(requests_error=e)
 
