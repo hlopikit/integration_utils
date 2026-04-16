@@ -690,22 +690,19 @@ class Message(JsonDeserializable):
         """
         Инициализация объекта сообщения
         """
-        if not isinstance(update, dict):
-            return None
-        else:
-            self.update = update
-            self.api = api
-            self.content_type: str = self._get_content_type(update=update)
-            self.id: Optional[str] = self._get_msg_id(update=update)
-            self.message_id: Optional[str] = self._get_msg_id(update=update)
-            self.from_user: Optional[User] = User(update=update)
-            self.date: Optional[datetime] = self._get_msg_timestamp(update=update)
-            self.chat: Chat = Chat(update=update, api=api)
-            self.reply_to_message: Link = Link(link=update.get("message", {}).get("link", None))
-            self.text: Optional[str] = self._get_msg_text(update=update)
-            self.photo: Optional[ImageAttachment] = self._get_photo_from_attachments(update=update)
-            self.photo_reply: Photo = Photo(update=update)
-            self.update_type = update.get('update_type')
+        self.update = update
+        self.api = api
+        self.content_type: str = self._get_content_type(update=update)
+        self.id: Optional[str] = self._get_msg_id(update=update)
+        self.message_id: Optional[str] = self._get_msg_id(update=update)
+        self.from_user: Optional[User] = User(update=update)
+        self.date: Optional[datetime] = self._get_msg_timestamp(update=update)
+        self.chat: Chat = Chat(update=update, api=api)
+        self.reply_to_message: Link = Link(link=update.get("message", {}).get("link", None))
+        self.text: Optional[str] = self._get_msg_text(update=update)
+        self.photo: Optional[ImageAttachment] = self._get_photo_from_attachments(update=update)
+        self.photo_reply: Photo = Photo(update=update)
+        self.update_type = update.get('update_type')
 
     # def reply(self, text: str, **kwargs) -> Dict[str, Any]:
     #     """
