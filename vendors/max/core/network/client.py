@@ -1,9 +1,9 @@
-import requests
 import json
+from typing import Any, Dict, Optional
 
-from typing import Dict, Any, Optional
+import requests
 
-from ...errors import MaxError
+from ...errors import MaxError, MaxNetworkError, MaxUnauthorized
 
 
 class Client:
@@ -33,12 +33,7 @@ class Client:
         :return: Полный URL запроса к API
         :rtype: str
         """
-        url = f"{self.BASE_URL}{path}"
-        # if "?" in url:
-        #     url += f"&access_token={self.token}"
-        # else:
-        #     url += f"?access_token={self.token}"
-        return url
+        return f"{self.BASE_URL}{path}"
 
     def request(
         self,
@@ -72,54 +67,75 @@ class Client:
         :rtype: Dict[str, Any]
         """
         url = self._make_url(path) if not url else url
-        header = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/41.0.2272.101 Safari/537.36",
-            "Authorization": self.token
+        headers = {
+            "connection": "keep-alive",
+            "user-agent": (
+                "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/41.0.2272.101 Safari/537.36"
+            ),
+            "Authorization": self.token,
         }
         if content_types:
-            header["Content-Type"] = content_types
+            headers["Content-Type"] = content_types
         if data and not files:
-            header["Content-Type"] = "application/json"
+            headers["Content-Type"] = "application/json"
             data = json.dumps(data)
-        # print(f"Request: {method} {url}")
-        # if params:
-        # print(f"Params: {params}")
-        # if data:
-        # print(f"Data: {data}")
 
-        response = self.session.request(
-            method=method,
-            url=url,
-            params=params,
-            data=data,
-            files=files,
-            headers=header,
-            verify=False,
-            proxies=self.proxy,
-            timeout=60
-        )
         try:
-            response.raise_for_status()
-            result = response.json()
-            # print(f"Response: {result}")
-            return result
-        except requests.exceptions.HTTPError as e:
-            error_text = f"HTTP error: {e}"
-            error_code = None
-            error_data = None
-            try:
-                error_data = response.json()
-                error_code = error_data.get("code")
-                error_text = f"{error_text}, API response: {error_data}"
-            except Exception:
-                error_text = f"{error_text}, Response text: {response.text}"
-            raise MaxError(
-                error_text,
+            response = self.session.request(
+                method=method,
+                url=url,
+                params=params,
+                data=data,
+                files=files,
+                headers=headers,
+                verify=False,
+                proxies=self.proxy,
+                timeout=60,
+            )
+        except requests.exceptions.Timeout as exc:
+            raise MaxNetworkError("Timed out") from exc
+        except requests.exceptions.RequestException as exc:
+            raise MaxNetworkError(f"requests RequestException {exc}") from exc
+
+        if 200 <= response.status_code <= 299:
+            return response.json()
+
+        response_data = self._parse(response)
+        error_code = response_data.get("code")
+        message = response_data.get("message") or response_data.get("error_description") or "Unknown HTTPError"
+
+        if response.status_code in (401, 403):
+            raise MaxUnauthorized(
+                message,
                 status_code=response.status_code,
                 error_code=error_code,
-                response_data=error_data,
-            ) from e
-        except Exception as e:
-            print(f"Request error: {e}")
-            raise
+                response_data=response_data,
+            )
+        if response.status_code == 502:
+            raise MaxNetworkError(
+                "Bad Gateway",
+                status_code=response.status_code,
+                error_code=error_code,
+                response_data=response_data,
+            )
+        if response.status_code in (408, 429, 500, 503, 504):
+            raise MaxNetworkError(
+                f"{message} ({response.status_code})",
+                status_code=response.status_code,
+                error_code=error_code,
+                response_data=response_data,
+            )
+        raise MaxError(
+            message,
+            status_code=response.status_code,
+            error_code=error_code,
+            response_data=response_data,
+        )
+
+    @staticmethod
+    def _parse(response: requests.Response) -> Dict[str, Any]:
+        try:
+            return response.json()
+        except ValueError:
+            return {"message": response.text or "Unknown HTTPError"}
