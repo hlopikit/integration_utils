@@ -3,7 +3,7 @@ import json
 
 from typing import Dict, Any, Optional
 
-from ...exceptions import MaxApiError
+from ...errors import MaxApiError
 
 
 class Client:
