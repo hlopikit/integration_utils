@@ -2,10 +2,37 @@
 import mimetypes
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Text, TypeAlias
 
 from .apihelper import Api
 from .util import is_pil_image, pil_image_to_bytes
+
+
+__all__ = [
+    "Api",
+    "Body",
+    "CallbackQuery",
+    "Chat",
+    "ChatLink",
+    "ImageAttachment",
+    "ImagePayload",
+    "InlineKeyboardButton",
+    "InlineKeyboardMarkup",
+    "InputMedia",
+    "InputMediaPhoto",
+    "InputMediaVideo",
+    "JsonDeserializable",
+    "Link",
+    "Message",
+    "Photo",
+    "Recipient",
+    "Update",
+    "UpdateType",
+    "User",
+]
+
+
+Update: TypeAlias = Dict[Text, Any]
 
 
 class JsonDeserializable(object):

@@ -36,3 +36,9 @@ class MaxNetworkError(MaxError):
     """Сетевая ошибка при запросе к MAX API."""
 
     __slots__ = ()
+
+
+class MaxTimeout(MaxNetworkError):
+    """Таймаут запроса к MAX API."""
+
+    __slots__ = ()

@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from ...errors import MaxError, MaxNetworkError, MaxUnauthorized
+from ...errors import MaxError, MaxNetworkError, MaxTimeout, MaxUnauthorized
 
 
 class Client:
@@ -94,7 +94,7 @@ class Client:
                 timeout=60,
             )
         except requests.exceptions.Timeout as exc:
-            raise MaxNetworkError("Timed out") from exc
+            raise MaxTimeout("Timed out") from exc
         except requests.exceptions.RequestException as exc:
             raise MaxNetworkError(f"requests RequestException {exc}") from exc
 
