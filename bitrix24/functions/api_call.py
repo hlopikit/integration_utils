@@ -353,8 +353,8 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
             allow_redirects=False,
             verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
         )
-    except (requests.ConnectionError, requests.exceptions.SSLError) as e:
-        raise ConnectionToBitrixError(requests_connection_error=e) from e
+    except requests.ConnectionError as e:
+        raise ConnectionToBitrixError(requests_connection_error=e)
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout)
     except requests.RequestException as e:
