@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from ...errors import MaxError, MaxNetworkError, MaxTimeout, MaxUnauthorized
+from ...errors import MaxBadRequest, MaxError, MaxNetworkError, MaxNotFound, MaxTimeout, MaxUnauthorized
 
 
 class Client:
@@ -107,6 +107,20 @@ class Client:
 
         if response.status_code in (401, 403):
             raise MaxUnauthorized(
+                message,
+                status_code=response.status_code,
+                error_code=error_code,
+                response_data=response_data,
+            )
+        if response.status_code == 400:
+            raise MaxBadRequest(
+                message,
+                status_code=response.status_code,
+                error_code=error_code,
+                response_data=response_data,
+            )
+        if response.status_code == 404:
+            raise MaxNotFound(
                 message,
                 status_code=response.status_code,
                 error_code=error_code,

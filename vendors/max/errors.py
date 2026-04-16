@@ -32,6 +32,14 @@ class MaxUnauthorized(MaxError):
     __slots__ = ()
 
 
+class MaxBadRequest(MaxError):
+    __slots__ = ()
+
+
+class MaxNotFound(MaxError):
+    __slots__ = ()
+
+
 class MaxNetworkError(MaxError):
     """Сетевая ошибка при запросе к MAX API."""
 
