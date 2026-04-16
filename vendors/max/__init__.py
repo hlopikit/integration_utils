@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Callable, Union
 
 from .apihelper import Api
-from .exceptions import MaxApiError
+from .errors import MaxApiError
 from .types import Message, CallbackQuery, InputMedia
 from .types import UpdateType, InlineKeyboardMarkup
 from .util import extract_command, get_text, get_parse_mode, get_edit_message_data
