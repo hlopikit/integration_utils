@@ -27,6 +27,9 @@ Exception
 def is_not_logic_error(exception: BitrixApiException):
     # Проверить ошибку на, то что она не логическая, а именно что-то с сетями, сервервами, лицензиями, сбоями, кодировками, настройками
 
+    if isinstance(exception, BitrixRequestException):
+        return True
+
     if isinstance(exception, ConnectionToBitrixError):
         return True
 
