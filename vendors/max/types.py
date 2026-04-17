@@ -9,11 +9,13 @@ from .util import is_pil_image, pil_image_to_bytes
 
 
 __all__ = [
+    "Attachment",
     "Api",
     "Body",
     "CallbackQuery",
     "Chat",
     "ChatLink",
+    "FileAttachment",
     "ImageAttachment",
     "ImagePayload",
     "InlineKeyboardButton",
@@ -26,6 +28,7 @@ __all__ = [
     "Message",
     "Photo",
     "Recipient",
+    "StickerAttachment",
     "Update",
     "UpdateType",
     "User",
@@ -227,7 +230,47 @@ class ImagePayload(JsonDeserializable):
         self.url = payload.get("url")
 
 
-class ImageAttachment(JsonDeserializable):
+class Attachment(JsonDeserializable):
+    """
+    Класс для нормализации входящего MAX attachment
+
+    :param attach: Словарь с данными вложения
+    :type attach: Dict[str, Any]
+    """
+
+    @classmethod
+    def from_dict(cls, attach: Dict[str, Any]) -> "Attachment":
+        attachment_type = attach["type"]
+
+        if attachment_type == "image":
+            return ImageAttachment(attach=attach)
+
+        if attachment_type == "file":
+            return FileAttachment(attach=attach)
+
+        if attachment_type == "sticker":
+            return StickerAttachment(attach=attach)
+
+        raise ValueError(f"Unknown attachment type: {attachment_type}")
+
+    @classmethod
+    def normalize_attachments(cls, attachments: List[Dict[str, Any]]) -> Optional[Dict[str, Any] | List[Dict[str, Any]]]:
+        normalized_attachments = [cls.from_dict(attachment).to_normalized_dict() for attachment in attachments]
+        if not normalized_attachments:
+            return None
+        if len(normalized_attachments) == 1:
+            return normalized_attachments[0]
+        return normalized_attachments
+
+    def __init__(self, attach: Dict[str, Any]):
+        self.raw = attach
+        self.type = attach["type"]
+        self.payload = attach["payload"]
+        self.filename = attach.get("filename")
+        self.size = attach.get("size")
+
+
+class ImageAttachment(Attachment):
     """
     Класс для работы с вложениями типа "image"
 
@@ -236,8 +279,8 @@ class ImageAttachment(JsonDeserializable):
     """
 
     def __init__(self, attach: Dict[str, Any]):
-        self.payload = ImagePayload(payload=attach.get("payload"))
-        self.type = attach.get("type")
+        super().__init__(attach=attach)
+        self.payload = ImagePayload(payload=attach["payload"])
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -253,6 +296,38 @@ class ImageAttachment(JsonDeserializable):
                 "url": self.payload.url
             },
             "type": self.type
+        }
+
+    def to_normalized_dict(self) -> Dict[str, Any]:
+        return {
+            "type": "image",
+            "photo_id": self.payload.photo_id,
+            "token": self.payload.token,
+            "url": self.payload.url,
+        }
+
+
+class FileAttachment(Attachment):
+    """Класс для работы с вложениями типа file"""
+
+    def to_normalized_dict(self) -> Dict[str, Any]:
+        return {
+            "type": "file",
+            "file_id": self.payload["fileId"],
+            "token": self.payload["token"],
+            "url": self.payload["url"],
+            "filename": self.filename,
+            "size": self.size,
+        }
+
+
+class StickerAttachment(Attachment):
+    """Класс для работы с вложениями типа sticker"""
+
+    def to_normalized_dict(self) -> Dict[str, Any]:
+        return {
+            "type": "sticker",
+            "code": self.payload["code"],
         }
 
 
