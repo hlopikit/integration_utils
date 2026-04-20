@@ -28,6 +28,7 @@ __all__ = [
     "Message",
     "Photo",
     "Recipient",
+    "ShareAttachment",
     "StickerAttachment",
     "Update",
     "UpdateType",
@@ -251,6 +252,9 @@ class Attachment(JsonDeserializable):
         if attachment_type == "sticker":
             return StickerAttachment(attach=attach)
 
+        if attachment_type == "share":
+            return ShareAttachment(attach=attach)
+
         raise ValueError(f"Unknown attachment type: {attachment_type}")
 
     @classmethod
@@ -328,6 +332,20 @@ class StickerAttachment(Attachment):
         return {
             "type": "sticker",
             "code": self.payload["code"],
+        }
+
+
+class ShareAttachment(Attachment):
+    """Класс для работы с вложениями типа share"""
+
+    def to_normalized_dict(self) -> Dict[str, Any]:
+        return {
+            "type": "share",
+            "url": self.payload["url"],
+            "token": self.payload["token"],
+            "title": self.raw["title"],
+            "description": self.raw["description"],
+            "image_url": self.raw["image_url"],
         }
 
 
