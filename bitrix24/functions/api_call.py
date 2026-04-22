@@ -259,8 +259,8 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
 
     log_tag = 'integration_utils.bitrix24.functions.api_call'
 
-    if not params:
-        params = {}
+    # Работаем с копией, чтобы не подмешивать `auth` в исходный словарь вызывающего кода.
+    params = dict(params or {})
 
     hook_key = ''
     if webhook:
