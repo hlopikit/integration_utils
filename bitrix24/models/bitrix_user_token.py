@@ -137,11 +137,11 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         try:
             response = requests.get(url, timeout=timeout)
         except requests.ConnectionError as e:
-            raise BitrixOauthConnectionError(requests_connection_error=e)
+            raise BitrixOauthConnectionError(requests_connection_error=e) from e
         except requests.Timeout as e:
-            raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout)
+            raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout) from e
         except requests.RequestException as e:
-            raise BitrixOauthRequestException(requests_error=e)
+            raise BitrixOauthRequestException(requests_error=e) from e
 
         if response.status_code >= 500:
             return False

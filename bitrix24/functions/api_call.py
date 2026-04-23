@@ -65,11 +65,11 @@ def call_with_retries(url, converted_params,
             verify=verify
         )
     except requests.ConnectionError as e:
-        raise ConnectionToBitrixError(requests_connection_error=e)
+        raise ConnectionToBitrixError(requests_connection_error=e) from e
     except requests.Timeout as e:
-        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+        raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
     except requests.RequestException as e:
-        raise BitrixRequestException(requests_error=e)
+        raise BitrixRequestException(requests_error=e) from e
     else:
         # Ошибка Nginx - 403 Forbidden
         if response.status_code == 403 and 'nginx' in response.text:
@@ -356,11 +356,11 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
             verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
         )
     except requests.ConnectionError as e:
-        raise ConnectionToBitrixError(requests_connection_error=e)
+        raise ConnectionToBitrixError(requests_connection_error=e) from e
     except requests.Timeout as e:
-        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+        raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
     except requests.RequestException as e:
-        raise BitrixRequestException(requests_error=e)
+        raise BitrixRequestException(requests_error=e) from e
 
     status_code = response.status_code
     message = response.text
