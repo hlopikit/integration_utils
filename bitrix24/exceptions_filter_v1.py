@@ -23,7 +23,7 @@ Exception
     │   └── BitrixOauthRefreshTimeout
     └── BaseRequestException
         ├── BitrixRequestException
-        └── BitrixOauthRequestException
+        └── BitrixOauthRefreshRequestException
 """
 
 
