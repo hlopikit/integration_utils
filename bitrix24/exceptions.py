@@ -34,7 +34,7 @@ Exception
     │   └── BitrixOauthRefreshTimeout
     └── BaseRequestException
         ├── BitrixRequestException
-        └── BitrixOauthRequestException
+        └── BitrixOauthRefreshRequestException
 """
 
 
@@ -516,8 +516,8 @@ class BitrixRequestException(BaseRequestException):
     pass
 
 
-class BitrixOauthRequestException(BaseRequestException):
+class BitrixOauthRefreshRequestException(BaseRequestException):
     """
-    Ошибка выполнения OAuth HTTP-запроса к порталу Bitrix.
+    Ошибка выполнения HTTP-запроса к серверу авторизации Bitrix при обновлении токена.
     """
     pass

@@ -8,7 +8,7 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BitrixOauthConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRequestException
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BitrixOauthConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 
 
@@ -112,13 +112,13 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     def refresh(self, timeout=60):
         """
         Если успешно обновился токен, то возвращаем True
-        Если что-то пошло не так то, False
+        Если что-то пошло не так, то False
 
         :param timeout: таймаут запроса
         :raises BitrixApiError: ошибка обновления.
         :raises BitrixOauthRefreshTimeout: таймаут при обновлении токена.
         :raises BitrixOauthConnectionError: ошибка соединения при обновлении токена.
-        :raises BitrixOauthRequestException: прочая ошибка при обновлении токена.
+        :raises BitrixOauthRefreshRequestException: прочая ошибка при обновлении токена.
         """
         if not self.pk:
             # Динамический токен
@@ -141,7 +141,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         except requests.Timeout as e:
             raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout) from e
         except requests.RequestException as e:
-            raise BitrixOauthRequestException(requests_error=e) from e
+            raise BitrixOauthRefreshRequestException(requests_error=e) from e
 
         if response.status_code >= 500:
             return False
