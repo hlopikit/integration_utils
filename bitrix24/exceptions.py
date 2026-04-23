@@ -29,10 +29,14 @@ Exception
     ├── BaseConnectionError
     │   ├── ConnectionToBitrixError
     │   └── BitrixOauthConnectionError
-    └── BaseTimeout
-        ├── BitrixTimeout
-        └── BitrixOauthRefreshTimeout
+    ├── BaseTimeout
+    │   ├── BitrixTimeout
+    │   └── BitrixOauthRefreshTimeout
+    └── BaseRequestException
+        ├── BitrixRequestException
+        └── BitrixOauthRefreshRequestException
 """
+
 
 class BitrixApiException(Exception):
     """
@@ -493,3 +497,31 @@ class BitrixOauthRefreshTimeout(BaseTimeout):
     """
     def __str__(self):
         return f"oauth.bitrix.info - timeout {self.timeout} sec."
+
+
+class BaseRequestException(BitrixApiException):
+    """
+    Ошибка выполнения HTTP-запроса.
+    Соответствует исключению requests.RequestException.
+    """
+    def __init__(self, requests_error=None):
+        super().__init__(requests_error)
+        self.requests_error = requests_error
+
+    @property
+    def is_not_logic_error(self):
+        return True
+
+
+class BitrixRequestException(BaseRequestException):
+    """
+    Ошибка выполнения HTTP-запроса к порталу Bitrix.
+    """
+    pass
+
+
+class BitrixOauthRefreshRequestException(BaseRequestException):
+    """
+    Ошибка выполнения HTTP-запроса к серверу авторизации Bitrix при обновлении токена.
+    """
+    pass

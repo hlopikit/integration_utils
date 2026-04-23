@@ -8,8 +8,7 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.functions.api_call import BitrixTimeout
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BitrixOauthConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 
 
@@ -113,13 +112,17 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     def refresh(self, timeout=60):
         """
         Если успешно обновился токен, то возвращаем True
-        Если что-то пошло не так то False
+        Если что-то пошло не так, то False
 
         :param timeout: таймаут запроса
+        :raises BitrixApiError: ошибка обновления.
+        :raises BitrixOauthRefreshTimeout: таймаут при обновлении токена.
+        :raises BitrixOauthConnectionError: ошибка соединения при обновлении токена.
+        :raises BitrixOauthRefreshRequestException: прочая ошибка при обновлении токена.
         """
         if not self.pk:
             # Динамический токен
-            #raise BitrixApiError(401, dict(error='expired_token'))
+            # raise BitrixApiError(401, dict(error='expired_token'))
             raise BitrixApiError(has_resp='deprecated', json_response=dict(error='expired_token'), status_code=401, message='expired_token')
 
         params = {
@@ -133,9 +136,12 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         # url = 'https://{}/oauth/token/?{}'.format(self.user.portal.domain, params)
         try:
             response = requests.get(url, timeout=timeout)
+        except requests.ConnectionError as e:
+            raise BitrixOauthConnectionError(requests_connection_error=e) from e
         except requests.Timeout as e:
-            raise BitrixTimeout(requests_timeout=e, timeout=timeout)
-
+            raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout) from e
+        except requests.RequestException as e:
+            raise BitrixOauthRefreshRequestException(requests_error=e) from e
 
         if response.status_code >= 500:
             return False

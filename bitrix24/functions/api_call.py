@@ -17,7 +17,7 @@ except ImportError:
     # Использовалась ошибка из модуля json.
     from json import JSONDecodeError
 
-from integration_utils.bitrix24.exceptions import ConnectionToBitrixError, BitrixTimeout, BitrixApiServerError, BitrixApiError
+from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiServerError, BitrixRequestException, BitrixTimeout, ConnectionToBitrixError
 from settings import ilogger
 
 
@@ -26,7 +26,6 @@ from settings import ilogger
 # если все-таки нужно выполнить ожидаемо очень долгий запрос,
 # например в кроне, можно явно передать большее значение или даже None.
 DEFAULT_TIMEOUT = 60
-
 
 
 class RawStringParam:
@@ -47,6 +46,7 @@ def call_with_retries(url, converted_params,
 
     :raises ConnectionToBitrixError: Проблема с соединением или ошибка SSL при запросе requests
     :raises BitrixTimeout: Таймаут запроса requests
+    :raises BitrixRequestException: Ошибка HTTP-сервера при запросе requests
     :raises BitrixApiServerError: Ошибка HTTP-сервера Битрикс или ошибка API без JSON-ответа
     """
     verify = getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True)
@@ -64,10 +64,12 @@ def call_with_retries(url, converted_params,
             allow_redirects=False,
             verify=verify
         )
-    except (requests.ConnectionError, requests.exceptions.SSLError) as e:
-        raise ConnectionToBitrixError(requests_connection_error=e)
+    except requests.ConnectionError as e:
+        raise ConnectionToBitrixError(requests_connection_error=e) from e
     except requests.Timeout as e:
-        raise BitrixTimeout(requests_timeout=e, timeout=timeout)
+        raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
+    except requests.RequestException as e:
+        raise BitrixRequestException(requests_error=e) from e
     else:
         # Ошибка Nginx - 403 Forbidden
         if response.status_code == 403 and 'nginx' in response.text:
@@ -257,8 +259,8 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
 
     log_tag = 'integration_utils.bitrix24.functions.api_call'
 
-    if not params:
-        params = {}
+    # Работаем с копией, чтобы не подмешивать `auth` в исходный словарь вызывающего кода.
+    params = dict(params or {})
 
     hook_key = ''
     if webhook:
@@ -300,6 +302,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
 
     return response
 
+
 def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_auth: str = None, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
     """
     POST-запрос к REST API 3.0 Битрикс24.
@@ -308,6 +311,7 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     :raises ValueError: Неправильное значение аргумента.
     :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
     :raises BitrixTimeout: requests.Timeout.
+    :raises BitrixRequestException: requests.RequestException.
     :raises BitrixApiServerError: Ответ не является JSON.
     :raises BitrixApiError: JSON-ответ содержит "error".
     """
@@ -351,10 +355,12 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
             allow_redirects=False,
             verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
         )
-    except (requests.ConnectionError, requests.exceptions.SSLError) as e:
+    except requests.ConnectionError as e:
         raise ConnectionToBitrixError(requests_connection_error=e) from e
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
+    except requests.RequestException as e:
+        raise BitrixRequestException(requests_error=e) from e
 
     status_code = response.status_code
     message = response.text
