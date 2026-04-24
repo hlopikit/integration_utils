@@ -8,6 +8,8 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.functional import cached_property
 
+# noinspection PyUnresolvedReferences
+from integration_utils import bitrix24
 from integration_utils.bitrix24.bitrix_user_auth.main_auth import main_auth
 from integration_utils.bitrix24.functions.api_call import api_call
 from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
@@ -66,8 +68,12 @@ class BaseRobot(BaseBitrixRobot):
             Где используется: отрисовка списка робота в админке.
             """
             extra_context = extra_context or {}
-            token = self.model.get_admin_token()
             handler_view_name = self._get_handler_view_name()
+
+            try:
+                token = self.model.get_admin_token()
+            except BitrixUserToken.DoesNotExist:
+                token = None
 
             status_label = 'Нет активного токена администратора Битрикс24'
             status_error = None
@@ -108,8 +114,9 @@ class BaseRobot(BaseBitrixRobot):
             if not request.user.is_superuser:
                 return JsonResponse({'error': 'Permission denied'}, status=403)
 
-            token = self.model.get_admin_token()
-            if not token:
+            try:
+                token = self.model.get_admin_token()
+            except BitrixUserToken.DoesNotExist:
                 return JsonResponse({'error': 'Нет активного токена администратора Битрикс24'}, status=400)
 
             handler_view_name = self._get_handler_view_name()
@@ -134,8 +141,9 @@ class BaseRobot(BaseBitrixRobot):
             if not request.user.is_superuser:
                 return JsonResponse({'error': 'Permission denied'}, status=403)
 
-            token = self.model.get_admin_token()
-            if not token:
+            try:
+                token = self.model.get_admin_token()
+            except BitrixUserToken.DoesNotExist:
                 return JsonResponse({'error': 'Нет активного токена администратора Битрикс24'}, status=400)
 
             try:
