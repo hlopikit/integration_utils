@@ -70,7 +70,7 @@ class BitrixUser(models.Model):
     def update_portal_staff(cls):
         """
         Метод обновит user_is_active для всех BitrixUser на основе user.get.
-        :return: (число активных BitrixUser, число неактивных BitrixUser)
+        :return: (число активированных BitrixUser, число деактивированных BitrixUser)
         """
         from integration_utils.bitrix24.models import BitrixUserToken
         admin_token = BitrixUserToken.get_admin_token()
