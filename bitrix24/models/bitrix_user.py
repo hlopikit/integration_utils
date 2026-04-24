@@ -121,11 +121,7 @@ class BitrixUser(models.Model):
             except BitrixApiError as e:
                 if (
                     e.is_unable_to_authorize_user or
-                    e.is_user_cant_be_authorized_in_context or
-                    e.is_cant_refresh and e.token.refresh_error in [
-                        e.token.UNABLE_TO_AUTHORIZE_USER,
-                        e.token.USER_CANT_BE_AUTHORIZED_IN_CONTEXT,
-                    ]
+                    e.is_user_cant_be_authorized_in_context
                 ):
                     # Вероятно, пользователь уволен на портале
                     is_active = False
