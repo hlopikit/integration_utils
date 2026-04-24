@@ -141,11 +141,9 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         )
 
         if is_admin:
-            tokens = tokens.filter(user__is_admin=True)
+            tokens = tokens.filter(user__is_admin=True).order_by(f'{"-" if pk_desc else ""}pk')
         else:
-            tokens = tokens.order_by('-user__is_admin')
-
-        tokens = tokens.order_by(f'{"-" if pk_desc else ""}pk')
+            tokens = tokens.order_by('-user__is_admin', f'{"-" if pk_desc else ""}pk')
 
         result_token = None
         likely_inactive_user_dict = {}
