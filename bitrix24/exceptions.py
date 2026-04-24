@@ -303,7 +303,7 @@ class BitrixApiError(BitrixApiException):
         Пример: error='expired_token',
         error_description='The access token provided has expired.', status_code=401
         """
-        return self.error_description == 'The access token provided has expired.'
+        return self.error == 'expired_token'
 
     @property
     def is_access_denied_any(self):
