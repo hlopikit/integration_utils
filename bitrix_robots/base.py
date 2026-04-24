@@ -8,7 +8,7 @@ from django.urls import reverse, path
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpRequest, QueryDict, JsonResponse
+from django.http import HttpResponse, HttpRequest, QueryDict, JsonResponse, UnreadablePostError
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
@@ -217,20 +217,39 @@ class BaseBitrixRobot(models.Model):
         def view(request: HttpRequest):
             cls_name = cls.__name__
 
-            ilogger.debug(
-                'new_robot_request_{}'.format(cls_name),
-                '{request.POST!r}'.format(request=request),
-            )
-
             try:
-                robot = cls(params=request.POST.dict())
+                try:
+                    post_data = request.POST.dict()
+                    post_repr = repr(post_data)
+                except UnreadablePostError as e:
+                    post_repr = (
+                        '<unreadable POST: {error}; content_type={content_type!r}; '
+                        'content_length={content_length!r}; path={path!r}>'
+                    ).format(
+                        error=e,
+                        content_type=request.META.get('CONTENT_TYPE'),
+                        content_length=request.META.get('CONTENT_LENGTH'),
+                        path=request.path,
+                    )
+                    ilogger.error(
+                        'robot_unreadable_post_{}'.format(cls_name),
+                        '{e!r}\nPOST: {post_repr}'.format(e=e, post_repr=post_repr),
+                    )
+                    return HttpResponse('error')
+
+                ilogger.debug(
+                    'new_robot_request_{}'.format(cls_name),
+                    post_repr,
+                )
+
+                robot = cls(params=post_data)
 
                 try:
                     robot.verify_event()
                 except VerificationError as e:
                     ilogger.error(
                         'robot_verification_error_{}'.format(cls_name),
-                        '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
+                        '{e!r}\nPOST: {post_repr}'.format(e=e, post_repr=post_repr),
                     )
                     return e.http_response()
 
@@ -239,7 +258,7 @@ class BaseBitrixRobot(models.Model):
             except Exception as e:
                 ilogger.error(
                     'robot_view_unexpected_error_{}'.format(cls_name),
-                    '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
+                    '{e!r}\nPOST: {post_repr}'.format(e=e, post_repr=post_repr),
                 )
                 return HttpResponse('error')
 
@@ -249,7 +268,7 @@ class BaseBitrixRobot(models.Model):
                 except Exception as e:
                     ilogger.error(
                         'robot_processing_error_{}'.format(cls_name),
-                        '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
+                        '{e!r}\nPOST: {post_repr}'.format(e=e, post_repr=post_repr),
                     )
                     return HttpResponse('error')
 
