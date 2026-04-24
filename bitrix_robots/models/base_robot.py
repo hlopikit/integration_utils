@@ -11,6 +11,7 @@ from django.utils.functional import cached_property
 # noinspection PyUnresolvedReferences
 from integration_utils import bitrix24
 from integration_utils.bitrix24.bitrix_user_auth.main_auth import main_auth
+from integration_utils.bitrix24.exceptions import BitrixApiException
 from integration_utils.bitrix24.functions.api_call import api_call
 from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
 from integration_utils.bitrix_robots.base import BaseBitrixRobot
@@ -69,15 +70,18 @@ class BaseRobot(BaseBitrixRobot):
             """
             extra_context = extra_context or {}
             handler_view_name = self._get_handler_view_name()
+            status_label = 'Нет активного токена администратора'
+            status_error = None
+            installed = None
 
             try:
                 token = self.model.get_admin_token()
             except BitrixUserToken.DoesNotExist:
                 token = None
-
-            status_label = 'Нет активного токена администратора Битрикс24'
-            status_error = None
-            installed = None
+            except BitrixApiException as exc:
+                token = None
+                status_label = 'Ошибка Битрикс при получении токена администратора'
+                status_error = str(exc)
             if token:
                 try:
                     if not handler_view_name:
@@ -117,7 +121,9 @@ class BaseRobot(BaseBitrixRobot):
             try:
                 token = self.model.get_admin_token()
             except BitrixUserToken.DoesNotExist:
-                return JsonResponse({'error': 'Нет активного токена администратора Битрикс24'}, status=400)
+                return JsonResponse({'error': 'Нет активного токена администратора'}, status=400)
+            except BitrixApiException as exc:
+                return JsonResponse({'error': f'Ошибка Битрикс при получения токена администратора: {exc}'}, status=424)
 
             handler_view_name = self._get_handler_view_name()
             if not handler_view_name:
@@ -144,7 +150,9 @@ class BaseRobot(BaseBitrixRobot):
             try:
                 token = self.model.get_admin_token()
             except BitrixUserToken.DoesNotExist:
-                return JsonResponse({'error': 'Нет активного токена администратора Битрикс24'}, status=400)
+                return JsonResponse({'error': 'Нет активного токена администратора'}, status=400)
+            except BitrixApiException as exc:
+                return JsonResponse({'error': f'Ошибка Битрикс при получении токена администратора: {exc}'}, status=424)
 
             try:
                 self.model.uninstall(token)
