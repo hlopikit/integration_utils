@@ -73,7 +73,7 @@ class BitrixUser(models.Model):
         :return: (число активных BitrixUser, число неактивных BitrixUser)
         """
         from integration_utils.bitrix24.models import BitrixUserToken
-        admin_token = BitrixUserToken.get_random_token(is_admin=True)
+        admin_token = BitrixUserToken.get_admin_token()
         active_users = [item['ID'] for item in admin_token.call_list_fast('user.get', {"filter": {"ACTIVE": True}})]
         return (cls.objects.filter(bitrix_id__in=active_users).update(user_is_active=True),
                 cls.objects.exclude(bitrix_id__in=active_users).update(user_is_active=False))
@@ -119,10 +119,14 @@ class BitrixUser(models.Model):
             try:
                 is_admin = bx_user_token.call_api_method('user.admin', timeout=(3.05, 10))['result']
             except BitrixApiError as e:
-                if e.error_description in [
-                    'Unable to authorize user',
-                    "Current user can't be authorized in this context",
-                ]:
+                if (
+                    e.is_unable_to_authorize_user or
+                    e.is_user_cant_be_authorized_in_context or
+                    e.is_cant_refresh and e.token.refresh_error in [
+                        e.token.UNABLE_TO_AUTHORIZE_USER,
+                        e.token.USER_CANT_BE_AUTHORIZED_IN_CONTEXT,
+                    ]
+                ):
                     # Вероятно, пользователь уволен на портале
                     is_active = False
                     ilogger.debug('is_admin_user_likely_inactive', f"({e}): user={self}, token={bx_user_token}", tag=log_tag)

@@ -125,12 +125,12 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         :param pk_desc: брать сначала последние токены
         :param bitrix_unavailable_attempts: число запросов в Битрикс, если он недоступен
         :raise BitrixUserTokenDoesNotExist: не найден подходящий токен
-        :raise BaseConnectionError/BaseTimeout: не удалось достучаться до Битрикс после всех попыток
+        :raise BitrixApiException: различные нерешаемые ошибки Битрикс
         """
         log_tag = 'integration_utils.BitrixUserToken.get_random_token'
 
         @retry_decorator(bitrix_unavailable_attempts, (BaseConnectionError, BaseTimeout))
-        def update_is_admin_with_retries(bx_user: 'BitrixUser', bx_token):
+        def update_is_admin_with_retries(bx_user: 'BitrixUser', bx_token: 'BitrixUserToken'):
             bx_user.update_is_admin(bx_token, save_is_admin=True, save_is_active=False, fail_silently=False)
 
         tokens = cls.objects.filter(
@@ -157,7 +157,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                 update_is_admin_with_retries(user, token)
             except BitrixApiError as e:
                 if e.is_user_access_error or e.is_token_expired:
-                    ilogger.warning('update_is_admin_bitrix_api_exception', f"({e}): token={token}", exc_info=True, tag=log_tag)
+                    ilogger.warning('update_is_admin_bx_api_err', f"({e}): token={token}", exc_info=True, tag=log_tag)
                     continue
                 raise e
 
