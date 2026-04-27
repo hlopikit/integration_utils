@@ -15,9 +15,16 @@ class KeyValue(models.Model):
 
     @staticmethod
     def set_value(key, value, comment=''):
+        """
+        1) Сохраняет значение по ключу в `json_value`, а при переданном непустом `comment` синхронно обновляет и комментарий записи.
+        2) Используется cron/helper-кодом как компактный API поверх `KeyValue`, чтобы не дублировать ручной `get_or_create/update`.
+        """
 
         from settings import ilogger
-        result = KeyValue.objects.filter(key=key).update(json_value=value)
+        update_fields = {"json_value": value}
+        if comment:
+            update_fields["comment"] = comment
+        result = KeyValue.objects.filter(key=key).update(**update_fields)
         if not result:
             KeyValue.objects.create(key=key, json_value=value, comment=comment)
         ilogger.debug('set_value', '{}->{}'.format(key, value))
