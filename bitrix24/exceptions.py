@@ -340,6 +340,10 @@ class BitrixApiError(BitrixApiException):
     def is_operation_time_limit(self):
         return self.error == 'OPERATION_TIME_LIMIT'
 
+    @property
+    def is_mysql_query_error(self):
+        return 'mysql query error' in self.error_description
+
     def dict(self):
         if isinstance(self.json_response, dict):
             error = self.json_response
