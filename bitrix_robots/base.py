@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.datastructures import MultiValueDict
 from django.utils.functional import cached_property
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpRequest, QueryDict, JsonResponse, UnreadablePostError
+from django.http import HttpResponse, QueryDict, JsonResponse, UnreadablePostError
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
