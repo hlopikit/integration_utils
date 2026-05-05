@@ -13,7 +13,7 @@ from django.http import HttpResponse, QueryDict, JsonResponse, UnreadablePostErr
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
-from bitrix_utils.bitrix_auth.types import ItsRequest
+from integration_utils.bitrix24.types import ItsRequest
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
 from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
