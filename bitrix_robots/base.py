@@ -234,9 +234,9 @@ class BaseBitrixRobot(models.Model):
                 request.its_error_response = True
                 return HttpResponse("Robot unreadable POST error", status=400)
 
-            try:
-                ilogger.debug(f'new_robot_request_{cls_name}', f"{post_repr=}", tag=log_tag)
+            ilogger.debug(f'new_robot_request_{cls_name}', f"{post_repr=}", tag=log_tag)
 
+            try:
                 robot = cls(params=post_data)
 
                 try:
@@ -261,7 +261,7 @@ class BaseBitrixRobot(models.Model):
                     request.its_error_response = True
                     return HttpResponse("Robot start process exception", status=500)
 
-            return HttpResponse('ok')
+            return HttpResponse("Ok")
 
         return view
 
