@@ -47,7 +47,6 @@ def is_not_logic_error(exception: BitrixApiException):
             exception.is_error_core,
             exception.is_connection_error,
             exception.is_cant_refresh,
-            exception.is_user_access_error,
         ]
         if any(error_conditions):
             return True
