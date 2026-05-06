@@ -222,10 +222,10 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         Если что-то пошло не так, то False.
 
         :param timeout: таймаут запроса
-        :raises BitrixApiError: ошибка обновления.
-        :raises BitrixOauthRefreshTimeout: таймаут при обновлении токена.
-        :raises BitrixOauthRefreshConnectionError: ошибка соединения при обновлении токена.
-        :raises BitrixOauthRefreshRequestException: прочая ошибка при обновлении токена.
+        :raise BitrixApiError: ошибка обновления.
+        :raise BitrixOauthRefreshTimeout: таймаут при обновлении токена.
+        :raise BitrixOauthRefreshConnectionError: ошибка соединения при обновлении токена.
+        :raise BitrixOauthRefreshRequestException: прочая ошибка при обновлении токена.
         """
         if not self.pk:
             # Динамический токен

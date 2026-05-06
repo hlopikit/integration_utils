@@ -14,7 +14,7 @@ except ImportError:
     # Использовалась ошибка из модуля json.
     from json import JSONDecodeError
 
-from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiServerError, BitrixRequestException, BitrixTimeout, BitrixConnectionError
+from integration_utils.bitrix24.exceptions import BitrixConnectionError, BitrixTimeout, BitrixRequestException, BitrixApiServerError, BitrixApiError
 
 ConnectionToBitrixError = BitrixConnectionError
 
