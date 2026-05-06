@@ -43,7 +43,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         (0, 'Нет ошибки'),
         (1, 'Не установлен портал (Wrong client)'),
         (EXPIRED_TOKEN, 'Устарел ключ совсем (Expired token)'),
-        # бывает если ключи прилжения неправильные и "ВОЗМОЖНО" когда уже совсем протух токен
+        # бывает если ключи приложения неправильные и "ВОЗМОЖНО" когда уже совсем протух токен
         (INVALID_GRANT, 'Инвалид грант (Invalid grant)'),
         (NOT_INSTALLED, 'Не установлен портал (NOT_INSTALLED)'),
         (PAYMENT_REQUIRED, 'Не оплачено (PAYMENT_REQUIRED)'),
@@ -61,7 +61,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     )
 
     AUTH_COOKIE_MAX_AGE = None   # as long as the client’s browser session
-    # можно переопределить домен для рест методов для кластеров
+    # можно переопределить домен для REST методов для кластеров
     rest_domain = getattr(settings, 'REST_DOMAIN', None)
     domain = rest_domain or settings.APP_SETTINGS.portal_domain
     web_hook_auth = None
@@ -78,7 +78,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     refresh_error = models.PositiveSmallIntegerField(default=0, choices=REFRESH_ERRORS)
 
     def __init__(self, *args, **kwargs):
-        # 1) Можут в БД лежать уже готовые токены и тогда просто их используем
+        # 1) Могут в БД лежать уже готовые токены и тогда просто их используем
         # 2) Если надо на лету делать токены для вызовов методов АПИ, то
         # BitrixUserToken(auth_token='65c09d5d001c767d002443c00000000100000301144')
         super().__init__(*args, **kwargs)
@@ -323,7 +323,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     @classmethod
     def refresh_all(cls, timeout=DEFAULT_TIMEOUT):
-        """Обновить все токены, неудачи игнорятся.
+        """Обновить все токены, неудачи игнорируются.
 
         :param timeout: таймаут обновления каждого конкретного токена.
         """
@@ -337,6 +337,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         return "%s -> %s" % (active_from, active_to)
 
     def hello_world(self, *args, **kwargs):  # ?
+        # TODO: Проверить актуальность
         return u'hello_world'
 
     @classmethod
@@ -344,6 +345,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         return cls.get_random_token(is_admin=True)
 
     def __unicode__(self):
+        # TODO: Сделать по образцу bitrix_utils
         try:
             return u"#{}@{} of {!r}".format(self.id, "domain", self.user if self.id else 'dynamic_token')
         except:
