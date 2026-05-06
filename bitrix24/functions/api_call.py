@@ -1,12 +1,9 @@
+import time
+import urllib
 from pprint import pformat
 from urllib.parse import urlparse
 
 import requests
-import time
-
-import urllib
-
-
 from django.conf import settings
 from django.utils.encoding import force_str
 
@@ -17,9 +14,11 @@ except ImportError:
     # Использовалась ошибка из модуля json.
     from json import JSONDecodeError
 
-from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiServerError, BitrixRequestException, BitrixTimeout, ConnectionToBitrixError
-from settings import ilogger
+from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiServerError, BitrixRequestException, BitrixTimeout, BitrixConnectionError
 
+ConnectionToBitrixError = BitrixConnectionError
+
+from settings import ilogger
 
 # Таймаут запроса по-умолчанию:
 # 1 минута, потому что наш nginx все равно отрубает обработчики после 1 минуты,
@@ -44,7 +43,7 @@ def call_with_retries(url, converted_params,
     """
     Вызвать метод Битрикс в несколько попыток при неудаче.
 
-    :raises ConnectionToBitrixError: Проблема с соединением или ошибка SSL при запросе requests
+    :raises BitrixConnectionError: Проблема с соединением или ошибка SSL при запросе requests
     :raises BitrixTimeout: Таймаут запроса requests
     :raises BitrixRequestException: Ошибка HTTP-сервера при запросе requests
     :raises BitrixApiServerError: Ошибка HTTP-сервера Битрикс или ошибка API без JSON-ответа
@@ -65,11 +64,11 @@ def call_with_retries(url, converted_params,
             verify=verify
         )
     except requests.ConnectionError as e:
-        raise ConnectionToBitrixError(requests_connection_error=e) from e
+        raise BitrixConnectionError(requests_connection_error=e) from e
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
     except requests.RequestException as e:
-        raise BitrixRequestException(requests_error=e) from e
+        raise BitrixRequestException(requests_exception=e) from e
     else:
         # Ошибка Nginx - 403 Forbidden
         if response.status_code == 403 and 'nginx' in response.text:
@@ -309,7 +308,7 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     В случае ошибки - кидаем исключение.
 
     :raises ValueError: Неправильное значение аргумента.
-    :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
+    :raises BitrixConnectionError: requests.ConnectionError/SSLError.
     :raises BitrixTimeout: requests.Timeout.
     :raises BitrixRequestException: requests.RequestException.
     :raises BitrixApiServerError: Ответ не является JSON.
@@ -356,11 +355,11 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
             verify=getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True),
         )
     except requests.ConnectionError as e:
-        raise ConnectionToBitrixError(requests_connection_error=e) from e
+        raise BitrixConnectionError(requests_connection_error=e) from e
     except requests.Timeout as e:
         raise BitrixTimeout(requests_timeout=e, timeout=timeout) from e
     except requests.RequestException as e:
-        raise BitrixRequestException(requests_error=e) from e
+        raise BitrixRequestException(requests_exception=e) from e
 
     status_code = response.status_code
     message = response.text

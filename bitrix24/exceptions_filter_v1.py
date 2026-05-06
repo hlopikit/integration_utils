@@ -1,15 +1,12 @@
-from integration_utils.bitrix24.exceptions import BitrixApiError
-from integration_utils.bitrix24.exceptions import BitrixRequestException, BitrixApiException, ConnectionToBitrixError
+from integration_utils.bitrix24.exceptions import BitrixApiError, BaseRequestException
+from integration_utils.bitrix24.exceptions import BitrixApiException
 
 
 def is_not_logic_error(exception: BitrixApiException):
     # Проверить ошибку на, то что она не логическая.
     # То есть, что-то с сетями, серверами, лицензиями, сбоями, кодировками, настройками пользователя.
 
-    if isinstance(exception, BitrixRequestException):
-        return True
-
-    if isinstance(exception, ConnectionToBitrixError):
+    if isinstance(exception, BaseRequestException):
         return True
 
     if isinstance(exception, BitrixApiError):

@@ -9,7 +9,7 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, BitrixOauthConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixOauthRequestException
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixOauthRequestException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from settings import ilogger
@@ -222,7 +222,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         :param timeout: таймаут запроса
         :raises BitrixApiError: ошибка обновления.
         :raises BitrixOauthRefreshTimeout: таймаут при обновлении токена.
-        :raises BitrixOauthConnectionError: ошибка соединения при обновлении токена.
+        :raises BitrixOauthRefreshConnectionError: ошибка соединения при обновлении токена.
         :raises BitrixOauthRefreshRequestException: прочая ошибка при обновлении токена.
         """
         if not self.pk:
@@ -242,11 +242,11 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         try:
             response = requests.get(url, timeout=timeout)
         except requests.ConnectionError as e:
-            raise BitrixOauthConnectionError(requests_connection_error=e) from e
+            raise BitrixOauthRefreshConnectionError(requests_connection_error=e) from e
         except requests.Timeout as e:
             raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout) from e
         except requests.RequestException as e:
-            raise BitrixOauthRefreshRequestException(requests_error=e) from e
+            raise BitrixOauthRefreshRequestException(requests_exception=e) from e
 
         if response.status_code >= 500:
             return False

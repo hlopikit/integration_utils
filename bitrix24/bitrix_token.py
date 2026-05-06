@@ -56,7 +56,7 @@ class BaseBitrixToken:
         В случае ошибки - кидаем исключение.
 
         :raises ValueError: Неправильное значение аргумента.
-        :raises ConnectionToBitrixError: requests.ConnectionError/SSLError.
+        :raises BitrixConnectionError: requests.ConnectionError/SSLError.
         :raises BitrixTimeout: requests.Timeout.
         :raises BitrixApiServerError: Ответ не является JSON.
         :raises BitrixApiError: JSON-ответ содержит "error".

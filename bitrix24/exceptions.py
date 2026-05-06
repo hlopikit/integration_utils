@@ -26,15 +26,15 @@ Exception
     ├── BatchFailed
     │   └── BatchApiCallError
     │   └── JsonDecodeBatchFailed
-    ├── BaseConnectionError
-    │   ├── ConnectionToBitrixError
-    │   └── BitrixOauthConnectionError
-    ├── BaseTimeout
-    │   ├── BitrixTimeout
-    │   └── BitrixOauthRefreshTimeout
     └── BaseRequestException
         ├── BitrixRequestException
-        └── BitrixOauthRefreshRequestException
+        ├── BitrixOauthRefreshRequestException
+        ├── BaseConnectionError
+        │   ├── BitrixConnectionError (ConnectionToBitrixError)
+        │   └── BitrixOauthRefreshConnectionError (BitrixOauthConnectionError)
+        └── BaseTimeout
+            ├── BitrixTimeout
+            └── BitrixOauthRefreshTimeout
 """
 
 
@@ -72,7 +72,6 @@ class BitrixApiError(BitrixApiException):
         :param message: Укороченное пояснение.
         :param token: Токен, использовавшийся для запроса.
         """
-        super().__init__(has_resp, json_response, status_code, message, token)
         self.has_resp = has_resp
         self.json_response = json_response
         self.status_code = status_code
@@ -211,7 +210,7 @@ class BitrixApiError(BitrixApiException):
         """
         Deprecated.
         Ошибка формировалась нами в call_api_method через превращение ConnectionToBitrixError в BitrixApiError.
-        Данное превращение убрано из-за нелогичности, теперь нужно перехватывать ConnectionToBitrixError.
+        Данное превращение убрано из-за нелогичности, теперь нужно перехватывать BitrixConnectionError.
         """
         return self.error == 'ConnectionToBitrixError'
 
@@ -405,7 +404,6 @@ class SnapiError(BitrixApiError):
     Ошибка вызова Snapi-метода.
     Смотреть: bitrix_utils.BitrixUserToken.call_snapi_method.
     """
-    pass
 
 
 class BitrixApiErrorNotFound(BitrixApiError):
@@ -413,7 +411,6 @@ class BitrixApiErrorNotFound(BitrixApiError):
     Ошибка BitrixApiError.is_not_found.
     TODO: Объяснить, почему сделана отдельным классом.
     """
-    pass
 
 
 class BatchFailed(BitrixApiException):
@@ -421,15 +418,16 @@ class BatchFailed(BitrixApiException):
     Ошибка batch-запроса.
     """
     def __init__(self, reason=None):
-        super().__init__(reason)
         self.reason = reason
+
+    def __str__(self):
+        return f"{self.reason}"
 
 
 class BatchApiCallError(BatchFailed):
     """
     Сервер вернул JSON-ответ с ошибкой на batch-запрос.
     """
-    pass
 
 
 class JsonDecodeBatchFailed(BatchFailed):
@@ -437,15 +435,45 @@ class JsonDecodeBatchFailed(BatchFailed):
     Сервер вернул не JSON в ответе на batch-запрос.
     Обычно означает внутреннюю ошибку сервера Битрикс.
     """
-    pass
 
 
-class BaseConnectionError(BitrixApiException):
+class BaseRequestException(BitrixApiException):
+    """
+    Ошибка выполнения запроса.
+    В случае таких ошибок мы не получили никакого ответа от сервера.
+    Соответствует исключению requests.RequestException.
+    """
+
+    def __init__(self, requests_exception):
+        self.requests_exception = requests_exception
+
+    @property
+    def is_not_logic_error(self):
+        return True
+
+    def __str__(self):
+        return f"{self.requests_exception}"
+
+
+class BitrixRequestException(BaseRequestException):
+    """
+    Ошибка выполнения запроса к порталу Bitrix.
+    """
+
+
+class BitrixOauthRefreshRequestException(BaseRequestException):
+    """
+    Ошибка выполнения запроса к серверу авторизации Bitrix при обновлении токена.
+    """
+
+
+class BaseConnectionError(BaseRequestException):
     """
     Ошибка соединения при запросе.
     Соответствует исключению requests.ConnectionError.
     """
-    def __init__(self, requests_connection_error=None):
+
+    def __init__(self, requests_connection_error):
         super().__init__(requests_connection_error)
         self.requests_connection_error = requests_connection_error
 
@@ -454,27 +482,33 @@ class BaseConnectionError(BitrixApiException):
         return True
 
 
-class ConnectionToBitrixError(BaseConnectionError):
+class BitrixConnectionError(BaseConnectionError):
     """
     Ошибка соединения при запросе к порталу Битрикс.
     """
-    pass
 
 
-class BitrixOauthConnectionError(BaseConnectionError):
+# Для обратной совместимости
+ConnectionToBitrixError = BitrixConnectionError
+
+
+class BitrixOauthRefreshConnectionError(BaseConnectionError):
     """
     Ошибка соединения при запросе к серверу авторизации Битрикс при обновлении токена.
     """
-    pass
 
 
-class BaseTimeout(BitrixApiException):
+# Для обратной совместимости
+BitrixOauthConnectionError = BitrixOauthRefreshConnectionError
+
+
+class BaseTimeout(BaseRequestException):
     """
     Таймаут при запросе.
     Соответствует исключению requests.Timeout.
     """
     def __init__(self, requests_timeout, timeout):
-        super().__init__(requests_timeout, timeout)
+        super().__init__(requests_timeout)
         self.request_timeout = requests_timeout
         self.timeout = timeout
 
@@ -487,41 +521,10 @@ class BitrixTimeout(BaseTimeout):
     """
     Таймаут при запросе к порталу Битрикс.
     """
-    def __str__(self):
-        return f"[{self.timeout} sec.] requests_timeout={self.request_timeout!r} request={self.request_timeout.request!r}"
 
 
 class BitrixOauthRefreshTimeout(BaseTimeout):
     """
     Таймаут при запросе к серверу авторизации Битрикс при обновлении токена.
     """
-    def __str__(self):
-        return f"oauth.bitrix.info - timeout {self.timeout} sec."
 
-
-class BaseRequestException(BitrixApiException):
-    """
-    Ошибка выполнения HTTP-запроса.
-    Соответствует исключению requests.RequestException.
-    """
-    def __init__(self, requests_error=None):
-        super().__init__(requests_error)
-        self.requests_error = requests_error
-
-    @property
-    def is_not_logic_error(self):
-        return True
-
-
-class BitrixRequestException(BaseRequestException):
-    """
-    Ошибка выполнения HTTP-запроса к порталу Bitrix.
-    """
-    pass
-
-
-class BitrixOauthRefreshRequestException(BaseRequestException):
-    """
-    Ошибка выполнения HTTP-запроса к серверу авторизации Bitrix при обновлении токена.
-    """
-    pass
