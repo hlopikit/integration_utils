@@ -75,6 +75,9 @@ class BitrixApiError(BitrixApiException):
         self.message = message
         self.token = token
 
+    def __str__(self):
+        return f"{self.json_response}, {self.status_code}, {self.message}, token={self.token}"
+
     @property
     def error(self):
         if isinstance(self.json_response, dict):
@@ -300,7 +303,7 @@ class BitrixApiError(BitrixApiException):
         Пример: error='expired_token',
         error_description='The access token provided has expired.', status_code=401
         """
-        return self.error_description == 'The access token provided has expired.'
+        return self.error == 'expired_token'
 
     @property
     def is_access_denied_any(self):
@@ -381,7 +384,8 @@ class BitrixTokenRefreshError(BitrixApiError):
     """
     Ошибка обновления токена Битрикс.
     """
-    pass
+    def __init__(self, has_resp, json_response, status_code, message='cant_refresh', token=None):
+        super().__init__(has_resp, json_response, status_code, message, token)
 
 
 class BitrixApiServerError(BitrixApiError):

@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 
 import hashlib
+import typing
 
 import requests
 from django.conf import settings
@@ -9,8 +10,13 @@ from django.db import models
 from django.utils import timezone
 
 from integration_utils.bitrix24.functions.api_call import BitrixTimeout
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
+from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
+from settings import ilogger
+
+if typing.TYPE_CHECKING:
+    from integration_utils.bitrix24.models import BitrixUser
 
 
 def refresh_all():
@@ -109,6 +115,105 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         #     return
         if token == cls.get_auth_token(pk):
             return pk
+
+    @classmethod
+    def get_random_token(cls, is_admin=True, pk_desc=False, bitrix_unavailable_attempts = 2):
+        """
+        Получить один любой активный токен
+
+        :param is_admin: токен должен иметь права администратора (True - да, False - админский при наличии, иначе простого юзера)
+        :param pk_desc: брать сначала последние токены
+        :param bitrix_unavailable_attempts: число запросов в Битрикс, если он недоступен
+        :raise BitrixUserTokenDoesNotExist: не найден подходящий токен
+        :raise BitrixApiException: различные нерешаемые ошибки Битрикс
+        """
+        log_tag = 'integration_utils.BitrixUserToken.get_random_token'
+
+        @retry_decorator(bitrix_unavailable_attempts, (BaseConnectionError, BaseTimeout))
+        def update_is_admin_with_retries(bx_user: 'BitrixUser', bx_token: 'BitrixUserToken'):
+            bx_user.update_is_admin(bx_token, save_is_admin=True, save_is_active=False, fail_silently=False)
+
+        tokens = cls.objects.filter(
+            user__user_is_active=True,
+            is_active=True,
+        ).exclude(
+            user__extranet=True,  # Не хотим внешних пользователей, так как ограничены в правах
+        )
+
+        if is_admin:
+            tokens = tokens.filter(user__is_admin=True).order_by(f'{"-" if pk_desc else ""}pk')
+        else:
+            tokens = tokens.order_by('-user__is_admin', f'{"-" if pk_desc else ""}pk')
+
+        result_token = None
+        likely_inactive_user_dict = {}
+
+        for token in tokens:
+            user = token.user
+
+            try:
+                update_is_admin_with_retries(user, token)
+            except BitrixApiError as e:
+                if e.is_user_access_error or e.is_token_expired:
+                    ilogger.warning('update_is_admin_bx_api_err', f"({e}): token={token}", exc_info=True, tag=log_tag)
+                    continue
+                raise e
+
+            user_is_active = user.user_is_active
+            user_is_admin = user.is_admin
+
+            # Берём следующий токен, если:
+            # - пользователь не активный
+            # - пользователь не админ, когда нужен админ
+            if not user_is_active:
+                likely_inactive_user_dict[str(user.bitrix_id)] = user
+            elif not is_admin or user_is_admin:
+                result_token = token
+                break
+
+        if result_token is None:
+            raise BitrixUserToken.DoesNotExist()
+        else:
+            # Смотрим, были ли найдены потенциально неактивные пользователи
+            if likely_inactive_user_dict:
+                likely_inactive_user_bitrix_ids = list(likely_inactive_user_dict.keys())
+
+                try:
+                    # Делаем запрос в Битрикс для проверки потенциально неактивных пользователей
+                    bitrix_users = result_token.call_api_method('user.get', {
+                        'FILTER': {
+                            'ID': likely_inactive_user_bitrix_ids,
+                        },
+                    })['result']
+                except BitrixApiException as e:
+                    log_function = ilogger.warning if e.is_not_logic_error else ilogger.error
+                    log_function(
+                        'user_get_bitrix_api_exception',
+                        f"({e}): result_token={result_token}, likely_inactive_user_bitrix_ids={likely_inactive_user_bitrix_ids}",
+                        tag=log_tag, exc_info=True,
+                    )
+                except Exception as e:
+                    ilogger.error(
+                        'user_get_exception',
+                        f"({e}): result_token={result_token}, likely_inactive_user_bitrix_ids={likely_inactive_user_bitrix_ids}",
+                        tag=log_tag,
+                    )
+                else:
+                    bulk_update_users = []
+                    for bitrix_user in bitrix_users:
+                        bitrix_user_id = str(bitrix_user['ID'])
+                        bitrix_user_active = bitrix_user.get('ACTIVE', None)
+                        if bitrix_user_active is not None and not bitrix_user_active:
+                            # Добавляем реально неактивных пользователей в массив для обновления
+                            bulk_update_user = likely_inactive_user_dict.get(bitrix_user_id)
+                            if bulk_update_user:
+                                bulk_update_users.append(bulk_update_user)
+
+                    if bulk_update_users:
+                        from integration_utils.bitrix24.models.bitrix_user import BitrixUser
+                        BitrixUser.objects.bulk_update(bulk_update_users, ['user_is_active'])
+
+        return result_token
 
     def refresh(self, timeout=60):
         """
@@ -228,7 +333,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     @classmethod
     def get_admin_token(cls):
-        return cls.objects.filter(is_active=True, user__is_admin=True).first()
+        return cls.get_random_token(is_admin=True)
 
     def __unicode__(self):
         try:
