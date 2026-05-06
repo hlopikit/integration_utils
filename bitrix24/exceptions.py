@@ -472,7 +472,6 @@ class BaseConnectionError(BaseRequestException):
     Ошибка соединения при запросе.
     Соответствует исключению requests.ConnectionError.
     """
-
     def __init__(self, requests_connection_error):
         super().__init__(requests_connection_error)
         self.requests_connection_error = requests_connection_error

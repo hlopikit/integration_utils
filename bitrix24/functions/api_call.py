@@ -307,12 +307,12 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     POST-запрос к REST API 3.0 Битрикс24.
     В случае ошибки - кидаем исключение.
 
-    :raises ValueError: Неправильное значение аргумента.
-    :raises BitrixConnectionError: requests.ConnectionError/SSLError.
-    :raises BitrixTimeout: requests.Timeout.
-    :raises BitrixRequestException: requests.RequestException.
-    :raises BitrixApiServerError: Ответ не является JSON.
-    :raises BitrixApiError: JSON-ответ содержит "error".
+    :raise ValueError: Неправильное значение аргумента.
+    :raise BitrixConnectionError: requests.ConnectionError/SSLError.
+    :raise BitrixTimeout: requests.Timeout.
+    :raise BitrixRequestException: requests.RequestException.
+    :raise BitrixApiServerError: Ответ не является JSON.
+    :raise BitrixApiError: JSON-ответ содержит "error".
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call.api_call_v3'
