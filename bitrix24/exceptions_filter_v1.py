@@ -1,34 +1,10 @@
-from integration_utils.bitrix24.exceptions import BitrixRequestException, BitrixApiException, ConnectionToBitrixError
-
 from integration_utils.bitrix24.exceptions import BitrixApiError
-
-"""
-Наследование исключений:
-Exception
-└── BitrixApiException
-    ├── BitrixApiError
-    │   ├── ExpiredToken
-    │   ├── BitrixTokenRefreshError
-    │   ├── BitrixApiServerError
-    │   ├── SnapiError
-    │   └── BitrixApiErrorNotFound
-    ├── BatchFailed
-    │   └── BatchApiCallError
-    │   └── JsonDecodeBatchFailed
-    ├── BaseConnectionError
-    │   ├── ConnectionToBitrixError
-    │   └── BitrixOauthConnectionError
-    ├── BaseTimeout
-    │   ├── BitrixTimeout
-    │   └── BitrixOauthRefreshTimeout
-    └── BaseRequestException
-        ├── BitrixRequestException
-        └── BitrixOauthRefreshRequestException
-"""
+from integration_utils.bitrix24.exceptions import BitrixRequestException, BitrixApiException, ConnectionToBitrixError
 
 
 def is_not_logic_error(exception: BitrixApiException):
-    # Проверить ошибку на, то что она не логическая, а именно что-то с сетями, сервервами, лицензиями, сбоями, кодировками, настройками
+    # Проверить ошибку на, то что она не логическая.
+    # То есть, что-то с сетями, серверами, лицензиями, сбоями, кодировками, настройками пользователя.
 
     if isinstance(exception, BitrixRequestException):
         return True
