@@ -1,5 +1,4 @@
-from integration_utils.bitrix24.exceptions import BitrixApiError, BaseRequestException
-from integration_utils.bitrix24.exceptions import BitrixApiException
+from integration_utils.bitrix24.exceptions import BitrixApiException, BaseRequestException, BitrixApiError
 
 
 def is_not_logic_error(exception: BitrixApiException):
