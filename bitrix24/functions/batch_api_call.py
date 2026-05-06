@@ -11,7 +11,7 @@ from .api_call import (
     RawStringParam,
     DEFAULT_TIMEOUT,
 )
-from ..exceptions import JsonDecodeBatchFailed, BatchApiCallError
+from ..exceptions import JsonDecodeBatchFailed, BatchApiCallError, ExpiredToken
 
 # typing
 if not six.PY2:
@@ -351,11 +351,15 @@ def _batch_api_call(
 
         else:  # response - json
             error = data.get('error')
-            if error == 'expired_token' and bitrix_user_token and refresh and bitrix_user_token.refresh(timeout=timeout):
-                # Если обновление токена прошло успешно, повторить запрос
-                return _batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout,
-                                       log_prefix=log_prefix, refresh=False)
-            elif error:
+            if error == 'expired_token' and bitrix_user_token:
+                if not refresh:
+                    raise ExpiredToken(status_code=response.status_code)
+
+                if bitrix_user_token.refresh(timeout=timeout):
+                    # Если обновление токена прошло успешно, повторить запрос
+                    return _batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout,
+                                           log_prefix=log_prefix, refresh=False)
+            if error:
                 raise BatchApiCallError(reason=response)
 
             add_response(part_request_names=[name for name, _ in part],
