@@ -443,7 +443,6 @@ class BaseRequestException(BitrixApiException):
     В случае таких ошибок мы не получили никакого ответа от сервера.
     Соответствует исключению requests.RequestException.
     """
-
     def __init__(self, requests_exception):
         self.requests_exception = requests_exception
 
