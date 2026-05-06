@@ -9,7 +9,8 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixOauthRequestException
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, \
+BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from settings import ilogger
@@ -102,13 +103,14 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     @classmethod
     def get_by_token(cls, token):
-        # Используется в декораторе bitrix_user_required для пользователиских АПИ запросов из приложений
+        # Используется в декораторе bitrix_user_required для пользовательских АПИ запросов из приложений
         pk = cls.check_token(token)
         if pk:
             return cls.objects.get(pk=pk)
 
     @classmethod
     def check_token(cls, token):
+        # TODO: Проверить актуальность
         pk, token = token.split('::')
         # except (AttributeError, ValueError):
         #     return
@@ -118,7 +120,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     @classmethod
     def get_random_token(cls, is_admin=True, pk_desc=False, bitrix_unavailable_attempts = 2):
         """
-        Получить один любой активный токен
+        Получить один любой активный токен.
 
         :param is_admin: токен должен иметь права администратора (True - да, False - админский при наличии, иначе простого юзера)
         :param pk_desc: брать сначала последние токены
@@ -216,8 +218,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     def refresh(self, timeout=60):
         """
-        Если успешно обновился токен, то возвращаем True
-        Если что-то пошло не так, то False
+        Если успешно обновился токен, то возвращаем True.
+        Если что-то пошло не так, то False.
 
         :param timeout: таймаут запроса
         :raises BitrixApiError: ошибка обновления.
