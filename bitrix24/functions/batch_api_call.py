@@ -155,6 +155,7 @@ def _batch_api_call(
             chunk_size=50,  # type: int
             timeout=DEFAULT_TIMEOUT,  # type: int
             log_prefix='',  # type: str
+            refresh=True,  # type: bool
         ):  # type: (...) -> BatchResultDict
     """Пакетный POST-запрос к Bitrix24 api
 
@@ -350,9 +351,10 @@ def _batch_api_call(
 
         else:  # response - json
             error = data.get('error')
-            if error == 'expired_token' and bitrix_user_token and bitrix_user_token.refresh(timeout=timeout):
+            if error == 'expired_token' and bitrix_user_token and refresh and bitrix_user_token.refresh(timeout=timeout):
                 # Если обновление токена прошло успешно, повторить запрос
-                return _batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout)
+                return _batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout,
+                                       log_prefix=log_prefix, refresh=False)
             elif error:
                 raise BatchApiCallError(reason=response)
 
