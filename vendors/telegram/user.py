@@ -78,6 +78,9 @@ class User(TelegramObject):
             disabled for the bot. Returned only in :attr:`telegram.Bot.get_me` requests.
         supports_inline_queries (:obj:`str`, optional): :obj:`True`, if the bot supports inline
             queries. Returned only in :attr:`telegram.Bot.get_me` requests.
+        supports_guest_queries (:obj:`str`, optional): :obj:`True`, if the bot supports guest
+            queries from chats it is not a member of. Returned only in :attr:`telegram.Bot.get_me`
+            requests.
         bot (:class:`telegram.Bot`, optional): The Bot to use for instance methods.
         is_premium (:obj:`bool`, optional): :obj:`True`, if this user is a Telegram Premium user.
 
@@ -100,6 +103,9 @@ class User(TelegramObject):
             disabled for the bot. Returned only in :attr:`telegram.Bot.get_me` requests.
         supports_inline_queries (:obj:`str`): Optional. :obj:`True`, if the bot supports inline
             queries. Returned only in :attr:`telegram.Bot.get_me` requests.
+        supports_guest_queries (:obj:`str`): Optional. :obj:`True`, if the bot supports guest
+            queries from chats it is not a member of. Returned only in :attr:`telegram.Bot.get_me`
+            requests.
         bot (:class:`telegram.Bot`): Optional. The Bot to use for instance methods.
         is_premium (:obj:`bool`): Optional. :obj:`True`, if this user is a Telegram
             Premium user.
@@ -120,6 +126,7 @@ class User(TelegramObject):
         'last_name',
         'can_join_groups',
         'supports_inline_queries',
+        'supports_guest_queries',
         'id',
         'bot',
         'language_code',
@@ -139,6 +146,7 @@ class User(TelegramObject):
         can_join_groups: bool = None,
         can_read_all_group_messages: bool = None,
         supports_inline_queries: bool = None,
+        supports_guest_queries: bool = None,
         bot: 'Bot' = None,
         is_premium: bool = None,
         added_to_attachment_menu: bool = None,
@@ -155,6 +163,7 @@ class User(TelegramObject):
         self.can_join_groups = can_join_groups
         self.can_read_all_group_messages = can_read_all_group_messages
         self.supports_inline_queries = supports_inline_queries
+        self.supports_guest_queries = supports_guest_queries
         self.is_premium = is_premium
         self.added_to_attachment_menu = added_to_attachment_menu
         self.bot = bot

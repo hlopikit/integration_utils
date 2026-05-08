@@ -146,6 +146,7 @@ class Update(TelegramObject):
         'update_id',
         'message',
         'shipping_query',
+        'guest_message',
         'poll',
         'poll_answer',
         'channel_post',
@@ -242,6 +243,7 @@ class Update(TelegramObject):
         chat_join_request: ChatJoinRequest = None,
         message_reaction: MessageReactionUpdated = None,
         message_reaction_count: MessageReactionCountUpdated = None,
+        guest_message: Message = None,
         **_kwargs: Any,
     ):
         # Required
@@ -263,6 +265,7 @@ class Update(TelegramObject):
         self.chat_join_request = chat_join_request
         self.message_reaction = message_reaction
         self.message_reaction_count = message_reaction_count
+        self.guest_message = guest_message
 
         self._effective_user: Optional['User'] = None
         self._effective_chat: Optional['Chat'] = None
@@ -287,6 +290,9 @@ class Update(TelegramObject):
 
         elif self.edited_message:
             user = self.edited_message.from_user
+
+        elif self.guest_message:
+            user = self.guest_message.from_user
 
         elif self.inline_query:
             user = self.inline_query.from_user
@@ -336,6 +342,9 @@ class Update(TelegramObject):
         if self.message:
             chat = self.message.chat
 
+        elif self.guest_message:
+            chat = self.guest_message.chat
+
         elif self.edited_message:
             chat = self.edited_message.chat
 
@@ -380,6 +389,9 @@ class Update(TelegramObject):
         if self.message:
             message = self.message
 
+        elif self.guest_message:
+            message = self.guest_message
+
         elif self.edited_message:
             message = self.edited_message
 
@@ -404,6 +416,7 @@ class Update(TelegramObject):
             return None
 
         data['message'] = Message.de_json(data.get('message'), bot)
+        data['guest_message'] = Message.de_json(data.get('guest_message'), bot)
         data['edited_message'] = Message.de_json(data.get('edited_message'), bot)
         data['inline_query'] = InlineQuery.de_json(data.get('inline_query'), bot)
         data['chosen_inline_result'] = ChosenInlineResult.de_json(

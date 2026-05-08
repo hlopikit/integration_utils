@@ -528,6 +528,9 @@ class Message(TelegramObject):
         'forum_topic_reopened',
         'forum_topic_edited',
         'direct_messages_topic',
+        'guest_bot_caller_user',
+        'guest_bot_caller_chat',
+        'guest_query_id',
         '_id_attrs',
     )
 
@@ -644,6 +647,9 @@ class Message(TelegramObject):
         forum_topic_reopened: ForumTopicReopened = None,
         forum_topic_edited: ForumTopicEdited = None,
         direct_messages_topic: Optional[DirectMessagesTopic] = None,
+        guest_bot_caller_user: User = None,
+        guest_bot_caller_chat: Chat = None,
+        guest_query_id: str = None,
         **_kwargs: Any,
     ):
         if (
@@ -755,6 +761,9 @@ class Message(TelegramObject):
         self.forum_topic_edited = forum_topic_edited
         self.bot = bot
         self.direct_messages_topic: Optional[DirectMessagesTopic] = direct_messages_topic
+        self.guest_bot_caller_user = guest_bot_caller_user
+        self.guest_bot_caller_chat = guest_bot_caller_chat
+        self.guest_query_id = guest_query_id
 
         self._effective_attachment = DEFAULT_NONE
 
@@ -857,6 +866,8 @@ class Message(TelegramObject):
         data["direct_messages_topic"] = de_json_optional(
             data.get("direct_messages_topic"), DirectMessagesTopic, bot
         )
+        data["guest_bot_caller_user"] = User.de_json(data.get("guest_bot_caller_user"), bot)
+        data["guest_bot_caller_chat"] = Chat.de_json(data.get("guest_bot_caller_chat"), bot)
 
         return cls(bot=bot, **data)
 

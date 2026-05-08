@@ -89,6 +89,7 @@ from . import (
     InlineKeyboardMarkup,
     ChatInviteLink,
     SentWebAppMessage,
+    SentGuestMessage,
     ChatAdministratorRights,
     MenuButton,
 )
@@ -418,6 +419,11 @@ class Bot(TelegramObject):
     def supports_inline_queries(self) -> bool:
         """:obj:`bool`: Bot's :attr:`telegram.User.supports_inline_queries` attribute."""
         return self.bot.supports_inline_queries  # type: ignore
+
+    @property
+    def supports_guest_queries(self) -> bool:
+        """:obj:`bool`: Bot's :attr:`telegram.User.supports_guest_queries` attribute."""
+        return getattr(self.bot, "supports_guest_queries", None)  # type: ignore
 
     @property
     def commands(self) -> List[BotCommand]:
@@ -2434,6 +2440,23 @@ class Bot(TelegramObject):
             timeout=timeout,
             api_kwargs=api_kwargs,
         )
+
+    @log
+    def answer_guest_query(
+        self,
+        guest_query_id: str,
+        result: 'InlineQueryResult',
+        timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: JSONDict = None,
+    ) -> SentGuestMessage:
+        """
+        1) Отвечает на `guest_message` через Bot API 10.0 метод `answerGuestQuery`.
+        2) Используется guest-mode runtime'ом, когда бот должен ответить в чат, участником которого он не является.
+        """
+        self._set_ilq_result_defaults(result)
+        data: JSONDict = {"guest_query_id": guest_query_id, "result": result.to_dict()}
+        response = self._post("answerGuestQuery", data, timeout=timeout, api_kwargs=api_kwargs)
+        return SentGuestMessage.de_json(response, self)  # type: ignore[arg-type]
 
     @log
     def get_user_profile_photos(

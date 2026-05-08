@@ -22,6 +22,7 @@ from .base import TelegramObject
 from .botcommand import BotCommand
 from .webappdata import WebAppData
 from .webappinfo import WebAppInfo
+from .sentguestmessage import SentGuestMessage
 from .sentwebappmessage import SentWebAppMessage
 from .menubutton import MenuButton, MenuButtonCommands, MenuButtonDefault, MenuButtonWebApp
 from .loginurl import LoginUrl
@@ -327,6 +328,7 @@ __all__ = (  # Keep this alphabetically ordered
     'SecureData',
     'SecureValue',
     'SentWebAppMessage',
+    'SentGuestMessage',
     'ShippingAddress',
     'ShippingOption',
     'ShippingQuery',
