@@ -2452,6 +2452,7 @@ class Bot(TelegramObject):
         """
         1) Отвечает на `guest_message` через Bot API 10.0 метод `answerGuestQuery`.
         2) Используется guest-mode runtime'ом, когда бот должен ответить в чат, участником которого он не является.
+        # https://core.telegram.org/bots/api#answerguestquery
         """
         self._set_ilq_result_defaults(result)
         data: JSONDict = {"guest_query_id": guest_query_id, "result": result.to_dict()}
