@@ -9,8 +9,8 @@ from django.db import models
 
 from django.utils import timezone
 
-from integration_utils.bitrix24.functions.api_call import BitrixTimeout
-from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException
+from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, \
+BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from settings import ilogger
@@ -43,7 +43,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         (0, 'Нет ошибки'),
         (1, 'Не установлен портал (Wrong client)'),
         (EXPIRED_TOKEN, 'Устарел ключ совсем (Expired token)'),
-        # бывает если ключи прилжения неправильные и "ВОЗМОЖНО" когда уже совсем протух токен
+        # бывает если ключи приложения неправильные и "ВОЗМОЖНО" когда уже совсем протух токен
         (INVALID_GRANT, 'Инвалид грант (Invalid grant)'),
         (NOT_INSTALLED, 'Не установлен портал (NOT_INSTALLED)'),
         (PAYMENT_REQUIRED, 'Не оплачено (PAYMENT_REQUIRED)'),
@@ -61,7 +61,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     )
 
     AUTH_COOKIE_MAX_AGE = None   # as long as the client’s browser session
-    # можно переопределить домен для рест методов для кластеров
+    # можно переопределить домен для REST методов для кластеров
     rest_domain = getattr(settings, 'REST_DOMAIN', None)
     domain = rest_domain or settings.APP_SETTINGS.portal_domain
     web_hook_auth = None
@@ -78,7 +78,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     refresh_error = models.PositiveSmallIntegerField(default=0, choices=REFRESH_ERRORS)
 
     def __init__(self, *args, **kwargs):
-        # 1) Можут в БД лежать уже готовые токены и тогда просто их используем
+        # 1) Могут в БД лежать уже готовые токены и тогда просто их используем
         # 2) Если надо на лету делать токены для вызовов методов АПИ, то
         # BitrixUserToken(auth_token='65c09d5d001c767d002443c00000000100000301144')
         super().__init__(*args, **kwargs)
@@ -103,13 +103,14 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     @classmethod
     def get_by_token(cls, token):
-        # Используется в декораторе bitrix_user_required для пользователиских АПИ запросов из приложений
+        # Используется в декораторе bitrix_user_required для пользовательских АПИ запросов из приложений
         pk = cls.check_token(token)
         if pk:
             return cls.objects.get(pk=pk)
 
     @classmethod
     def check_token(cls, token):
+        # TODO: Проверить актуальность
         pk, token = token.split('::')
         # except (AttributeError, ValueError):
         #     return
@@ -119,7 +120,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     @classmethod
     def get_random_token(cls, is_admin=True, pk_desc=False, bitrix_unavailable_attempts = 2):
         """
-        Получить один любой активный токен
+        Получить один любой активный токен.
 
         :param is_admin: токен должен иметь права администратора (True - да, False - админский при наличии, иначе простого юзера)
         :param pk_desc: брать сначала последние токены
@@ -217,14 +218,18 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     def refresh(self, timeout=60):
         """
-        Если успешно обновился токен, то возвращаем True
-        Если что-то пошло не так то False
+        Если успешно обновился токен, то возвращаем True.
+        Если что-то пошло не так, то False.
 
         :param timeout: таймаут запроса
+        :raise BitrixApiError: ошибка обновления.
+        :raise BitrixOauthRefreshTimeout: таймаут при обновлении токена.
+        :raise BitrixOauthRefreshConnectionError: ошибка соединения при обновлении токена.
+        :raise BitrixOauthRefreshRequestException: прочая ошибка при обновлении токена.
         """
         if not self.pk:
             # Динамический токен
-            #raise BitrixApiError(401, dict(error='expired_token'))
+            # raise BitrixApiError(401, dict(error='expired_token'))
             raise BitrixApiError(has_resp='deprecated', json_response=dict(error='expired_token'), status_code=401, message='expired_token')
 
         params = {
@@ -238,9 +243,12 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         # url = 'https://{}/oauth/token/?{}'.format(self.user.portal.domain, params)
         try:
             response = requests.get(url, timeout=timeout)
+        except requests.ConnectionError as e:
+            raise BitrixOauthRefreshConnectionError(requests_connection_error=e) from e
         except requests.Timeout as e:
-            raise BitrixTimeout(requests_timeout=e, timeout=timeout)
-
+            raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout) from e
+        except requests.RequestException as e:
+            raise BitrixOauthRefreshRequestException(requests_exception=e) from e
 
         if response.status_code >= 500:
             return False
@@ -315,7 +323,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     @classmethod
     def refresh_all(cls, timeout=DEFAULT_TIMEOUT):
-        """Обновить все токены, неудачи игнорятся.
+        """Обновить все токены, неудачи игнорируются.
 
         :param timeout: таймаут обновления каждого конкретного токена.
         """
@@ -329,6 +337,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         return "%s -> %s" % (active_from, active_to)
 
     def hello_world(self, *args, **kwargs):  # ?
+        # TODO: Проверить актуальность
         return u'hello_world'
 
     @classmethod
@@ -336,6 +345,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         return cls.get_random_token(is_admin=True)
 
     def __unicode__(self):
+        # TODO: Сделать по образцу bitrix_utils
         try:
             return u"#{}@{} of {!r}".format(self.id, "domain", self.user if self.id else 'dynamic_token')
         except:

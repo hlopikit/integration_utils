@@ -1,18 +1,19 @@
 from datetime import datetime, date
 from functools import wraps
-from typing import Optional, Callable, TYPE_CHECKING, Union, Any
+from typing import Optional, Callable, TYPE_CHECKING, Union, Any, cast
 
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.db import models
-from django.urls import reverse, path
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.datastructures import MultiValueDict
 from django.utils.functional import cached_property
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpRequest, QueryDict, JsonResponse
+from django.http import HttpResponse, QueryDict, JsonResponse, UnreadablePostError
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
-
+from integration_utils.bitrix24.types import ItsRequest
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
 from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
@@ -214,46 +215,53 @@ class BaseBitrixRobot(models.Model):
     def as_view(cls):
         @csrf_exempt
         @wraps(cls.start_process)
-        def view(request: HttpRequest):
+        def view(request: ItsRequest):
             cls_name = cls.__name__
-
-            ilogger.debug(
-                'new_robot_request_{}'.format(cls_name),
-                '{request.POST!r}'.format(request=request),
-            )
+            log_tag = f'integration_utils.bitrix_robots.BaseBitrixRobot.as_view-{cls_name}'
 
             try:
-                robot = cls(params=request.POST.dict())
+                post_data = cast(MultiValueDict, request.POST).dict()
+                post_repr = repr(post_data)
+            except UnreadablePostError as e:
+                content_type = request.META.get('CONTENT_TYPE')
+                content_length = request.META.get('CONTENT_LENGTH')
+                request_path = request.path
+                ilogger.warning(
+                    f'robot_unreadable_post_err_{cls_name}',
+                    f"({e}): {content_type=}, {content_length=}, {request_path=}",
+                    exc_info=True, tag=log_tag, exc_in_type=False,
+                )
+                request.its_error_response = True
+                return HttpResponse("Robot unreadable POST error", status=400)
+
+            ilogger.debug(f'new_robot_request_{cls_name}', f"{post_repr=}", tag=log_tag)
+
+            try:
+                robot = cls(params=post_data)
 
                 try:
                     robot.verify_event()
                 except VerificationError as e:
-                    ilogger.error(
-                        'robot_verification_error_{}'.format(cls_name),
-                        '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
-                    )
-                    return e.http_response()
+                    ilogger.error(f'robot_verification_err_{cls_name}', f"({e}): {post_repr=}", tag=log_tag, exc_in_type=False)
+                    request.its_error_response = True
+                    return HttpResponse("Robot verification error", status=401)
 
                 robot.save()
 
             except Exception as e:
-                ilogger.error(
-                    'robot_view_unexpected_error_{}'.format(cls_name),
-                    '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
-                )
-                return HttpResponse('error')
+                ilogger.error(f'robot_save_exc_{cls_name}', f"({e}): {post_repr=}", tag=log_tag)
+                request.its_error_response = True
+                return HttpResponse("Robot save exception", status=500)
 
             if cls.PROCESS_ON_REQUEST:
                 try:
                     robot.start_process()
                 except Exception as e:
-                    ilogger.error(
-                        'robot_processing_error_{}'.format(cls_name),
-                        '{e!r}\nPOST: {request.POST!r}'.format(e=e, request=request),
-                    )
-                    return HttpResponse('error')
+                    ilogger.error(f'robot_start_process_exc_{cls_name}', f"({e}): {post_repr=}", tag=log_tag)
+                    request.its_error_response = True
+                    return HttpResponse("Robot start process exception", status=500)
 
-            return HttpResponse('ok')
+            return HttpResponse("Ok")
 
         return view
 
