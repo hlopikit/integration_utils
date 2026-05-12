@@ -187,6 +187,8 @@ class Request:
     @staticmethod
     def _parse(json_data: bytes) -> Union[JSONDict, bool]:
         """Try and parse the JSON returned from ..
+        Что делает: декодирует и разбирает JSON-ответ Telegram API или прокси перед возвратом результата.
+        Где используется: `post`, обработка HTTP-ошибок в `_request_wrapper`, все запросы Telegram Bot API через этот transport.
 
         Returns:
             dict: A JSON parsed as Python dict with results - on error this dict will be empty.
@@ -196,7 +198,8 @@ class Request:
         try:
             data = json.loads(decoded_s)
         except ValueError as exc:
-            raise TelegramError('Invalid server response') from exc
+            # Пустой body или HTML-страница от прокси/шлюза - это транспортная ошибка, а не валидный Telegram API ответ.
+            raise NetworkError('Invalid server response') from exc
 
         if not data.get('ok'):  # pragma: no cover
             description = data.get('description')
@@ -250,8 +253,8 @@ class Request:
 
         try:
             message = str(self._parse(resp.data))
-        except ValueError:
-            message = 'Unknown HTTPError'
+        except TelegramError:
+            message = 'Invalid server response'
 
         if resp.status in (401, 403):
             raise Unauthorized(message)
