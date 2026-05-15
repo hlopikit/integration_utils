@@ -93,8 +93,28 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_not_logic_error(self):
-        from integration_utils.bitrix24.exceptions_filter_v1 import is_not_logic_error
-        return is_not_logic_error(self)
+        if any([
+            self.is_internal_server_error,
+            self.is_error_connecting_to_authorization_server,
+            self.is_connection_to_bitrix_error,
+            self.is_license_check_failed,
+            self.is_no_auth_found,
+            self.is_portal_deleted,
+            self.is_free_plan_error,
+            self.is_payment_required,
+            self.is_wrong_encoding,
+            self.is_authorization_error,
+            self.is_out_of_disc_space_error,
+            self.is_status_gte_500,
+            self.is_application_not_found,
+            self.is_application_not_installed,
+            self.is_sphinx_connect_error,
+            self.is_error_core,
+            self.is_connection_error,
+            self.is_cant_refresh,
+        ]):
+            return True
+        return False
 
     @property
     def is_error_core(self):
@@ -435,6 +455,9 @@ class JsonDecodeBatchFailed(BatchFailed):
     Сервер вернул не JSON в ответе на batch-запрос.
     Обычно означает внутреннюю ошибку сервера Битрикс.
     """
+    @property
+    def is_not_logic_error(self):
+        return True
 
 
 class BaseRequestException(BitrixApiException):
