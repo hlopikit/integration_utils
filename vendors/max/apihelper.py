@@ -1,8 +1,10 @@
 import requests
-from typing import Dict, Any, List, Optional
+from typing import TYPE_CHECKING, Dict, Any, List, Optional
 
 from .core.network.client import Client
-from .types import UpdatesResponse
+
+if TYPE_CHECKING:
+    from .types import UpdatesResponse
 
 
 proxy = None
@@ -39,7 +41,7 @@ class Api:
             data["commands"] = commands
         return self.client.request("PATCH", "/me", data=data)
 
-    def get_updates(self, allowed_updates: List[str], extra: Optional[Dict[str, Any]] = None) -> UpdatesResponse:
+    def get_updates(self, allowed_updates: List[str], extra: Optional[Dict[str, Any]] = None) -> "UpdatesResponse":
         """
         Получает новые обновления от API через лонгполлинг
 
