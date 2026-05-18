@@ -2,7 +2,7 @@
 import mimetypes
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Text, TypeAlias
+from typing import Any, Dict, List, Optional, Text, TypeAlias, TypedDict
 
 from .apihelper import Api
 from .util import is_pil_image, pil_image_to_bytes
@@ -31,12 +31,18 @@ __all__ = [
     "ShareAttachment",
     "StickerAttachment",
     "Update",
+    "UpdatesResponse",
     "UpdateType",
     "User",
 ]
 
 
 Update: TypeAlias = Dict[Text, Any]
+
+
+class UpdatesResponse(TypedDict):
+    updates: List[Update]
+    marker: str
 
 
 class JsonDeserializable(object):

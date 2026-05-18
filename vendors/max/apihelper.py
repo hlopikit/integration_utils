@@ -2,6 +2,7 @@ import requests
 from typing import Dict, Any, List, Optional
 
 from .core.network.client import Client
+from .types import UpdatesResponse
 
 
 proxy = None
@@ -38,15 +39,16 @@ class Api:
             data["commands"] = commands
         return self.client.request("PATCH", "/me", data=data)
 
-    def get_updates(self, allowed_updates: List[str], extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def get_updates(self, allowed_updates: List[str], extra: Optional[Dict[str, Any]] = None) -> UpdatesResponse:
         """
         Получает новые обновления от API через лонгполлинг
 
         :param allowed_updates: Список типов обновлений, которые нужно получать
         :param extra: Дополнительные параметры запроса
 
-        :return: Список обновлений
-        :rtype: Dict[str, Any]
+        :return: Словарь с ключами `updates` и `marker`.
+                 `updates` — список событий, `marker` — курсор для следующего запроса.
+        :rtype: UpdatesResponse
         """
         params = extra or {}
 
