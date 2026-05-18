@@ -305,8 +305,8 @@ class MaxiBot:
         photo: Union[Any, str],
         caption: Optional[str] = None,
         parse_mode: Optional[str] = None,
-        reply_markup: Union[InlineKeyboardMarkup, Any] = None
-    ):
+        reply_markup: Union[InlineKeyboardMarkup, Any] = None,
+    ) -> Message:
         """
         Отправляет сообщение с фото
 
@@ -354,7 +354,7 @@ class MaxiBot:
         caption: Optional[str] = None,
         parse_mode: Optional[str] = None,
         reply_markup: Union[InlineKeyboardMarkup, Any] = None
-    ):
+    ) -> Message:
         """
         Отправляет сообщение с фото
 
@@ -405,7 +405,7 @@ class MaxiBot:
         parse_mode: Optional[str] = None,
         reply_markup: Union[InlineKeyboardMarkup, Any] = None,
         visible_file_name: Optional[str] = None
-    ):
+    ) -> Message:
         """
         Отправляет сообщение с файлом
 
