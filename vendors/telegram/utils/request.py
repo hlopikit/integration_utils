@@ -185,35 +185,58 @@ class Request:
         self._con_pool.clear()  # type: ignore
 
     @staticmethod
-    def _parse(json_data: bytes) -> Union[JSONDict, bool]:
+    def _load_json(json_data: bytes) -> JSONDict:
         """Try and parse the JSON returned from ..
-        Что делает: декодирует и разбирает JSON-ответ Telegram API или прокси перед возвратом результата.
-        Где используется: `post`, обработка HTTP-ошибок в `_request_wrapper`, все запросы Telegram Bot API через этот transport.
+        Что делает: декодирует и разбирает сырой JSON-ответ Telegram API или прокси в dict.
+        Где используется: `_parse`, `_get_error_message`, единая точка разбора HTTP-body в transport Telegram.
 
         Returns:
-            dict: A JSON parsed as Python dict with results - on error this dict will be empty.
+            dict: Декодированный JSON-ответ.
 
         """
         decoded_s = json_data.decode('utf-8', 'replace')
         try:
-            data = json.loads(decoded_s)
+            return json.loads(decoded_s)
         except ValueError as exc:
             # Пустой body или HTML-страница от прокси/шлюза - это транспортная ошибка, а не валидный Telegram API ответ.
             raise NetworkError('Invalid server response') from exc
 
-        if not data.get('ok'):  # pragma: no cover
-            description = data.get('description')
-            parameters = data.get('parameters')
-            if parameters:
-                migrate_to_chat_id = parameters.get('migrate_to_chat_id')
-                if migrate_to_chat_id:
-                    raise ChatMigrated(migrate_to_chat_id)
-                retry_after = parameters.get('retry_after')
-                if retry_after:
-                    raise RetryAfter(retry_after)
-            if description:
-                return description
+    @staticmethod
+    def _get_error_message(data: JSONDict) -> str:
+        """Извлекает описание Telegram API ошибки из уже разобранного JSON.
+        Что делает: поднимает специальные Telegram-исключения по `parameters` и возвращает `description`.
+        Где используется: `_request_wrapper` при HTTP non-2xx ответе Telegram API.
 
+        Returns:
+            str: Текст ошибки Telegram API.
+
+        """
+        parameters = data.get('parameters')
+        if parameters:
+            migrate_to_chat_id = parameters.get('migrate_to_chat_id')
+            if migrate_to_chat_id:
+                raise ChatMigrated(migrate_to_chat_id)
+            retry_after = parameters.get('retry_after')
+            if retry_after:
+                raise RetryAfter(retry_after)
+
+        description = data.get('description')
+        if description:
+            return description
+
+        return 'Invalid server response'
+
+    @staticmethod
+    def _parse(json_data: bytes) -> Union[JSONDict, bool]:
+        """Try and parse the JSON returned from ..
+        Что делает: возвращает успешный `result` из JSON-ответа Telegram API.
+        Где используется: `post`, все успешные запросы Telegram Bot API через этот transport.
+
+        Returns:
+            dict: Поле `result` из успешного ответа Telegram API.
+
+        """
+        data = Request._load_json(json_data)
         return data['result']
 
     def _request_wrapper(self, *args: object, **kwargs: Any) -> bytes:
@@ -252,8 +275,10 @@ class Request:
             return resp.data
 
         try:
-            message = str(self._parse(resp.data))
-        except TelegramError:
+            message = self._get_error_message(self._load_json(resp.data))
+        except NetworkError:
+            # Невалидный body от прокси/шлюза превращаем в общий текст ошибки,
+            # но Telegram-специфичные исключения вроде RetryAfter/ChatMigrated не затираем.
             message = 'Invalid server response'
 
         if resp.status in (401, 403):
