@@ -10,7 +10,7 @@ from django.db import models
 from django.utils import timezone
 
 from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, \
-BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException
+BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixTokenRefreshError
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from settings import ilogger
@@ -26,37 +26,55 @@ def refresh_all():
 class BitrixUserToken(models.Model, BaseBitrixToken):
     DEFAULT_TIMEOUT = getattr(settings, 'BITRIX_RESTAPI_DEFAULT_TIMEOUT', 10)
 
+    NO_ERROR = 0
+
+    WRONG_CLIENT = 1
     EXPIRED_TOKEN = 2
     INVALID_GRANT = 3
     NOT_INSTALLED = 4
     PAYMENT_REQUIRED = 5
+    DOMAIN_ERROR = 6
+    OAUTH_GTE_500 = 8
+    UNKNOWN_ERROR = 9
     PORTAL_DELETED = 10
-    ERROR_CORE = 11
-    ERROR_OAUTH = 12
+    NO_CLIENT_CREDENTIALS = 11
+    APPLICATION_NOT_INSTALLED = 12
     ERROR_403_or_404 = 13
     NO_AUTH_FOUND = 14
     AUTHORIZATION_ERROR = 15
     ACCESS_DENIED = 16
     APPLICATION_NOT_FOUND = 17
+    USER_ACCESS_ERROR = 19
+    FREE_PLAN_ERROR = 20
+    UNABLE_TO_AUTHORIZE_USER = 21
+    USER_CANT_BE_AUTHORIZED_IN_CONTEXT = 22
+
+    # Для обратной совместимости
+    ERROR_CORE = NO_CLIENT_CREDENTIALS
+    ERROR_OAUTH = APPLICATION_NOT_INSTALLED
+
     REFRESH_ERRORS = (
-        (0, 'Нет ошибки'),
-        (1, 'Не установлен портал (Wrong client)'),
-        (EXPIRED_TOKEN, 'Устарел ключ совсем (Expired token)'),
-        # бывает если ключи приложения неправильные и "ВОЗМОЖНО" когда уже совсем протух токен
-        (INVALID_GRANT, 'Инвалид грант (Invalid grant)'),
-        (NOT_INSTALLED, 'Не установлен портал (NOT_INSTALLED)'),
-        (PAYMENT_REQUIRED, 'Не оплачено (PAYMENT_REQUIRED)'),
-        (6, 'Домен отключен или не существует'),
-        (8, 'ошибка >= 500 '),
-        (9, 'Надо разобраться (Unknown Error)'),
-        (PORTAL_DELETED, 'PORTAL_DELETED'),
-        (ERROR_CORE, 'ERROR_CORE'),
-        (ERROR_OAUTH, 'ERROR_OAUTH'),
-        (ERROR_403_or_404, 'ERROR_403_or_404'),
-        (NO_AUTH_FOUND, 'NO_AUTH_FOUND'),
-        (AUTHORIZATION_ERROR, 'AUTHORIZATION_ERROR'),
-        (ACCESS_DENIED, 'ACCESS_DENIED'),
-        (APPLICATION_NOT_FOUND, 'APPLICATION_NOT_FOUND'),
+        (NO_ERROR, 'Нет ошибки'),
+        (WRONG_CLIENT, 'Неверный client_id/secret приложения (WRONG_CLIENT)'),
+        (EXPIRED_TOKEN, 'Просроченный токен при обновлении (EXPIRED_TOKEN)'),
+        (INVALID_GRANT, 'Неверный токен при обновлении (INVALID_GRANT)'),
+        (NOT_INSTALLED, 'Приложение не установлено (NOT_INSTALLED)'),
+        (PAYMENT_REQUIRED, 'Не оплачена подписка (PAYMENT_REQUIRED)'),
+        (DOMAIN_ERROR, 'Домен отключён или не существует (DOMAIN_ERROR)'),
+        (OAUTH_GTE_500, 'Ошибка сервера авторизации (OAUTH_GTE_500)'),
+        (UNKNOWN_ERROR, 'Неизвестная ошибка (UNKNOWN_ERROR)'),
+        (PORTAL_DELETED, 'Публичная часть сайта закрыта (PORTAL_DELETED)'),
+        (NO_CLIENT_CREDENTIALS, 'Портал без service_client_id/secret (NO_CLIENT_CREDENTIALS)'),
+        (APPLICATION_NOT_INSTALLED, 'Приложение не установлено (APPLICATION_NOT_INSTALLED)'),
+        (ERROR_403_or_404, 'Доступ запрещён (ERROR_403_or_404)'),
+        (NO_AUTH_FOUND, 'Неверная авторизация (NO_AUTH_FOUND)'),
+        (AUTHORIZATION_ERROR, 'Ошибка авторизации (AUTHORIZATION_ERROR)'),
+        (ACCESS_DENIED, 'Нет доступа (ACCESS_DENIED)'),
+        (APPLICATION_NOT_FOUND, 'Не найдено приложение (APPLICATION_NOT_FOUND)'),
+        (USER_ACCESS_ERROR, 'Пользователь не имеет доступа к приложению (USER_ACCESS_ERROR)'),
+        (FREE_PLAN_ERROR, 'Бесплатный тариф (FREE_PLAN_ERROR)'),
+        (UNABLE_TO_AUTHORIZE_USER, 'Пользователь уволен или заблокирован (UNABLE_TO_AUTHORIZE_USER)'),
+        (USER_CANT_BE_AUTHORIZED_IN_CONTEXT, 'Пользователь удалён или не подтверждён (USER_CANT_BE_AUTHORIZED_IN_CONTEXT)'),
     )
 
     AUTH_COOKIE_MAX_AGE = None   # as long as the client’s browser session
@@ -215,12 +233,13 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         return result_token
 
-    def refresh(self, timeout=60):
+    def refresh(self, timeout=60, check_api_call=True):
         """
         Если успешно обновился токен, то возвращаем True.
         Если что-то пошло не так, то False.
 
         :param timeout: таймаут запроса
+        :param check_api_call: проверить работу API-запросов после обновления
         :raise BitrixApiError: ошибка обновления.
         :raise BitrixOauthRefreshTimeout: таймаут при обновлении токена.
         :raise BitrixOauthRefreshConnectionError: ошибка соединения при обновлении токена.
@@ -285,18 +304,45 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         self.auth_token = response_json.get('access_token')
         self.refresh_token = response_json.get('refresh_token')
         self.auth_token_date = timezone.now()
+
+        if check_api_call:
+            try:
+                # Токены, например, уволенных сотрудников успешно обновляются.
+                # Но даже после обновления по токену будет кидаться ошибка из-за увольнения.
+                # Делаем запрос profile, который не требует никаких разрешений.
+                self.call_api_method('profile', timeout=10, refresh=False)
+            except BitrixApiError as e:
+                if e.is_unable_to_authorize_user:
+                    self.refresh_error = self.UNABLE_TO_AUTHORIZE_USER
+                elif e.is_user_cant_be_authorized_in_context:
+                    self.refresh_error = self.USER_CANT_BE_AUTHORIZED_IN_CONTEXT
+                elif e.is_authorization_error:
+                    self.refresh_error = self.AUTHORIZATION_ERROR
+                elif e.is_user_access_error:
+                    self.refresh_error = self.USER_ACCESS_ERROR
+                elif e.is_free_plan_error:
+                    self.refresh_error = self.FREE_PLAN_ERROR
+
+                if self.refresh_error != self.NO_ERROR:
+                    self.is_active = False
+                    self.save()
+                    raise BitrixTokenRefreshError(True, e.json_response, e.status_code) from e
+            except (BaseConnectionError, BaseTimeout):
+                pass
+
         self.is_active = True
         self.save()
-
         return True
 
-    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT):
+    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True):
         try:
             return super().call_api_method(api_method=api_method, params=params, timeout=timeout)
         except ExpiredToken:
+            if not refresh:
+                raise ExpiredToken(status_code=401)
+
             if self.refresh(timeout=timeout):
-                # Если обновление токена прошло успешно, повторить запрос
-                return self.call_api_method(api_method, params, timeout=timeout)
+                return self.call_api_method(api_method, params, timeout=timeout, refresh=False)
             raise
 
     def deactivate_token(self, refresh_error):
@@ -305,7 +351,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             self.refresh_error = refresh_error
             self.save(force_update=True)
 
-    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
+    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix='', refresh=True):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
         from integration_utils.bitrix24.exceptions import BatchApiCallError
@@ -314,7 +360,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                                           timeout=timeout,
                                           chunk_size=chunk_size,
                                           halt=halt,
-                                          log_prefix=log_prefix)
+                                          log_prefix=log_prefix,
+                                          refresh=refresh)
         except BatchApiCallError as e:
             # fixme: нет такого метода
             # self.check_deactivate_errors(e.reason)
