@@ -255,6 +255,9 @@ class Attachment(JsonDeserializable):
         if attachment_type == "share":
             return ShareAttachment(attach=attach)
 
+        if attachment_type == "contact":
+            return ContactAttachment(attach=attach)
+
         raise ValueError(f"Unknown attachment type: {attachment_type}")
 
     @classmethod
@@ -346,6 +349,21 @@ class ShareAttachment(Attachment):
             "title": self.raw["title"],
             "description": self.raw["description"],
             "image_url": self.raw["image_url"],
+        }
+
+
+class ContactAttachment(Attachment):
+    """MAX contact attachment"""
+
+    def to_normalized_dict(self) -> Dict[str, Any]:
+        max_info = self.payload.get("max_info") or {}
+        return {
+            "type": "contact",
+            "user_id": max_info.get("user_id"),
+            "name": max_info.get("name"),
+            "first_name": max_info.get("first_name"),
+            "last_name": max_info.get("last_name"),
+            "is_bot": max_info.get("is_bot"),
         }
 
 
