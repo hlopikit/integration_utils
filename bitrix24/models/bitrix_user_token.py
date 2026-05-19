@@ -12,7 +12,6 @@ from django.utils import timezone
 from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, \
 BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
-from integration_utils.bitrix24.token_refresh_mixin import BitrixUserTokenRefreshMixin
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from settings import ilogger
 
@@ -24,10 +23,8 @@ def refresh_all():
     return BitrixUserToken.refresh_all()
 
 
-class BitrixUserToken(BitrixUserTokenRefreshMixin, models.Model, BaseBitrixToken):
+class BitrixUserToken(models.Model, BaseBitrixToken):
     DEFAULT_TIMEOUT = getattr(settings, 'BITRIX_RESTAPI_DEFAULT_TIMEOUT', 10)
-
-    NO_ERROR = 0
 
     EXPIRED_TOKEN = 2
     INVALID_GRANT = 3
@@ -41,13 +38,6 @@ class BitrixUserToken(BitrixUserTokenRefreshMixin, models.Model, BaseBitrixToken
     AUTHORIZATION_ERROR = 15
     ACCESS_DENIED = 16
     APPLICATION_NOT_FOUND = 17
-    FREE_PLAN_ERROR = 20
-    UNABLE_TO_AUTHORIZE_USER = 21
-    USER_CANT_BE_AUTHORIZED_IN_CONTEXT = 22
-
-    # Ставим при ошибке в refresh и в check_deactivate_errors
-    USER_ACCESS_ERROR = 19
-
     REFRESH_ERRORS = (
         (0, 'Нет ошибки'),
         (1, 'Не установлен портал (Wrong client)'),
@@ -225,13 +215,12 @@ class BitrixUserToken(BitrixUserTokenRefreshMixin, models.Model, BaseBitrixToken
 
         return result_token
 
-    def refresh(self, timeout=60, check_api_call=True):
+    def refresh(self, timeout=60):
         """
         Если успешно обновился токен, то возвращаем True.
         Если что-то пошло не так, то False.
 
         :param timeout: таймаут запроса
-        :param check_api_call: проверить работу API-запросов после обновления
         :raise BitrixApiError: ошибка обновления.
         :raise BitrixOauthRefreshTimeout: таймаут при обновлении токена.
         :raise BitrixOauthRefreshConnectionError: ошибка соединения при обновлении токена.
@@ -293,23 +282,21 @@ class BitrixUserToken(BitrixUserTokenRefreshMixin, models.Model, BaseBitrixToken
         else:
             self.refresh_error = 0
 
-        return self._finalize_successful_refresh(
-            response_json=response_json,
-            check_api_call=check_api_call,
-            timeout=10,
-        )
+        self.auth_token = response_json.get('access_token')
+        self.refresh_token = response_json.get('refresh_token')
+        self.auth_token_date = timezone.now()
+        self.is_active = True
+        self.save()
 
-    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True):
+        return True
+
+    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT):
         try:
             return super().call_api_method(api_method=api_method, params=params, timeout=timeout)
         except ExpiredToken:
-            retried = self._retry_call_after_refresh(
-                refresh=refresh,
-                timeout=timeout,
-                retry_callback=lambda: self.call_api_method(api_method, params, timeout=timeout, refresh=False),
-            )
-            if retried is not None:
-                return retried
+            if self.refresh(timeout=timeout):
+                # Если обновление токена прошло успешно, повторить запрос
+                return self.call_api_method(api_method, params, timeout=timeout)
             raise
 
     def deactivate_token(self, refresh_error):
@@ -318,7 +305,7 @@ class BitrixUserToken(BitrixUserTokenRefreshMixin, models.Model, BaseBitrixToken
             self.refresh_error = refresh_error
             self.save(force_update=True)
 
-    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix='', refresh=True):
+    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
         from integration_utils.bitrix24.exceptions import BatchApiCallError
@@ -327,8 +314,7 @@ class BitrixUserToken(BitrixUserTokenRefreshMixin, models.Model, BaseBitrixToken
                                           timeout=timeout,
                                           chunk_size=chunk_size,
                                           halt=halt,
-                                          log_prefix=log_prefix,
-                                          refresh=refresh)
+                                          log_prefix=log_prefix)
         except BatchApiCallError as e:
             # fixme: нет такого метода
             # self.check_deactivate_errors(e.reason)
