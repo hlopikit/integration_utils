@@ -448,14 +448,14 @@ class BatchFailed(BitrixApiException):
 class BatchApiCallError(BatchFailed):
     """
     Сервер вернул JSON-ответ с ошибкой на batch-запрос.
-    Через property реализован сбор BitrixApiError для переиспользования метода is_not_logic_error()
+    Через свойство реализована сборка BitrixApiError для использования свойства is_not_logic_error
     без дублирования условий в двух разных исключениях.
     """
     @property
     def status_code(self):
         """
         Статус запроса для сборки BitrixApiError.
-        Пока получаем только если reason - это Response.
+        Пока получаем только, если reason - это Response.
         """
         if isinstance(self.reason, Response):
             return self.reason.status_code
@@ -464,7 +464,7 @@ class BatchApiCallError(BatchFailed):
     def json_response(self):
         """
         JSON запроса для сборки BitrixApiError.
-        Пока получаем только если reason - это Response.
+        Пока получаем только, если reason - это Response.
         """
         response = self.reason
         if isinstance(self.reason, Response):
@@ -476,7 +476,9 @@ class BatchApiCallError(BatchFailed):
 
     @property
     def bitrix_api_error(self):
-        """  Сборка BitrixApiError для переиспользования is_not_logic_error(). """
+        """
+        Сборка BitrixApiError для использования is_not_logic_error.
+        """
         return BitrixApiError(
             has_resp='deprecated',
             json_response=self.json_response,
@@ -487,8 +489,8 @@ class BatchApiCallError(BatchFailed):
     @property
     def is_not_logic_error(self):
         """
-        Переиспользуется метод из BitrixApiError.
-        Немного костыльно, но
+        Используется свойство из BitrixApiError.
+        Немного костыльно, но пока так.
         """
         bitrix_api_error = self.bitrix_api_error
         if bitrix_api_error:
