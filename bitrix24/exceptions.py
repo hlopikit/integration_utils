@@ -1,4 +1,5 @@
 import six
+from requests import Response
 from django.http import JsonResponse
 
 STRING_TYPES = six.string_types
@@ -447,7 +448,52 @@ class BatchFailed(BitrixApiException):
 class BatchApiCallError(BatchFailed):
     """
     Сервер вернул JSON-ответ с ошибкой на batch-запрос.
+    Через property реализован сбор BitrixApiError для переиспользования метода is_not_logic_error()
+    без дублирования условий в двух разных исключениях.
     """
+    @property
+    def status_code(self):
+        """
+        Статус запроса для сборки BitrixApiError.
+        Пока получаем только если reason - это Response.
+        """
+        if isinstance(self.reason, Response):
+            return self.reason.status_code
+
+    @property
+    def json_response(self):
+        """
+        JSON запроса для сборки BitrixApiError.
+        Пока получаем только если reason - это Response.
+        """
+        response = self.reason
+        if isinstance(self.reason, Response):
+            try:
+                response_json = response.json()
+            except (ValueError, TypeError):
+                response_json = None
+            return response_json
+
+    @property
+    def bitrix_api_error(self):
+        """  Сборка BitrixApiError для переиспользования is_not_logic_error(). """
+        return BitrixApiError(
+            has_resp='deprecated',
+            json_response=self.json_response,
+            status_code=self.status_code,
+            message='batch_api_call_error',
+        )
+
+    @property
+    def is_not_logic_error(self):
+        """
+        Переиспользуется метод из BitrixApiError.
+        Немного костыльно, но
+        """
+        bitrix_api_error = self.bitrix_api_error
+        if bitrix_api_error:
+            return bitrix_api_error.is_not_logic_error
+        return False
 
 
 class JsonDecodeBatchFailed(BatchFailed):
