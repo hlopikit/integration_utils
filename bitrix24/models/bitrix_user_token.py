@@ -10,7 +10,7 @@ from django.db import models
 from django.utils import timezone
 
 from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, \
-BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixTokenRefreshError
+    BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixTokenRefreshError, BitrixConnectionError, BitrixTimeout
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from settings import ilogger
@@ -245,6 +245,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         :raise BitrixOauthRefreshConnectionError: ошибка соединения при обновлении токена.
         :raise BitrixOauthRefreshRequestException: прочая ошибка при обновлении токена.
         """
+        log_tag = 'integration_utils.bitrix24.BitrixUserToken.refresh'
+
         if not self.pk:
             # Динамический токен
             # raise BitrixApiError(401, dict(error='expired_token'))
@@ -257,8 +259,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             'refresh_token': self.refresh_token,
         }
         params = '&'.join(['%s=%s' % (k, v) for k, v in params.items()])
-        url = 'https://oauth.bitrix.info/oauth/token/?{}'.format(params)
-        # url = 'https://{}/oauth/token/?{}'.format(self.user.portal.domain, params)
+        url = 'https://oauth.bitrix24.tech/oauth/token/?{}'.format(params)
+
         try:
             response = requests.get(url, timeout=timeout)
         except requests.ConnectionError as e:
@@ -268,7 +270,12 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         except requests.RequestException as e:
             raise BitrixOauthRefreshRequestException(requests_exception=e) from e
 
+        log_message = f"self={self}, url={url}, response.text={response.text}"
+
         if response.status_code >= 500:
+            ilogger.warning('refresh_token_error_gte500', log_message, tag=log_tag)
+            self.refresh_error = self.OAUTH_GTE_500
+            self.save(update_fields=['refresh_error'])
             return False
 
         try:
@@ -282,24 +289,28 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
             return False
 
-        if response_json.get('error'):
-            if response_json.get('error') == u'invalid_grant':
-                self.refresh_error = 3
-            elif response_json.get('error') == u'wrong_client':
-                self.refresh_error = 1
-            elif response_json.get('error') == u'expired_token':
-                self.refresh_error = 2
-            elif response_json.get('error') == u'NOT_INSTALLED':
-                self.refresh_error = 4
-            elif response_json.get('error') == u'PAYMENT_REQUIRED':
-                self.refresh_error = 5
+        error = response_json.get('error')
+
+        if error:
+            ilogger.warning(f'refresh_token_error_{error}', log_message, tag=log_tag)
+            if error == 'wrong_client':
+                self.refresh_error = self.WRONG_CLIENT
+            elif error == 'expired_token':
+                self.refresh_error = self.EXPIRED_TOKEN
+            elif error == 'invalid_grant':
+                self.refresh_error = self.INVALID_GRANT
+            elif error == 'NOT_INSTALLED':
+                self.refresh_error = self.NOT_INSTALLED
+            elif error == 'PAYMENT_REQUIRED':
+                self.refresh_error = self.PAYMENT_REQUIRED
             else:
-                self.refresh_error = 9
+                self.refresh_error = self.UNKNOWN_ERROR
+
             self.is_active = False
             self.save()
             return False
         else:
-            self.refresh_error = 0
+            self.refresh_error = self.NO_ERROR
 
         self.auth_token = response_json.get('access_token')
         self.refresh_token = response_json.get('refresh_token')
@@ -311,6 +322,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                 # Но даже после обновления по токену будет кидаться ошибка из-за увольнения.
                 # Делаем запрос profile, который не требует никаких разрешений.
                 self.call_api_method('profile', timeout=10, refresh=False)
+
             except BitrixApiError as e:
                 if e.is_unable_to_authorize_user:
                     self.refresh_error = self.UNABLE_TO_AUTHORIZE_USER
@@ -326,12 +338,21 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                 if self.refresh_error != self.NO_ERROR:
                     self.is_active = False
                     self.save()
-                    raise BitrixTokenRefreshError(True, e.json_response, e.status_code) from e
-            except (BaseConnectionError, BaseTimeout):
-                pass
+                    return False
+
+
+            except (BitrixConnectionError, BitrixTimeout) as e:
+                # Считаем, что одиночная проблема с соединением/таймаутом
+                ilogger.debug('refresh_token_profile_bitrix_unavailable', f"({e}): self={self}", exc_info=True, tag=log_tag)
+
+        ilogger.debug('refresh_token', log_message, tag=log_tag)
+
+        if not self.is_active:
+            ilogger.info('token_reactivated', f"self={self}, previous refresh_error={self.get_refresh_error_display()}", tag=log_tag)
 
         self.is_active = True
         self.save()
+
         return True
 
     def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True):
