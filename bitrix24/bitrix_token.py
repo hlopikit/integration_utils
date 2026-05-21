@@ -65,7 +65,7 @@ class BaseBitrixToken:
 
     call_method = call_api_method_v3
 
-    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix=''):
+    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix='', refresh=True):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
         from .functions.batch_api_call import _batch_api_call
@@ -74,7 +74,8 @@ class BaseBitrixToken:
                                timeout=timeout,
                                chunk_size=chunk_size,
                                halt=halt,
-                               log_prefix=log_prefix)
+                               log_prefix=log_prefix,
+                               refresh=refresh)
 
     batch_api_call_v3 = batch_api_call
 
