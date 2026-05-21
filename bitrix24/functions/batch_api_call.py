@@ -1,6 +1,7 @@
 import time
 import urllib
 from collections import OrderedDict
+from typing import TYPE_CHECKING, Union, Optional, List, Sequence, Tuple, Any, Iterable, Dict
 
 import six
 
@@ -13,10 +14,7 @@ from .api_call import (
 )
 from ..exceptions import JsonDecodeBatchFailed, BatchApiCallError, ExpiredToken
 
-# typing
-if not six.PY2:
-    from typing import Union, Optional, List, Sequence, Tuple, Any, Iterable, Dict
-if False:
+if TYPE_CHECKING:
     from ..models import BitrixUserToken
 
 
@@ -28,7 +26,7 @@ if not six.PY2:
     #  - ('user.get', {'FILTER': {'ACTIVE': 'Y'}})
     ApiMethodAndParams = Tuple[str, ApiParams]
 
-    # Именованый метод с параметрами - одно из:
+    # Именованный метод с параметрами - одно из:
     #  - ('users', 'user.get', None)
     #  - ('users', 'user.get', {'FILTER': {'ACTIVE': 'Y'}})
     NamedMethodAndParams = Tuple[str, str, ApiParams]
@@ -37,7 +35,7 @@ if not six.PY2:
     Methods = Sequence[Union[ApiMethodAndParams, NamedMethodAndParams]]
 
 
-# лучше показать реплейсы, чем просто отбрасывать непонятные символы
+# Лучше показать заменяющие символы, чем просто отбрасывать непонятные символы
 DECODE_ERRORS = 'replace' if six.PY2 else 'backslashreplace'
 
 
@@ -167,10 +165,11 @@ def _batch_api_call(
     :param bitrix_user_token: токен для выполнения запроса
 
     :param methods: описание методов:
+    """"""
             [
                 # Метод без параметров с автоматическим названием data_0
                 ('user.get', None),
-                # Именованый метод с параметрами
+                # Именованный метод с параметрами
                 ('lead', 'crm.lead.get', {'ID': 42}),
                 # Метод с параметрами с автоматическим названием data_2
                 ('crm.activity.get', {'ID': 42}),
@@ -269,7 +268,7 @@ def _batch_api_call(
         normalized_methods.append((name, method, params))
     methods = normalized_methods
 
-    # urlencode всех параметров методов
+    # Кодирование под URL всех параметров методов
     converted_requests = convert_methods(methods)
     # Получаем список срезов, по 50 штук
     parts_methods = to_chunks(converted_requests, chunk_size=chunk_size)
@@ -279,7 +278,7 @@ def _batch_api_call(
     def add_response(part_request_names, part_resp):  # type: (List[str], dict) -> None
         # Добавляем запросы в словарь ответов
         res = part_resp['result']
-        # Известный косяк php-сериалайсера json:
+        # Известный косяк php-сериализации json:
         # Array(0 => 'foo') становится ['foo']
         # Array() становится []
         # даже если должно быть {"0": "foo"} и {}
@@ -290,7 +289,7 @@ def _batch_api_call(
                 res[key] = {}
             elif isinstance(res[key], list):
                 # Заменяем списки словарями, т.к. это очень неприятный момент
-                res[key] = {str(i): v for i, v in enumerate(res[key])}
+                res[key] = {str(index): value for index, value in enumerate(res[key])}
 
         for req_name in part_request_names:
             responses[req_name] = dict(

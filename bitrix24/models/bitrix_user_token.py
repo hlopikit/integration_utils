@@ -10,7 +10,7 @@ from django.db import models
 from django.utils import timezone
 
 from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, \
-    BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixTokenRefreshError, BitrixConnectionError, BitrixTimeout
+    BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixConnectionError, BitrixTimeout
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from settings import ilogger
