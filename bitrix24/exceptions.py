@@ -363,7 +363,7 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_mysql_query_error(self):
-        return 'mysql query error' in self.error_description
+        return isinstance(self.error_description, str) and 'mysql query error' in self.error_description.lower()
 
     def dict(self):
         if isinstance(self.json_response, dict):
