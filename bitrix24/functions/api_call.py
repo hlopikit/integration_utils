@@ -257,6 +257,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call'
+    log_params = {'portal_domain': domain}
 
     # Работаем с копией, чтобы не подмешивать `auth` в исходный словарь вызывающего кода.
     params = dict(params or {})
@@ -269,9 +270,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
         params['auth'] = auth_token
 
     converted_params = convert_params(params).encode('utf-8')
-    url = 'https://{domain}/rest/{hook_key}{api_method}.json'.format(
-        domain=domain, hook_key=hook_key, api_method=api_method
-    )
+    url = f'https://{domain}/rest/{hook_key}{api_method}.json'
 
     response = call_with_retries(url, converted_params, timeout=timeout)
 
@@ -279,25 +278,28 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
         try:
             data = response.json()
         except JSONDecodeError as e:
-            ilogger.warning('response_json_decode_error', f"({e}): domain={domain}, response.text={response.text}", exc_info=True, tag=log_tag)
+            ilogger.warning(
+                'response_json_decode_error', f"({e}): {domain=}, {response.text=}",
+                exc_info=True, params=log_params, tag=log_tag,
+            )
         except Exception as e:
-            ilogger.error('response_json_exception', repr(e), tag=log_tag)
+            ilogger.error('response_json_exception', repr(e), params=log_params, tag=log_tag)
         else:
             data_time = data.get('time', None)
             if data_time and isinstance(data_time, dict):
                 operating = data_time.get('operating', 0)
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
-                    log_method('method_operating', f"{domain}, {api_method}: {operating}", tag=log_tag)
+                    log_method('method_operating', f"{domain}, {api_method}: {operating}", params=log_params, tag=log_tag)
 
     t = time.time()
 
-    ilogger.info('bitrix_request', '{}\n{} "{}"'.format(t, url, converted_params))
+    ilogger.info('bitrix_request', f"{t}\n{url} '{converted_params}'", params=log_params, tag=log_tag)
 
     try:
-        ilogger.info('bitrix_response', f"{t}\n{response.text}")
+        ilogger.info('bitrix_response', f"{t}\n{response.text}", params=log_params, tag=log_tag)
     except Exception as e:
-        ilogger.error('bitrix_response', f"{t}\nException: {repr(e)}")
+        ilogger.error('bitrix_response', f"{t}\nException: {repr(e)}", params=log_params, tag=log_tag)
 
     return response
 
@@ -316,6 +318,7 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call.api_call_v3'
+    log_params = {'portal_domain': domain}
 
     if not isinstance(domain, str) or not domain:
         raise ValueError("must provide domain as a non-empty string")
@@ -374,11 +377,11 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
 
     t = time.time()
 
-    ilogger.info('bitrix_request', f"{t}\nurl={url}, params={params}", tag=log_tag)
+    ilogger.info('bitrix_request', f"{t}\n{url=}, {params=}", params=log_params, tag=log_tag)
 
     try:
-        ilogger.info('bitrix_response', f"{t}\nresponse.text={response.text}", tag=log_tag)
+        ilogger.info('bitrix_response', f"{t}\n{response.text=}", params=log_params, tag=log_tag)
     except Exception as e:
-        ilogger.error('bitrix_response', f"{t}\n{repr(e)}", tag=log_tag)
+        ilogger.error('bitrix_response', f"{t}\n{repr(e)}", params=log_params, tag=log_tag)
 
     return json_response
