@@ -155,7 +155,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                 update_is_admin_with_retries(user, token)
             except BitrixApiError as e:
                 if e.is_user_access_error or e.is_token_expired:
-                    ilogger.warning('update_is_admin_bx_api_err', f"({e}): token={token}", exc_info=True, tag=log_tag)
+                    ilogger.warning('update_is_admin_bx_api_err', f"({e}): token={token}", exc_info=True, tag=log_tag, params={'portal_domain': token.domain})
                     continue
                 raise e
 
@@ -190,13 +190,13 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                     log_function(
                         'user_get_bitrix_api_exception',
                         f"({e}): result_token={result_token}, likely_inactive_user_bitrix_ids={likely_inactive_user_bitrix_ids}",
-                        tag=log_tag, exc_info=True,
+                        tag=log_tag, exc_info=True, params={'portal_domain': result_token.domain},
                     )
                 except Exception as e:
                     ilogger.error(
                         'user_get_exception',
                         f"({e}): result_token={result_token}, likely_inactive_user_bitrix_ids={likely_inactive_user_bitrix_ids}",
-                        tag=log_tag,
+                        tag=log_tag, params={'portal_domain': result_token.domain},
                     )
                 else:
                     bulk_update_users = []
