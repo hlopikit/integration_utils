@@ -353,8 +353,8 @@ class ShareAttachment(Attachment):
             "url": self.payload["url"],
             "token": self.payload["token"],
             "title": self.raw["title"],
-            "description": self.raw["description"],
-            "image_url": self.raw["image_url"],
+            "description": self.raw.get("description"),
+            "image_url": self.raw.get("image_url"),
         }
 
 
