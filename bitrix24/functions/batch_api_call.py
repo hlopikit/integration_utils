@@ -233,6 +233,9 @@ def _batch_api_call(
     if not domain:
         domain = bitrix_user_token.user.portal.domain
 
+    log_tag = 'integration_utils.bitrix24.functions.batch_api_call._batch_api_call'
+    log_params = {'portal_domain': domain}
+
     if bitrix_user_token.web_hook_auth:
         auth_token = bitrix_user_token.web_hook_auth
         webhook = True
@@ -330,18 +333,18 @@ def _batch_api_call(
                     log_method = ilogger.info if operating < 400 else ilogger.warning
                     log_method('method_operating', '{}, batch({}): {}'.format(
                         domain, ', '.join({m for _, m, _ in normalized_methods}), operating,
-                    ))
+                    ), params=log_params, tag=log_tag)
                     time.sleep(operating - 300)
 
             except Exception as e:
-                ilogger.error('method_operating_exception', f"({e}): data={data}")
+                ilogger.error('method_operating_exception', f"({e}): data={data}", params=log_params, tag=log_tag)
 
         except ValueError:  # response - не json
             try:
                 response_text = response.text
             except UnicodeError:
                 response_text = response.content.decode(response.apparent_encoding, errors=DECODE_ERRORS)
-            ilogger.warning(f'{log_prefix}json_decode_batch_failed', f"response_text={response_text}")
+            ilogger.warning(f'{log_prefix}json_decode_batch_failed', f"{response_text=}", params=log_params, tag=log_tag)
 
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет ошибка в бизнес-логике
