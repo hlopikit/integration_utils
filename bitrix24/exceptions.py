@@ -113,6 +113,7 @@ class BitrixApiError(BitrixApiException):
             self.is_error_core,
             self.is_connection_error,
             self.is_cant_refresh,
+            self.is_mysql_query_error,
         ]):
             return True
         return False
