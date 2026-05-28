@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 
@@ -5,6 +7,13 @@ from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
 
 
 def authenticate_on_start_application(request):
+    """Авторизует пользователя при первом iframe-запуске приложения.
+
+    Что делает:
+    Читает OAuth-данные из запроса Битрикс24, обновляет пользователя и сохраняет токен.
+    Где используется:
+    В декораторах `main_auth(..., on_start=True)` для iframe-приложений.
+    """
     # на базе разнообразных параметров в iframe определяет пользователя и сохраняет в request
     # request.bitrix_user
     # request.bitrix_user_is_new
@@ -13,6 +22,7 @@ def authenticate_on_start_application(request):
     # Это для входа через IFRAME
     auth_token = request.POST.get('AUTH_ID')
     refresh_token = request.POST.get('REFRESH_ID')
+    expires_in_seconds = request.POST.get('AUTH_EXPIRES') or request.POST.get('auth[expires_in]') or request.POST.get('expires_in')
     app_sid = request.GET.get('APP_SID')
     _https = request.GET.get('PROTOCOL', '1') == '1'
 
@@ -20,6 +30,7 @@ def authenticate_on_start_application(request):
         # Для авторизации ЧатБотов
         auth_token = request.POST.get('auth[access_token]')
         refresh_token = request.POST.get('auth[refresh_token]')
+        expires_in_seconds = request.POST.get('auth[expires_in]') or expires_in_seconds
 
     if not auth_token:
         raise PermissionDenied(f"Не передан AUTH_ID. Ожидаем что этот урл будет открываться через фрейм в Битрикс24. ")
@@ -55,6 +66,7 @@ def authenticate_on_start_application(request):
 
     if app_sid:
         defaults['app_sid'] = app_sid
+    defaults['expires_at'] = timezone.now() + timedelta(seconds=int(expires_in_seconds)) if expires_in_seconds else None
 
     bitrix_user_token, _ = BitrixUserToken.objects.update_or_create(
         user=user,
