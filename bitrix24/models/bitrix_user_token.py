@@ -360,19 +360,17 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         return True
 
-    def refresh_if_needed(self, timeout=DEFAULT_TIMEOUT):
-        if self.web_hook_auth:
-            return
-
-        if not self.pk or not self.refresh_token or not self.expires_at:
+    def refresh_if_needed(self, timeout=DEFAULT_TIMEOUT, refresh=True):
+        if not refresh or not self.refresh_token or not self.expires_at:
             return
 
         refresh_before = timezone.now() + timedelta(seconds=self.TOKEN_REFRESH_RESERVE_SECONDS)
         if self.expires_at <= refresh_before:
-            self.refresh(timeout=timeout)
+            if not self.refresh(timeout=timeout):
+                raise ExpiredToken(status_code=401)
 
     def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True):
-        self.refresh_if_needed(timeout=timeout)
+        self.refresh_if_needed(timeout=timeout, refresh=refresh)
         try:
             return super().call_api_method(api_method=api_method, params=params, timeout=timeout)
         except ExpiredToken:
@@ -393,7 +391,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
         from integration_utils.bitrix24.exceptions import BatchApiCallError
-        self.refresh_if_needed(timeout=timeout)
+        self.refresh_if_needed(timeout=timeout, refresh=refresh)
         try:
             return super().batch_api_call(methods=methods,
                                           timeout=timeout,
