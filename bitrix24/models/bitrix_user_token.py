@@ -360,17 +360,30 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         return True
 
-    def refresh_if_needed(self, timeout=DEFAULT_TIMEOUT, refresh=True):
-        if not refresh or not self.refresh_token or not self.expires_at:
+    def refresh_if_needed(self, timeout=DEFAULT_TIMEOUT):
+        if not self.refresh_token or not self.expires_at:
             return
 
-        refresh_before = timezone.now() + timedelta(seconds=self.TOKEN_REFRESH_RESERVE_SECONDS)
-        if self.expires_at <= refresh_before:
-            if not self.refresh(timeout=timeout):
-                raise ExpiredToken(status_code=401)
+        now = timezone.now()
+        refresh_before = now + timedelta(seconds=self.TOKEN_REFRESH_RESERVE_SECONDS)
+        if self.expires_at > refresh_before:
+            return
+
+        try:
+            refreshed = self.refresh(timeout=timeout)
+        except BitrixApiException:
+            if self.expires_at > timezone.now():
+                return
+            raise
+
+        if refreshed or self.is_active and self.expires_at > timezone.now():
+            return
+
+        raise ExpiredToken(status_code=401)
 
     def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True):
-        self.refresh_if_needed(timeout=timeout, refresh=refresh)
+        if refresh:
+            self.refresh_if_needed(timeout=timeout)
         try:
             return super().call_api_method(api_method=api_method, params=params, timeout=timeout)
         except ExpiredToken:
@@ -391,7 +404,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
         from integration_utils.bitrix24.exceptions import BatchApiCallError
-        self.refresh_if_needed(timeout=timeout, refresh=refresh)
+        if refresh:
+            self.refresh_if_needed(timeout=timeout)
         try:
             return super().batch_api_call(methods=methods,
                                           timeout=timeout,
