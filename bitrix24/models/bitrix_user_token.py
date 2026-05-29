@@ -361,7 +361,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         return True
 
     def refresh_if_needed(self, timeout=DEFAULT_TIMEOUT):
-        if not self.refresh_token or not self.expires_at:
+        if not self.pk or not self.refresh_token or not self.expires_at:
             return
 
         now = timezone.now()
@@ -371,7 +371,11 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         try:
             refreshed = self.refresh(timeout=timeout)
-        except BitrixApiException:
+        except (
+            BitrixOauthRefreshConnectionError,
+            BitrixOauthRefreshTimeout,
+            BitrixOauthRefreshRequestException,
+        ):
             if self.expires_at > timezone.now():
                 return
             raise
