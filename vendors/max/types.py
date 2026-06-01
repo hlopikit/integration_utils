@@ -34,6 +34,7 @@ __all__ = [
     "UpdatesResponse",
     "UpdateType",
     "User",
+    "VideoAttachment",
 ]
 
 
@@ -255,6 +256,9 @@ class Attachment(JsonDeserializable):
         if attachment_type == "file":
             return FileAttachment(attach=attach)
 
+        if attachment_type == "video":
+            return VideoAttachment(attach=attach)
+
         if attachment_type == "sticker":
             return StickerAttachment(attach=attach)
 
@@ -331,6 +335,21 @@ class FileAttachment(Attachment):
             "url": self.payload["url"],
             "filename": self.filename,
             "size": self.size,
+        }
+
+
+class VideoAttachment(Attachment):
+    """MAX video attachment"""
+
+    def to_normalized_dict(self) -> Dict[str, Any]:
+        thumbnail = self.payload.get("thumbnail") or {}
+        return {
+            "type": "video",
+            "file_id": self.payload.get("id"),
+            "token": self.payload.get("token"),
+            "url": self.payload.get("url"),
+            "duration": self.raw.get("duration"),
+            "thumbnail_url": thumbnail.get("url"),
         }
 
 
