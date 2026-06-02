@@ -2,7 +2,7 @@
 
 import hashlib
 import typing
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 import requests
 from django.conf import settings
@@ -91,7 +91,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     auth_token = models.CharField(max_length=70)
     refresh_token = models.CharField(max_length=70, default='', blank=True)
     auth_token_date = models.DateTimeField()
-    expires_at = models.DateTimeField(default=None, null=True, blank=True)
+    expires = models.DateTimeField(default=None, null=True, blank=True)
     app_sid = models.CharField(max_length=70, blank=True)
 
     is_active = models.BooleanField(default=True)
@@ -318,8 +318,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         self.auth_token = response_json.get('access_token')
         self.refresh_token = response_json.get('refresh_token')
         self.auth_token_date = timezone.now()
-        expires_in_seconds = response_json.get('expires_in')
-        self.expires_at = timezone.now() + timedelta(seconds=int(expires_in_seconds)) if expires_in_seconds else None
+        expires_timestamp = response_json.get('expires')
+        self.expires = datetime.fromtimestamp(int(expires_timestamp), tz=dt_timezone.utc) if expires_timestamp else None
 
         if check_api_call:
             try:
@@ -361,12 +361,12 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         return True
 
     def refresh_if_needed(self, timeout=DEFAULT_TIMEOUT):
-        if not self.pk or not self.refresh_token or not self.expires_at:
+        if not self.pk or not self.refresh_token or not self.expires:
             return
 
         now = timezone.now()
         refresh_before = now + timedelta(seconds=self.TOKEN_REFRESH_RESERVE_SECONDS)
-        if self.expires_at > refresh_before:
+        if self.expires > refresh_before:
             return
 
         try:
@@ -376,11 +376,11 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             BitrixOauthRefreshTimeout,
             BitrixOauthRefreshRequestException,
         ):
-            if self.expires_at > timezone.now():
+            if self.expires > timezone.now():
                 return
             raise
 
-        if refreshed or self.is_active and self.expires_at > timezone.now():
+        if refreshed or self.is_active and self.expires > timezone.now():
             return
 
         raise ExpiredToken(status_code=401)
