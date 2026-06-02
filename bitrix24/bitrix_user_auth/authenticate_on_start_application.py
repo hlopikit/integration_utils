@@ -22,7 +22,7 @@ def authenticate_on_start_application(request):
     # Это для входа через IFRAME
     auth_token = request.POST.get('AUTH_ID')
     refresh_token = request.POST.get('REFRESH_ID')
-    auth_expires_seconds = request.POST.get('AUTH_EXPIRES')
+    expires_in_seconds = request.POST.get('AUTH_EXPIRES')
     app_sid = request.GET.get('APP_SID')
     _https = request.GET.get('PROTOCOL', '1') == '1'
 
@@ -65,7 +65,7 @@ def authenticate_on_start_application(request):
 
     if app_sid:
         defaults['app_sid'] = app_sid
-    defaults['expires'] = timezone.now() + timedelta(seconds=int(auth_expires_seconds)) if auth_expires_seconds else None
+    defaults['expires'] = timezone.now() + timedelta(seconds=int(expires_in_seconds)) if expires_in_seconds else None
 
     bitrix_user_token, _ = BitrixUserToken.objects.update_or_create(
         user=user,
