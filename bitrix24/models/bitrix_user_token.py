@@ -2,7 +2,7 @@
 
 import hashlib
 import typing
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
 
 import requests
 from django.conf import settings
@@ -319,7 +319,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         self.refresh_token = response_json.get('refresh_token')
         self.auth_token_date = timezone.now()
         expires_timestamp = response_json.get('expires')
-        self.expires = datetime.fromtimestamp(int(expires_timestamp), tz=dt_timezone.utc) if expires_timestamp else None
+        self.expires = datetime.fromtimestamp(int(expires_timestamp), tz=timezone.get_current_timezone()) if expires_timestamp else None
 
         if check_api_call:
             try:
