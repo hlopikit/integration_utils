@@ -11,6 +11,7 @@ from .util import is_pil_image, pil_image_to_bytes
 __all__ = [
     "Attachment",
     "Api",
+    "AudioAttachment",
     "Body",
     "CallbackQuery",
     "Chat",
@@ -259,6 +260,9 @@ class Attachment(JsonDeserializable):
         if attachment_type == "video":
             return VideoAttachment(attach=attach)
 
+        if attachment_type == "audio":
+            return AudioAttachment(attach=attach)
+
         if attachment_type == "sticker":
             return StickerAttachment(attach=attach)
 
@@ -350,6 +354,19 @@ class VideoAttachment(Attachment):
             "url": self.payload.get("url"),
             "duration": self.raw.get("duration"),
             "thumbnail_url": thumbnail.get("url"),
+        }
+
+
+class AudioAttachment(Attachment):
+    """MAX audio attachment"""
+
+    def to_normalized_dict(self) -> Dict[str, Any]:
+        return {
+            "type": "audio",
+            "file_id": self.payload.get("id"),
+            "token": self.payload.get("token"),
+            "url": self.payload.get("url"),
+            "transcription": self.raw.get("transcription"),
         }
 
 
