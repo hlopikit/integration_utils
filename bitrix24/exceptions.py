@@ -114,6 +114,7 @@ class BitrixApiError(BitrixApiException):
             self.is_connection_error,
             self.is_cant_refresh,
             self.is_mysql_query_error,
+            self.is_portal_blocked_by_license_scanner,
         ]):
             return True
         return False
@@ -365,6 +366,10 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_mysql_query_error(self):
         return isinstance(self.error_description, str) and 'mysql query error' in self.error_description.lower()
+
+    @property
+    def is_portal_blocked_by_license_scanner(self):
+        return self.error == 'PORTAL_BLOCKED_BY_LICENSE_SCANNER'
 
     def dict(self):
         if isinstance(self.json_response, dict):
