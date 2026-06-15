@@ -369,6 +369,10 @@ class BitrixApiError(BitrixApiException):
 
     @property
     def is_portal_blocked_by_license_scanner(self):
+        """
+        Пример: error='PORTAL_BLOCKED_BY_LICENSE_SCANNER',
+        error_description='Portal is blocked by the license scanner.'
+        """
         return self.error == 'PORTAL_BLOCKED_BY_LICENSE_SCANNER'
 
     def dict(self):
