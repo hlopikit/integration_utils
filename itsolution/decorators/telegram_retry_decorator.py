@@ -4,7 +4,7 @@ import time
 from integration_utils.vendors.telegram.error import RetryAfter, TimedOut
 
 
-def telegram_retry_decorator(attempts=3, timeout_delay=1):
+def telegram_retry_decorator(attempts: int = 3, timeout_delay: int = 1):
     """
     Декоратор для повторных попыток Telegram-методов с общим лимитом попыток.
 
@@ -13,6 +13,9 @@ def telegram_retry_decorator(attempts=3, timeout_delay=1):
     - при `TimedOut` ждём `timeout_delay`;
     - все повторные вызовы считаются в общий `attempts`.
     """
+    if attempts < 1:
+        raise ValueError('telegram_retry_decorator attempts must be >= 1')
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -23,7 +26,7 @@ def telegram_retry_decorator(attempts=3, timeout_delay=1):
                     is_last_attempt = attempt == attempts
                     if is_last_attempt:
                         raise
-                    delay = exc.retry_after if isinstance(exc, RetryAfter) else timeout_delay
+                    delay = getattr(exc, 'retry_after', timeout_delay)
                     if delay > 0:
                         time.sleep(delay)
 
