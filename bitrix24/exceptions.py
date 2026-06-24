@@ -180,8 +180,10 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_user_cant_be_authorized_in_context(self):
         """
-        Сотрудник, скорее всего, удалён с коробки или не подтвердил регистрацию.
-        Но желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
+        Сотрудник удалён с коробки, не подтвердил регистрацию или с пустым LAST_ACTIVITY_DATE или LAST_LOGIN_DATE.
+        При упрощённом протоколе OAuth (через iframe) - может не упасть, если не удалён пользователь.
+        Код ядра: \Bitrix\Rest\OAuth\Auth::check -> !$accessChecker->canAuthorize()
+        Желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
         Пример: error='ACCESS_DENIED', error_description='Current user can't be authorized in this context'
         """
         return self.error_description == "Current user can't be authorized in this context"
