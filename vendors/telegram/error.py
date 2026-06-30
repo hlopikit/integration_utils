@@ -44,6 +44,11 @@ class TelegramError(Exception):
     # Apparently the base class Exception already has __dict__ in it, so its not included here
     __slots__ = ('message',)
 
+    not_logic_error_messages = (
+        'Invalid server response',
+        'Network is unreachable',
+    )
+
     def __init__(self, message: str):
         super().__init__()
 
@@ -60,7 +65,7 @@ class TelegramError(Exception):
 
     @property
     def is_not_logic_error(self) -> bool:
-        return False
+        return any(error_message in self.message for error_message in self.not_logic_error_messages)
 
     def __reduce__(self) -> Tuple[type, Tuple[str]]:
         return self.__class__, (self.message,)
@@ -89,7 +94,7 @@ class InvalidToken(TelegramError):
 
     @property
     def is_not_logic_error(self) -> bool:
-        return True
+        return False
 
 
 class NetworkError(TelegramError):
@@ -177,7 +182,7 @@ class Conflict(TelegramError):
 
     @property
     def is_not_logic_error(self) -> bool:
-        return True
+        return False
 
     def __reduce__(self) -> Tuple[type, Tuple[str]]:
         return self.__class__, (self.message,)
