@@ -36,6 +36,12 @@ class MaxBadRequest(MaxError):
     __slots__ = ()
 
 
+class MaxInvalidUpdate(MaxError):
+    """Некорректный update от MAX API."""
+
+    __slots__ = ()
+
+
 class MaxNotFound(MaxError):
     __slots__ = ()
 
