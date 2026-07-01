@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Callable, Union
 
 from .apihelper import Api
-from .errors import MaxError, MaxInvalidUpdate, MaxNetworkError, MaxTimeout, MaxUnauthorized
+from .errors import MaxError, MaxNetworkError, MaxTimeout, MaxUnauthorized
 from .types import CallbackQuery, InlineKeyboardMarkup, InputMedia, Message, Update, UpdateType
 from .util import extract_command, get_text, get_parse_mode, get_edit_message_data
 from .core.network.polling import Polling
@@ -19,7 +19,6 @@ __all__ = [
     "InlineKeyboardMarkup",
     "InputMedia",
     "MaxError",
-    "MaxInvalidUpdate",
     "MaxNetworkError",
     "MaxTimeout",
     "MaxUnauthorized",
