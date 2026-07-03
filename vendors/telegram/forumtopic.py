@@ -49,7 +49,7 @@ class ForumTopic(TelegramObject):
             as the topic icon.
     """
 
-    __slots__ = ("message_thread_id", "name", "icon_color", "icon_custom_emoji_id")
+    __slots__ = ("message_thread_id", "name", "icon_color", "icon_custom_emoji_id", "_id_attrs")
 
     def __init__(
         self,
