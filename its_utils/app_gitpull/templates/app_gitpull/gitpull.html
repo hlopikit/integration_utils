@@ -41,6 +41,18 @@
         background-color: #d3ab00;
     }
 
+    input[type="submit"].commit-tree-btn {
+        background-color: #2563EB;
+    }
+
+    input[type="submit"].commit-tree-btn:hover {
+        background-color: #1D4ED8;
+    }
+
+    input[type="submit"].commit-tree-btn:active {
+        background-color: #1E40AF;
+    }
+
     h3 {
         text-align: center;
     }
@@ -63,6 +75,10 @@
 
 <form method="get" action="{% url 'make_system_checks' %}">
     <input type="submit" class="system-check-btn" value="System check">
+</form>
+
+<form method="get" action="{% url 'app_git_commit_tree' %}">
+    <input type="submit" class="commit-tree-btn" value="Дерево коммитов">
 </form>
 
 </div>
