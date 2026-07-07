@@ -19,6 +19,7 @@
 """This module contains methods to make POST and GET requests."""
 import logging
 import os
+import re
 import socket
 import sys
 import warnings
@@ -78,6 +79,39 @@ RequestField._render_part = _render_part  # type: ignore  # pylint: disable=W021
 logging.getLogger('telegram.vendor.ptb_urllib3.urllib3').setLevel(logging.WARNING)
 
 USER_AGENT = 'Python Telegram Bot (https://github.com/python-telegram-bot/python-telegram-bot)'
+TELEGRAM_BOT_TOKEN_IN_URL_RE = re.compile(r'(/(?:tapi/)?(?:file/)?bot)[^/\s]+')
+
+
+def sanitize_telegram_bot_token(text: str) -> str:
+    """
+    1) Маскирует Telegram bot token в URL из transport-ошибок urllib3.
+    2) Используется перед созданием `NetworkError`, чтобы токен не попадал в app_logger и другие логи.
+    """
+    return TELEGRAM_BOT_TOKEN_IN_URL_RE.sub(r'\1<hidden>', text)
+
+
+def is_timeout_error(error: BaseException) -> bool:
+    """
+    1) Определяет urllib3 timeout даже когда он завернут в `MaxRetryError`.
+    2) Используется `_request_wrapper()` перед созданием Telegram transport-исключения.
+    """
+    checked_ids = set()
+    pending = [error]
+    while pending:
+        current = pending.pop()
+        if id(current) in checked_ids:
+            continue
+        checked_ids.add(id(current))
+
+        if isinstance(current, urllib3.exceptions.TimeoutError):
+            return True
+
+        for attr_name in ('reason', '__cause__', '__context__'):
+            nested = getattr(current, attr_name, None)
+            if isinstance(nested, BaseException):
+                pending.append(nested)
+
+    return False
 
 
 class Request:
@@ -268,7 +302,9 @@ class Request:
         except urllib3.exceptions.HTTPError as error:
             # HTTPError must come last as its the base urllib3 exception class
             # TODO: do something smart here; for now just raise NetworkError
-            raise NetworkError(f'urllib3 HTTPError {error}') from error
+            if is_timeout_error(error):
+                raise TimedOut() from error
+            raise NetworkError(f'urllib3 HTTPError {sanitize_telegram_bot_token(str(error))}') from error
 
         if 200 <= resp.status <= 299:
             # 200-299 range are HTTP success statuses
