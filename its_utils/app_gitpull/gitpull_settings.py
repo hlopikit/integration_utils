@@ -1,4 +1,5 @@
 # coding: utf-8
+import os
 import re
 
 from django.conf import settings
@@ -6,6 +7,8 @@ from integration_utils.its_utils import its_settings
 
 ITS_UTILS_GITPULL = getattr(settings, 'ITS_UTILS_GITPULL', {
     'GIT_DIR': settings.BASE_DIR,
+    'GIT_HTTP_PROXY': '',
+    'GIT_SSH_COMMAND': '',
     'ONLY_SUPER': True,
     'UPDATE_SUBMODULES': True,
     'TEST_BEFORE_TOUCH_RESTART': True,
@@ -44,3 +47,27 @@ APPS_TO_EXCLUDE = {
 
 # We do not hurry, right?
 APPS_TO_CHECK = tuple(set(settings.INSTALLED_APPS) - APPS_TO_EXCLUDE)
+
+
+def get_git_env():
+    git_http_proxy = str(ITS_UTILS_GITPULL.get('GIT_HTTP_PROXY', '')).strip()
+    git_ssh_command = str(ITS_UTILS_GITPULL.get('GIT_SSH_COMMAND', '')).strip()
+
+    if not git_http_proxy and not git_ssh_command:
+        return None
+
+    env = os.environ.copy()
+
+    if git_http_proxy:
+        http_proxy_url = git_http_proxy if '://' in git_http_proxy else f'http://{git_http_proxy}'
+        env.update({
+            'http_proxy': http_proxy_url,
+            'https_proxy': http_proxy_url,
+            'HTTP_PROXY': http_proxy_url,
+            'HTTPS_PROXY': http_proxy_url,
+        })
+
+    if git_ssh_command:
+        env['GIT_SSH_COMMAND'] = git_ssh_command
+
+    return env

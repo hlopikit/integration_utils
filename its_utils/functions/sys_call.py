@@ -1,13 +1,14 @@
 import subprocess
 
 
-def sys_call(command, shell=True):
+def sys_call(command, shell=True, env=None):
     return_code, output = 0, ''
     try:
         output = subprocess.check_output(
             command,
             stderr=subprocess.STDOUT,
-            shell=shell
+            shell=shell,
+            env=env,
         )
     except subprocess.CalledProcessError as err:
         return_code, output = err.returncode, err.output

@@ -48,16 +48,19 @@ def do_gitpull(request):
     touch_code = touch_output = None
     conf = gitpull_settings.ITS_UTILS_GITPULL
     git_dir = conf['GIT_DIR']
+    git_env = gitpull_settings.get_git_env()
 
     pull_command = 'cd %s && git pull --stat --verbose' % git_dir
     update_submodules_command = 'cd %s && git submodule update' % git_dir
     touch_command = 'touch %s/touch_restart' % git_dir
 
-    pull_code, pull_output = sys_call(pull_command, shell=True)
+    pull_code, pull_output = sys_call(pull_command, shell=True, env=git_env)
     pull_output = to_string(pull_output)
 
     if conf.get('UPDATE_SUBMODULES', True):
-        update_submodules_code, update_submodules_output = sys_call(update_submodules_command, shell=True)
+        update_submodules_code, update_submodules_output = sys_call(
+            update_submodules_command, shell=True, env=git_env,
+        )
         update_submodules_output = to_string(update_submodules_output)
 
     # После обновления файлов запускаем тестирование
