@@ -315,6 +315,8 @@ class Bot(TelegramObject):
         message_thread_id: int = None,
         business_connection_id: int = None,
         direct_messages_topic_id: Optional[int] = None,
+        receiver_user_id: Optional[int] = None,
+        callback_query_id: Optional[str] = None,
     ) -> Union[bool, Message]:
         if reply_to_message_id is not None:
             data['reply_to_message_id'] = reply_to_message_id
@@ -330,6 +332,12 @@ class Bot(TelegramObject):
 
         if direct_messages_topic_id is not None:
             data['direct_messages_topic_id'] = direct_messages_topic_id
+
+        if receiver_user_id is not None:
+            data['receiver_user_id'] = receiver_user_id
+
+        if callback_query_id is not None:
+            data['callback_query_id'] = callback_query_id
 
         # We don't check if (DEFAULT_)None here, so that _put is able to insert the defaults
         # correctly, if necessary
@@ -493,6 +501,8 @@ class Bot(TelegramObject):
         message_thread_id: int = None,
         business_connection_id: int = None,
         direct_messages_topic_id: Optional[int] = None,
+        receiver_user_id: Optional[int] = None,
+        callback_query_id: Optional[str] = None,
     ) -> Message:
         """Use this method to send text messages.
 
@@ -560,6 +570,8 @@ class Bot(TelegramObject):
             message_thread_id=message_thread_id,
             business_connection_id=business_connection_id,
             direct_messages_topic_id=direct_messages_topic_id,
+            receiver_user_id=receiver_user_id,
+            callback_query_id=callback_query_id,
         )
 
     @log
@@ -3108,6 +3120,165 @@ class Bot(TelegramObject):
             timeout=timeout,
             reply_markup=reply_markup,
             api_kwargs=api_kwargs,
+        )
+
+    @log
+    def edit_ephemeral_message_text(
+        self,
+        chat_id: Union[str, int],
+        receiver_user_id: int,
+        ephemeral_message_id: int,
+        text: str,
+        parse_mode: ODVInput[str] = DEFAULT_NONE,
+        reply_markup: InlineKeyboardMarkup = None,
+        timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: JSONDict = None,
+        entities: Union[List['MessageEntity'], Tuple['MessageEntity', ...]] = None,
+        link_preview_options: Optional[JSONDict] = None,
+    ) -> bool:
+        """
+        Edit an ephemeral text message visible only to ``receiver_user_id`` and the bot.
+        Telegram returns True on success and doesn't guarantee delivery of the edit event if the
+        user is offline.
+        """
+        data: JSONDict = {
+            'chat_id': chat_id,
+            'receiver_user_id': receiver_user_id,
+            'ephemeral_message_id': ephemeral_message_id,
+            'text': text,
+            'parse_mode': parse_mode,
+            'link_preview_options': link_preview_options,
+        }
+
+        if entities:
+            data['entities'] = [me.to_dict() for me in entities]
+        if reply_markup is not None:
+            data['reply_markup'] = (
+                reply_markup.to_json() if isinstance(reply_markup, ReplyMarkup) else reply_markup
+            )
+
+        return self._post(  # type: ignore[return-value]
+            'editEphemeralMessageText', data, timeout=timeout, api_kwargs=api_kwargs
+        )
+
+    @log
+    def edit_ephemeral_message_media(
+        self,
+        chat_id: Union[str, int],
+        receiver_user_id: int,
+        ephemeral_message_id: int,
+        media: 'InputMedia',
+        reply_markup: InlineKeyboardMarkup = None,
+        timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: JSONDict = None,
+    ) -> bool:
+        """
+        Edit media of an ephemeral message visible only to ``receiver_user_id`` and the bot.
+        Telegram returns True on success.
+        """
+        data: JSONDict = {
+            'chat_id': chat_id,
+            'receiver_user_id': receiver_user_id,
+            'ephemeral_message_id': ephemeral_message_id,
+            'media': media,
+        }
+
+        if reply_markup is not None:
+            data['reply_markup'] = (
+                reply_markup.to_json() if isinstance(reply_markup, ReplyMarkup) else reply_markup
+            )
+
+        return self._post(  # type: ignore[return-value]
+            'editEphemeralMessageMedia', data, timeout=timeout, api_kwargs=api_kwargs
+        )
+
+    @log
+    def edit_ephemeral_message_caption(
+        self,
+        chat_id: Union[str, int],
+        receiver_user_id: int,
+        ephemeral_message_id: int,
+        caption: str = None,
+        parse_mode: ODVInput[str] = DEFAULT_NONE,
+        reply_markup: InlineKeyboardMarkup = None,
+        timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: JSONDict = None,
+        caption_entities: Union[List['MessageEntity'], Tuple['MessageEntity', ...]] = None,
+    ) -> bool:
+        """
+        Edit caption of an ephemeral message visible only to ``receiver_user_id`` and the bot.
+        Telegram returns True on success.
+        """
+        data: JSONDict = {
+            'chat_id': chat_id,
+            'receiver_user_id': receiver_user_id,
+            'ephemeral_message_id': ephemeral_message_id,
+            'caption': caption,
+            'parse_mode': parse_mode,
+        }
+
+        if caption_entities:
+            data['caption_entities'] = [me.to_dict() for me in caption_entities]
+        if reply_markup is not None:
+            data['reply_markup'] = (
+                reply_markup.to_json() if isinstance(reply_markup, ReplyMarkup) else reply_markup
+            )
+
+        return self._post(  # type: ignore[return-value]
+            'editEphemeralMessageCaption', data, timeout=timeout, api_kwargs=api_kwargs
+        )
+
+    @log
+    def edit_ephemeral_message_reply_markup(
+        self,
+        chat_id: Union[str, int],
+        receiver_user_id: int,
+        ephemeral_message_id: int,
+        reply_markup: Optional['InlineKeyboardMarkup'] = None,
+        timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: JSONDict = None,
+    ) -> bool:
+        """
+        Edit reply markup of an ephemeral message visible only to ``receiver_user_id`` and the bot.
+        Telegram returns True on success.
+        """
+        data: JSONDict = {
+            'chat_id': chat_id,
+            'receiver_user_id': receiver_user_id,
+            'ephemeral_message_id': ephemeral_message_id,
+        }
+
+        if reply_markup is not None:
+            data['reply_markup'] = (
+                reply_markup.to_json() if isinstance(reply_markup, ReplyMarkup) else reply_markup
+            )
+
+        return self._post(  # type: ignore[return-value]
+            'editEphemeralMessageReplyMarkup', data, timeout=timeout, api_kwargs=api_kwargs
+        )
+
+    @log
+    def delete_ephemeral_message(
+        self,
+        chat_id: Union[str, int],
+        receiver_user_id: int,
+        ephemeral_message_id: int,
+        timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: JSONDict = None,
+    ) -> bool:
+        """
+        Delete an ephemeral message visible only to ``receiver_user_id`` and the bot.
+        Telegram returns True on success and doesn't guarantee delivery of the deletion event if
+        the user is offline.
+        """
+        data: JSONDict = {
+            'chat_id': chat_id,
+            'receiver_user_id': receiver_user_id,
+            'ephemeral_message_id': ephemeral_message_id,
+        }
+
+        return self._post(  # type: ignore[return-value]
+            'deleteEphemeralMessage', data, timeout=timeout, api_kwargs=api_kwargs
         )
 
     @log
@@ -6741,6 +6912,16 @@ class Bot(TelegramObject):
     """Alias for :meth:`edit_message_media`"""
     editMessageReplyMarkup = edit_message_reply_markup
     """Alias for :meth:`edit_message_reply_markup`"""
+    editEphemeralMessageText = edit_ephemeral_message_text
+    """Alias for :meth:`edit_ephemeral_message_text`"""
+    editEphemeralMessageMedia = edit_ephemeral_message_media
+    """Alias for :meth:`edit_ephemeral_message_media`"""
+    editEphemeralMessageCaption = edit_ephemeral_message_caption
+    """Alias for :meth:`edit_ephemeral_message_caption`"""
+    editEphemeralMessageReplyMarkup = edit_ephemeral_message_reply_markup
+    """Alias for :meth:`edit_ephemeral_message_reply_markup`"""
+    deleteEphemeralMessage = delete_ephemeral_message
+    """Alias for :meth:`delete_ephemeral_message`"""
     getUpdates = get_updates
     """Alias for :meth:`get_updates`"""
     setWebhook = set_webhook

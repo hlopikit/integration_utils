@@ -496,6 +496,8 @@ class Message(TelegramObject):
         'author_signature',
         'proximity_alert_triggered',
         'sender_chat',
+        'receiver_user',
+        'ephemeral_message_id',
         'dice',
         'forward_from_message_id',
         'caption_entities',
@@ -628,6 +630,8 @@ class Message(TelegramObject):
         via_bot: User = None,
         proximity_alert_triggered: ProximityAlertTriggered = None,
         sender_chat: Chat = None,
+        receiver_user: User = None,
+        ephemeral_message_id: int = None,
         voice_chat_started: VoiceChatStarted = None,
         voice_chat_ended: VoiceChatEnded = None,
         voice_chat_participants_invited: VoiceChatParticipantsInvited = None,
@@ -680,6 +684,8 @@ class Message(TelegramObject):
         # Optionals
         self.from_user = from_user
         self.sender_chat = sender_chat
+        self.receiver_user = receiver_user
+        self.ephemeral_message_id = ephemeral_message_id
         self.date = date
         self.chat = chat
         self.forward_from = forward_from
@@ -798,6 +804,7 @@ class Message(TelegramObject):
 
         data['from_user'] = User.de_json(data.get('from'), bot)
         data['sender_chat'] = Chat.de_json(data.get('sender_chat'), bot)
+        data['receiver_user'] = User.de_json(data.get('receiver_user'), bot)
         data['date'] = from_timestamp(data['date'])
         data['chat'] = Chat.de_json(data.get('chat'), bot)
         data['entities'] = MessageEntity.de_list(data.get('entities'), bot)
