@@ -41,7 +41,9 @@ python manage.py migrate iu_key_value
 
 ## Использование
 
-Для новых мест используйте методы модели:
+Для новых мест используйте только методы модели `get_value()` и `set_value()`. Не используйте в прикладном cron/helper-коде прямые вызовы
+`KeyValue.objects.get()`, `get_or_create()`, `create()`, `update()` или `save()`: они дублируют логику хранилища и не выполняют ленивый перенос
+данных из legacy `integration_utils.its_utils.app_settings.KeyValue`.
 
 ```python
 from integration_utils.iu_key_value.models import KeyValue
@@ -54,6 +56,37 @@ KeyValue.set_value(
 
 value = KeyValue.get_value("example-key")
 ```
+
+## Идеальный пример: курсор cron-сценария
+
+Ниже показан полный шаблон для cron, который обрабатывает записи по возрастанию ID. Он сохраняет курсор только после успешной обработки записи,
+а при самом первом запуске начинает с текущего последнего ID, не отправляя исторические данные. Если ключ ранее хранился в `app_settings.KeyValue`,
+первый `get_value()` перенесет его автоматически.
+
+```python
+from integration_utils.iu_key_value.models import KeyValue
+
+
+LAST_RECORD_ID_KEY = "example_cron_last_record_id"
+
+
+def cron_process_records(client):
+    last_record_id = KeyValue.get_value(key=LAST_RECORD_ID_KEY)
+    if last_record_id is None:
+        last_record_id = client.get_latest_record_id()
+        KeyValue.set_value(
+            key=LAST_RECORD_ID_KEY,
+            value=last_record_id,
+            comment="ID последней успешно обработанной записи example_cron.",
+        )
+        return "Курсор инициализирован"
+
+    for record in client.get_records_after(last_record_id):
+        process_record(record)
+        KeyValue.set_value(key=LAST_RECORD_ID_KEY, value=record["id"])
+```
+
+Не заменяйте этот шаблон на возврат ORM-объекта: `get_value()` возвращает само JSON-значение, а `set_value()` централизованно сохраняет его.
 
 Функции из `integration_utils/iu_key_value/functions.py` считаются устаревшими совместимыми обертками. В новом коде их лучше не использовать.
 

@@ -2,6 +2,7 @@ from django.db import models
 
 
 class KeyValue(models.Model):
+    """Хранит служебные JSON-значения и дает единый API для cron и helper-кода."""
     key = models.SlugField(u'ключ', primary_key=True)
 
     json_value = models.JSONField(u'json значение', null=True, blank=True)
@@ -16,8 +17,10 @@ class KeyValue(models.Model):
     @staticmethod
     def set_value(key, value, comment=''):
         """
-        1) Сохраняет значение по ключу в `json_value`, а при переданном непустом `comment` синхронно обновляет и комментарий записи.
-        2) Используется cron/helper-кодом как компактный API поверх `KeyValue`, чтобы не дублировать ручной `get_or_create/update`.
+        Сохраняет значение по ключу в `json_value`, а при переданном непустом `comment` синхронно обновляет комментарий записи.
+
+        Используется cron/helper-кодом вместо ручных `objects.get_or_create()`, `create()` и `save()`, чтобы правила хранения и логирование
+        оставались в одном месте.
         """
 
         from settings import ilogger
@@ -32,11 +35,17 @@ class KeyValue(models.Model):
 
     @staticmethod
     def get_value(key, create=False, default='', comment=''):
+        """
+        Возвращает JSON-значение по ключу и при первом чтении переносит legacy-значение из `app_settings.KeyValue`.
+
+        Используется cron/helper-кодом для чтения настроек без прямого запроса к ORM. При `create=True` создает отсутствующий ключ через
+        `set_value()` со значением `default`.
+        """
         try:
             return KeyValue.objects.get(key=key).json_value
         except KeyValue.DoesNotExist:
             try:
-                # Кусок для переезда со старой функции
+                # Переезд выполняется лениво, чтобы первый вызов нового API не терял уже сохраненный служебный курсор.
                 from integration_utils.its_utils.app_settings.models import KeyValue as KeyValueOld
                 kv = KeyValueOld.objects.get(key=key)
                 KeyValue.objects.create(key=key, json_value=kv.value, comment=kv.comment)
