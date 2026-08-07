@@ -2,6 +2,8 @@
 
 # iu_key_value
 
+Статья в БЗ: https://it-solution.kdb24.ru/new/article/526441/
+
 `integration_utils.iu_key_value` - маленькое Django-приложение для хранения проектных ключей и JSON-значений в базе данных.
 
 Основная модель:
