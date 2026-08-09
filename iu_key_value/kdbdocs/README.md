@@ -92,6 +92,23 @@ def cron_process_records(client):
 
 Функции из `integration_utils/iu_key_value/functions.py` считаются устаревшими совместимыми обертками. В новом коде их лучше не использовать.
 
+## Изолированная модель для приложения
+
+`integration_utils/iu_key_value/models/abstract_key_value.py` содержит `AbstractKeyValue`. Это абстрактная база: её concrete-наследник в
+конкретном Django-приложении получает собственную таблицу, отдельную админку и Django-права этой модели. Такой вариант подходит, когда ключи и
+значения не должны быть видны среди общих служебных ключей.
+
+```python
+from integration_utils.iu_key_value.models import AbstractKeyValue
+
+
+class ExampleAppKeyValue(AbstractKeyValue):
+    log_value = False
+```
+
+`log_value = False` обязателен для JSON со служебными секретами: тогда `set_value()` фиксирует факт обновления, но не значение. Для новой
+concrete-модели нужна отдельная миграция её приложения. В прикладном коде используйте только унаследованные `get_value()` и `set_value()`.
+
 ## Пример: watermark cron-загрузки
 
 Для cron-задач удобно сохранять дату последнего успешного запуска или загрузки:

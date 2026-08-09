@@ -16,6 +16,27 @@
 В новом прикладном коде нужно использовать именно эти методы, а не прямые вызовы ORM к `KeyValue.objects` или `save()`. Это сохраняет единый
 контракт хранения, логирование и совместимый перенос со старого хранилища.
 
+## Изолированное хранилище приложения
+
+`AbstractKeyValue` в `integration_utils/iu_key_value/models/abstract_key_value.py` — абстрактная база для нового приложения. Concrete-наследник
+получает собственную таблицу, отдельную модель в админке и стандартные Django-права `view`, `add`, `change`, `delete` именно этой модели.
+
+```python
+from integration_utils.iu_key_value.models import AbstractKeyValue
+
+
+class ExampleAppKeyValue(AbstractKeyValue):
+    log_value = False  # Если JSON содержит секреты.
+
+    class Meta:
+        verbose_name = "Настройка Example App"
+        verbose_name_plural = "Настройки Example App"
+```
+
+После добавления такого наследника нужна отдельная вручную подготовленная миграция приложения. В коде наследника используйте
+`ExampleAppKeyValue.get_value()` и `ExampleAppKeyValue.set_value()`, а не его ORM напрямую. Старый `KeyValue` остаётся concrete-моделью общей
+инфраструктурной таблицы и сохраняет ленивый перенос значений из `app_settings.KeyValue`.
+
 Подробный пример cursor для cron: `integration_utils/iu_key_value/kdbdocs/README.md`.
 
 ## Проверки при изменениях
