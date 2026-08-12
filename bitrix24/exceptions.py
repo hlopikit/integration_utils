@@ -377,6 +377,14 @@ class BitrixApiError(BitrixApiException):
         """
         return self.error == 'PORTAL_BLOCKED_BY_LICENSE_SCANNER'
 
+    @property
+    def is_workflow_not_found(self):
+        """
+        Запуск бизнес-процесса в b_bp_workflow_instance не найден (возможно, завершён).
+        Пример: error='404', error_description='Бизнес-процесс не найден'
+        """
+        return self.error_description == "Бизнес-процесс не найден"
+
     def dict(self):
         if isinstance(self.json_response, dict):
             error = self.json_response
