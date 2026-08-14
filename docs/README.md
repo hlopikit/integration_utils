@@ -4,6 +4,10 @@
 
 `integration_utils` хранит общие интеграционные helpers и vendored-клиенты, которые используются несколькими приложениями проекта.
 
+## OPERATING в Bitrix24
+
+Правило разбора медленных REST-вызовов Bitrix24 и критерии оптимизации описаны в [будущей статье БЗ](../kdbdocs/operating_bitrix24_optimization.md). Сигнал `method_operating` не следует скрывать или компенсировать только увеличением таймаута: необходимо изучить вызывающий сценарий и сократить нагрузку на API.
+
 ## Telegram retry
 
 `integration_utils/itsolution/decorators/telegram_retry_decorator.py` содержит `telegram_retry_decorator` для повторных попыток Telegram-методов.
