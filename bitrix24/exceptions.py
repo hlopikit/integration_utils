@@ -44,6 +44,13 @@ class BitrixApiException(Exception):
     Ошибка при работе с API Битрикс.
     """
     @property
+    def friendly_error(self):
+        """
+        Текст ошибки, который можно отдавать конечному пользователю.
+        """
+        return str(self)
+
+    @property
     def is_not_logic_error(self):
         return False
 
@@ -64,6 +71,43 @@ class BitrixApiError(BitrixApiException):
     Иногда формируем ошибку сами (не ответ Битрикс).
     """
     TOKEN_DEACTIVATED = 'token_deactivated'
+
+    FRIENDLY_ERROR_BY_DESCRIPTION = {
+        'Max batch length exceeded': 'Превышен максимальный размер batch-запроса или количество операций в нём.',
+        'Invalid argument value provided': 'В запросе передано недопустимое значение одного из параметров.',
+        'No client credentials': 'На портале Битрикс24 не настроены service_client_id/service_client_secret для REST.',
+        'Https required': 'Для вызова REST API Битрикс24 требуется HTTPS.',
+        'Invalid request credentials': 'Битрикс24 не принял данные авторизации: проверьте access-токен, вебхук или параметры OAuth.',
+        'User not authorized': 'Пользователь не авторизован в сессии Битрикс24.',
+        'Access denied for this type of user': 'Авторизация через сессию запрещена для этого типа пользователя Битрикс24.',
+        'Sessid check failed': 'Проверка CSRF-токена сессии Битрикс24 не пройдена.',
+        'REST API is blocked due to overload.': 'REST API Битрикс24 временно заблокирован из-за перегрузки приложения или вебхука.',
+        'REST API is blocked due to overload': 'REST API Битрикс24 временно заблокирован из-за общей перегрузки сервиса.',
+        'REST is available only by subscription.': 'Входящий вебхук заблокирован из-за ограничений подписки Битрикс24.',
+        'The request requires higher privileges than provided by the webhook token': 'Вебхуку не хватает прав для выполнения этого REST-метода.',
+        'Waiting for confirmation': 'Вызов REST-метода ожидает подтверждения пользователем.',
+        'Rate limit exceeded. Too many requests in a given amount of time.': 'Интеграция или вебхук временно заблокированы из-за превышения лимита запросов.',
+        'Method call denied': 'Пользователь отклонил подтверждение вызова REST-метода.',
+        'Method allowed only for intranet users': 'Метод доступен только внутренним пользователям портала Битрикс24.',
+        'Manifest is not available': 'Манифест приложения или REST-метода недоступен.',
+        'Method is not allowed for batch usage': 'Этот REST-метод нельзя вызывать внутри batch.',
+        'SQL query error!': 'Внутренняя SQL-ошибка на стороне Битрикс24.',
+        'Server returned an unexpected response': 'Сервер Битрикс24 вернул неожиданный ответ.',
+        'Server returned an unexpected response.': 'Сервер Битрикс24 вернул неожиданный ответ.',
+        'Wrong transport!': 'Запрошен неподдерживаемый формат ответа Битрикс24.',
+        'Wrong handler class!': 'Внутренняя ошибка Битрикс24: некорректный класс обработчика REST-метода.',
+        'Internal server error': 'Внутренняя ошибка сервера Битрикс24.',
+        'Too many requests': 'Превышен общий лимит интенсивности запросов к REST API Битрикс24.',
+        'Given scope exceeds permissions associated with given grant': 'Запрошенные права превышают разрешения, доступные этому OAuth-гранту.',
+        'No "refresh_token" parameter found': 'OAuth-запрос неполный: отсутствует обязательный параметр refresh_token.',
+    }
+
+    FRIENDLY_ERROR_BY_DESCRIPTION_PREFIX = {
+        'Current authorization type is denied for this method':
+            'Этот тип авторизации нельзя использовать для данного REST-метода.',
+        'This feature is not enabled for the current license:':
+            'Функция недоступна на текущем тарифе Битрикс24.',
+    }
 
     def __init__(self, has_resp, json_response, status_code, message, token=None):
         """
@@ -91,6 +135,106 @@ class BitrixApiError(BitrixApiException):
     def error_description(self):
         if isinstance(self.json_response, dict):
             return self.json_response.get('error_description')
+
+    @property
+    def friendly_error(self):
+        if self.is_token_deactivated:
+            return 'Токен Битрикс24 деактивирован в приложении.'
+        if self.is_cant_refresh:
+            return 'Не удалось обновить access-токен Битрикс24.'
+        if self.is_unable_to_authorize_user:
+            return 'Пользователь Битрикс24 не активен: уволен или заблокирован.'
+        if self.is_user_cant_be_authorized_in_context:
+            return 'Токен действителен, но связанный с ним пользователь не может быть авторизован в этом контексте.'
+        if self.is_invalid_token:
+            return 'Битрикс24 не смог сопоставить OAuth-токен с приложением.'
+        if self.is_token_expired:
+            return 'Access-токен Битрикс24 истёк, нужно обновить токен.'
+        if self.is_user_access_error:
+            return 'У пользователя нет доступа к приложению Битрикс24.'
+        if self.is_access_error:
+            return 'У токена нет доступа к запрошенному объекту или действию Битрикс24.'
+        if self.is_access_denied_extended_plans:
+            return 'Действие доступно только на расширенных тарифах Битрикс24.'
+        if self.is_access_denied_no_rights_for_list:
+            return 'У пользователя нет прав для просмотра и редактирования списка Битрикс24.'
+        if self.is_access_denied:
+            return 'Битрикс24 отказал в доступе к запрошенному действию.'
+        if self.is_free_plan_error:
+            return 'REST API доступен только на коммерческих тарифах Битрикс24.'
+        if self.is_payment_required:
+            return 'У портала Битрикс24 закончилась активная подписка.'
+        if self.is_out_of_disc_space_error:
+            return 'На портале Битрикс24 исчерпан выделенный дисковый ресурс.'
+        if self.is_not_found:
+            return 'Запрошенный объект Битрикс24 не найден.'
+        if self.is_error_not_found:
+            return 'Запрошенная сущность или тип не найдены в Битрикс24.'
+        if self.is_method_not_found:
+            return 'REST-метод не найден: проверьте имя метода, доступность модуля и тариф портала.'
+        if self.is_no_auth_found:
+            return 'Битрикс24 не распознал переданные данные авторизации.'
+        if self.is_portal_deleted:
+            return 'Портал Битрикс24 остановлен, удалён или его публичная часть недоступна.'
+        if self.is_wrong_encoding:
+            return 'Битрикс24 не смог корректно сформировать JSON-ответ из-за ошибки кодировки.'
+        if self.is_application_not_found:
+            return 'OAuth-приложение не найдено или неактивно на портале Битрикс24.'
+        if self.is_application_not_installed:
+            return 'Приложение удалено или не установлено на портале Битрикс24.'
+        if self.is_connection_to_bitrix_error:
+            return 'Не удалось подключиться к порталу Битрикс24.'
+        if self.is_error_connecting_to_authorization_server:
+            return 'Не удалось подключиться к серверу авторизации Битрикс24.'
+        if self.is_connection_error:
+            return 'Не удалось подключиться к серверу авторизации Битрикс24.'
+        if self.is_license_check_failed:
+            return 'Проверка лицензии портала Битрикс24 не пройдена.'
+        if self.is_sphinx_connect_error:
+            return 'Битрикс24 не смог подключиться к поисковому сервису Sphinx.'
+        if self.is_mysql_query_error:
+            return 'Внутренняя ошибка базы данных на стороне Битрикс24.'
+        if self.is_bad_gateway:
+            return 'Шлюз Битрикс24 вернул ошибку Bad Gateway.'
+        if self.is_gateway_timeout:
+            return 'Битрикс24 не ответил вовремя: шлюз вернул Gateway Timeout.'
+        if self.is_operation_time_limit:
+            return 'Метод заблокирован из-за превышения лимита времени выполнения операции.'
+        if self.is_portal_blocked_by_license_scanner:
+            return 'Портал Битрикс24 заблокирован проверкой лицензии.'
+        if self.is_workflow_not_found:
+            return 'Бизнес-процесс Битрикс24 не найден или уже завершён.'
+
+        friendly_error = self.FRIENDLY_ERROR_BY_DESCRIPTION.get(self.error_description)
+        if friendly_error:
+            return friendly_error
+
+        if self.error_description:
+            for description_prefix, friendly_error in self.FRIENDLY_ERROR_BY_DESCRIPTION_PREFIX.items():
+                if self.error_description.startswith(description_prefix):
+                    return friendly_error
+
+        if self.is_error_core:
+            return 'Внутренняя ошибка Битрикс24 при обработке REST-запроса.'
+        if self.is_internal_server_error:
+            return 'Внутренняя ошибка сервера Битрикс24.'
+        if self.status_code is not None and self.is_status_gte_500:  # У batch-ошибки может не быть статус-кода.
+            return 'Битрикс24 вернул серверную ошибку.'
+        if self.is_insufficient_scope:
+            return 'Токену не хватает прав для выполнения этого REST-метода.'
+        if self.is_authorization_error:
+            return 'Битрикс24 не смог авторизовать пользователя.'
+        if self.is_access_denied_any:
+            return 'Битрикс24 отказал в доступе к запрошенному действию.'
+        if self.is_unauthorized_any:
+            return 'Битрикс24 не авторизовал REST-запрос.'
+
+        if self.error_description:
+            return self.error_description
+        if self.message:
+            return self.message
+
+        return 'Неизвестная ошибка REST API Битрикс24.'
 
     @property
     def is_not_logic_error(self):
@@ -511,6 +655,10 @@ class BatchApiCallError(BatchFailed):
         )
 
     @property
+    def friendly_error(self):
+        return self.bitrix_api_error.friendly_error
+
+    @property
     def is_not_logic_error(self):
         """
         Используется свойство из BitrixApiError.
@@ -531,6 +679,10 @@ class JsonDecodeBatchFailed(BatchFailed):
     def is_not_logic_error(self):
         return True
 
+    @property
+    def friendly_error(self):
+        return 'Битрикс24 вернул не JSON в ответе на batch-запрос.'
+
 
 class BaseRequestException(BitrixApiException):
     """
@@ -544,6 +696,10 @@ class BaseRequestException(BitrixApiException):
     @property
     def is_not_logic_error(self):
         return True
+
+    @property
+    def friendly_error(self):
+        return 'Не удалось выполнить запрос к Битрикс24.'
 
     def __str__(self):
         return f"{self.requests_exception}"
@@ -579,6 +735,9 @@ class BitrixConnectionError(BaseConnectionError):
     """
     Ошибка соединения при запросе к порталу Битрикс.
     """
+    @property
+    def friendly_error(self):
+        return 'Не удалось подключиться к порталу Битрикс24. Проверьте доступность портала и сетевое соединение.'
 
 
 # Для обратной совместимости
@@ -589,6 +748,9 @@ class BitrixOauthRefreshConnectionError(BaseConnectionError):
     """
     Ошибка соединения при запросе к серверу авторизации Битрикс при обновлении токена.
     """
+    @property
+    def friendly_error(self):
+        return 'Не удалось подключиться к серверу авторизации Битрикс24 при обновлении токена.'
 
 
 # Для обратной совместимости
@@ -614,10 +776,16 @@ class BitrixTimeout(BaseTimeout):
     """
     Таймаут при запросе к порталу Битрикс.
     """
+    @property
+    def friendly_error(self):
+        return f'Портал Битрикс24 не ответил за отведённое время: {self.timeout}.'
 
 
 class BitrixOauthRefreshTimeout(BaseTimeout):
     """
     Таймаут при запросе к серверу авторизации Битрикс при обновлении токена.
     """
+    @property
+    def friendly_error(self):
+        return f'Сервер авторизации Битрикс24 не ответил за отведённое время при обновлении токена: {self.timeout}.'
 
