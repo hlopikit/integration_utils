@@ -48,7 +48,7 @@ class BitrixApiException(Exception):
         """
         Текст ошибки, который можно отдавать конечному пользователю.
         """
-        return str(self)
+        return 'Неизвестное исключение REST API Битрикс24.'
 
     @property
     def is_not_logic_error(self):
@@ -71,43 +71,6 @@ class BitrixApiError(BitrixApiException):
     Иногда формируем ошибку сами (не ответ Битрикс).
     """
     TOKEN_DEACTIVATED = 'token_deactivated'
-
-    FRIENDLY_ERROR_BY_DESCRIPTION = {
-        'Max batch length exceeded': 'Превышен максимальный размер batch-запроса или количество операций в нём.',
-        'Invalid argument value provided': 'В запросе передано недопустимое значение одного из параметров.',
-        'No client credentials': 'На портале Битрикс24 не настроены service_client_id/service_client_secret для REST.',
-        'Https required': 'Для вызова REST API Битрикс24 требуется HTTPS.',
-        'Invalid request credentials': 'Битрикс24 не принял данные авторизации: проверьте access-токен, вебхук или параметры OAuth.',
-        'User not authorized': 'Пользователь не авторизован в сессии Битрикс24.',
-        'Access denied for this type of user': 'Авторизация через сессию запрещена для этого типа пользователя Битрикс24.',
-        'Sessid check failed': 'Проверка CSRF-токена сессии Битрикс24 не пройдена.',
-        'REST API is blocked due to overload.': 'REST API Битрикс24 временно заблокирован из-за перегрузки приложения или вебхука.',
-        'REST API is blocked due to overload': 'REST API Битрикс24 временно заблокирован из-за общей перегрузки сервиса.',
-        'REST is available only by subscription.': 'Входящий вебхук заблокирован из-за ограничений подписки Битрикс24.',
-        'The request requires higher privileges than provided by the webhook token': 'Вебхуку не хватает прав для выполнения этого REST-метода.',
-        'Waiting for confirmation': 'Вызов REST-метода ожидает подтверждения пользователем.',
-        'Rate limit exceeded. Too many requests in a given amount of time.': 'Интеграция или вебхук временно заблокированы из-за превышения лимита запросов.',
-        'Method call denied': 'Пользователь отклонил подтверждение вызова REST-метода.',
-        'Method allowed only for intranet users': 'Метод доступен только внутренним пользователям портала Битрикс24.',
-        'Manifest is not available': 'Манифест приложения или REST-метода недоступен.',
-        'Method is not allowed for batch usage': 'Этот REST-метод нельзя вызывать внутри batch.',
-        'SQL query error!': 'Внутренняя SQL-ошибка на стороне Битрикс24.',
-        'Server returned an unexpected response': 'Сервер Битрикс24 вернул неожиданный ответ.',
-        'Server returned an unexpected response.': 'Сервер Битрикс24 вернул неожиданный ответ.',
-        'Wrong transport!': 'Запрошен неподдерживаемый формат ответа Битрикс24.',
-        'Wrong handler class!': 'Внутренняя ошибка Битрикс24: некорректный класс обработчика REST-метода.',
-        'Internal server error': 'Внутренняя ошибка сервера Битрикс24.',
-        'Too many requests': 'Превышен общий лимит интенсивности запросов к REST API Битрикс24.',
-        'Given scope exceeds permissions associated with given grant': 'Запрошенные права превышают разрешения, доступные этому OAuth-гранту.',
-        'No "refresh_token" parameter found': 'OAuth-запрос неполный: отсутствует обязательный параметр refresh_token.',
-    }
-
-    FRIENDLY_ERROR_BY_DESCRIPTION_PREFIX = {
-        'Current authorization type is denied for this method':
-            'Этот тип авторизации нельзя использовать для данного REST-метода.',
-        'This feature is not enabled for the current license:':
-            'Функция недоступна на текущем тарифе Битрикс24.',
-    }
 
     def __init__(self, has_resp, json_response, status_code, message, token=None):
         """
@@ -204,16 +167,60 @@ class BitrixApiError(BitrixApiException):
             return 'Портал Битрикс24 заблокирован проверкой лицензии.'
         if self.is_workflow_not_found:
             return 'Бизнес-процесс Битрикс24 не найден или уже завершён.'
-
-        friendly_error = self.FRIENDLY_ERROR_BY_DESCRIPTION.get(self.error_description)
-        if friendly_error:
-            return friendly_error
-
-        if self.error_description:
-            for description_prefix, friendly_error in self.FRIENDLY_ERROR_BY_DESCRIPTION_PREFIX.items():
-                if self.error_description.startswith(description_prefix):
-                    return friendly_error
-
+        if self.is_batch_length_exceeded:
+            return 'Превышен максимальный размер batch-запроса или количество операций в нём.'
+        if self.is_invalid_argument_value:
+            return 'В запросе передано недопустимое значение одного из параметров.'
+        if self.is_no_client_credentials:
+            return 'На портале Битрикс24 не настроены service_client_id/service_client_secret для REST.'
+        if self.is_https_required:
+            return 'Для вызова REST API Битрикс24 требуется HTTPS.'
+        if self.is_invalid_request_credentials:
+            return 'Битрикс24 не принял данные авторизации: проверьте access-токен, вебхук или параметры OAuth.'
+        if self.is_user_not_authorized:
+            return 'Пользователь не авторизован в сессии Битрикс24.'
+        if self.is_access_denied_for_user_type:
+            return 'Авторизация через сессию запрещена для этого типа пользователя Битрикс24.'
+        if self.is_session_failed:
+            return 'Проверка CSRF-токена сессии Битрикс24 не пройдена.'
+        if self.is_application_overload_limit:
+            return 'REST API Битрикс24 временно заблокирован из-за перегрузки приложения или вебхука.'
+        if self.is_service_overload_limit:
+            return 'REST API Битрикс24 временно заблокирован из-за общей перегрузки сервиса.'
+        if self.is_subscription_required:
+            return 'Входящий вебхук заблокирован из-за ограничений подписки Битрикс24.'
+        if self.is_webhook_insufficient_scope:
+            return 'Вебхуку не хватает прав для выполнения этого REST-метода.'
+        if self.is_method_confirmation_waiting:
+            return 'Вызов REST-метода ожидает подтверждения пользователем.'
+        if self.is_rate_limit_exceeded:
+            return 'Интеграция или вебхук временно заблокированы из-за превышения лимита запросов.'
+        if self.is_method_confirmation_denied:
+            return 'Пользователь отклонил подтверждение вызова REST-метода.'
+        if self.is_intranet_user_required:
+            return 'Метод доступен только внутренним пользователям портала Битрикс24.'
+        if self.is_manifest_not_available:
+            return 'Манифест приложения или REST-метода недоступен.'
+        if self.is_batch_method_not_allowed:
+            return 'Этот REST-метод нельзя вызывать внутри batch.'
+        if self.is_sql_query_error:
+            return 'Внутренняя SQL-ошибка на стороне Битрикс24.'
+        if self.is_unexpected_answer:
+            return 'Сервер Битрикс24 вернул неожиданный ответ.'
+        if self.is_wrong_transport:
+            return 'Запрошен неподдерживаемый формат ответа Битрикс24.'
+        if self.is_wrong_handler_class:
+            return 'Внутренняя ошибка Битрикс24: некорректный класс обработчика REST-метода.'
+        if self.is_too_many_requests:
+            return 'Превышен общий лимит интенсивности запросов к REST API Битрикс24.'
+        if self.is_invalid_scope:
+            return 'Запрошенные права превышают разрешения, доступные этому OAuth-гранту.'
+        if self.is_refresh_token_parameter_missing:
+            return 'OAuth-запрос неполный: отсутствует обязательный параметр refresh_token.'
+        if self.is_wrong_auth_type:
+            return 'Этот тип авторизации нельзя использовать для данного REST-метода.'
+        if self.is_wrong_license:
+            return 'Функция недоступна на текущем тарифе Битрикс24.'
         if self.is_error_core:
             return 'Внутренняя ошибка Битрикс24 при обработке REST-запроса.'
         if self.is_internal_server_error:
@@ -228,11 +235,6 @@ class BitrixApiError(BitrixApiException):
             return 'Битрикс24 отказал в доступе к запрошенному действию.'
         if self.is_unauthorized_any:
             return 'Битрикс24 не авторизовал REST-запрос.'
-
-        if self.error_description:
-            return self.error_description
-        if self.message:
-            return self.message
 
         return 'Неизвестная ошибка REST API Битрикс24.'
 
@@ -529,6 +531,118 @@ class BitrixApiError(BitrixApiException):
         """
         return self.error_description == "Бизнес-процесс не найден"
 
+    @property
+    def is_batch_length_exceeded(self):
+        return self.error_description == 'Max batch length exceeded'
+
+    @property
+    def is_invalid_argument_value(self):
+        return self.error_description == 'Invalid argument value provided'
+
+    @property
+    def is_no_client_credentials(self):
+        return self.error_description == 'No client credentials'
+
+    @property
+    def is_https_required(self):
+        return self.error_description == 'Https required'
+
+    @property
+    def is_invalid_request_credentials(self):
+        return self.error_description == 'Invalid request credentials'
+
+    @property
+    def is_user_not_authorized(self):
+        return self.error_description == 'User not authorized'
+
+    @property
+    def is_access_denied_for_user_type(self):
+        return self.error_description == 'Access denied for this type of user'
+
+    @property
+    def is_session_failed(self):
+        return self.error_description == 'Sessid check failed'
+
+    @property
+    def is_application_overload_limit(self):
+        return self.error_description == 'REST API is blocked due to overload.'
+
+    @property
+    def is_service_overload_limit(self):
+        return self.error_description == 'REST API is blocked due to overload'
+
+    @property
+    def is_subscription_required(self):
+        return self.error_description == 'REST is available only by subscription.'
+
+    @property
+    def is_webhook_insufficient_scope(self):
+        return self.error_description == 'The request requires higher privileges than provided by the webhook token'
+
+    @property
+    def is_method_confirmation_waiting(self):
+        return self.error_description == 'Waiting for confirmation'
+
+    @property
+    def is_rate_limit_exceeded(self):
+        return self.error_description == 'Rate limit exceeded. Too many requests in a given amount of time.'
+
+    @property
+    def is_method_confirmation_denied(self):
+        return self.error_description == 'Method call denied'
+
+    @property
+    def is_intranet_user_required(self):
+        return self.error_description == 'Method allowed only for intranet users'
+
+    @property
+    def is_manifest_not_available(self):
+        return self.error_description == 'Manifest is not available'
+
+    @property
+    def is_batch_method_not_allowed(self):
+        return self.error_description == 'Method is not allowed for batch usage'
+
+    @property
+    def is_sql_query_error(self):
+        return self.error_description == 'SQL query error!'
+
+    @property
+    def is_unexpected_answer(self):
+        return self.error_description in ('Server returned an unexpected response', 'Server returned an unexpected response.')
+
+    @property
+    def is_wrong_transport(self):
+        return self.error_description == 'Wrong transport!'
+
+    @property
+    def is_wrong_handler_class(self):
+        return self.error_description == 'Wrong handler class!'
+
+    @property
+    def is_too_many_requests(self):
+        return self.error_description == 'Too many requests'
+
+    @property
+    def is_invalid_scope(self):
+        return self.error_description == 'Given scope exceeds permissions associated with given grant'
+
+    @property
+    def is_refresh_token_parameter_missing(self):
+        return self.error_description == 'No "refresh_token" parameter found'
+
+    @property
+    def is_wrong_auth_type(self):
+        return bool(self.error_description and self.error_description.startswith(
+            'Current authorization type is denied for this method'
+        ))
+
+    @property
+    def is_wrong_license(self):
+        return bool(self.error_description and self.error_description.startswith(
+            'This feature is not enabled for the current license:'
+        ))
+
     def dict(self):
         if isinstance(self.json_response, dict):
             error = self.json_response
@@ -778,7 +892,7 @@ class BitrixTimeout(BaseTimeout):
     """
     @property
     def friendly_error(self):
-        return f'Портал Битрикс24 не ответил за отведённое время: {self.timeout}.'
+        return 'Портал Битрикс24 не ответил за отведённое время.'
 
 
 class BitrixOauthRefreshTimeout(BaseTimeout):
@@ -787,5 +901,5 @@ class BitrixOauthRefreshTimeout(BaseTimeout):
     """
     @property
     def friendly_error(self):
-        return f'Сервер авторизации Битрикс24 не ответил за отведённое время при обновлении токена: {self.timeout}.'
+        return 'Сервер авторизации Битрикс24 не ответил за отведённое время при обновлении токена.'
 
