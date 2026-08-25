@@ -3,6 +3,7 @@
 import hashlib
 import typing
 from datetime import datetime, timedelta
+from typing import Iterable, Optional
 
 import requests
 from django.conf import settings
@@ -138,16 +139,24 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             return pk
 
     @classmethod
-    def get_random_token(cls, is_admin=True, pk_desc=False, bitrix_unavailable_attempts = 2):
+    def get_random_token(
+            cls,
+            is_admin: bool = True,
+            pk_desc: bool = False,
+            bitrix_unavailable_attempts: int = 2,
+            user_ids: Optional[Iterable[int]] = None,
+    ) -> 'BitrixUserToken':
         """
         Получить один любой активный токен.
 
         :param is_admin: токен должен иметь права администратора (True - да, False - админский при наличии, иначе простого юзера)
         :param pk_desc: брать сначала последние токены
         :param bitrix_unavailable_attempts: число запросов в Битрикс, если он недоступен
+        :param user_ids: Bitrix ID пользователей, среди которых искать токен
         :raise BitrixUserTokenDoesNotExist: не найден подходящий токен
         :raise BitrixApiException: различные нерешаемые ошибки Битрикс
         """
+
         log_tag = 'integration_utils.BitrixUserToken.get_random_token'
 
         @retry_decorator(bitrix_unavailable_attempts, (BaseConnectionError, BaseTimeout))
@@ -165,6 +174,9 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             tokens = tokens.filter(user__is_admin=True).order_by(f'{"-" if pk_desc else ""}pk')
         else:
             tokens = tokens.order_by('-user__is_admin', f'{"-" if pk_desc else ""}pk')
+
+        if user_ids is not None:
+            tokens = tokens.filter(user__bitrix_id__in=user_ids)
 
         result_token = None
         likely_inactive_user_dict = {}
@@ -193,7 +205,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                 break
 
         if result_token is None:
-            raise BitrixUserToken.DoesNotExist()
+            raise BitrixUserToken.DoesNotExist(f"{user_ids=}")
         else:
             # Смотрим, были ли найдены потенциально неактивные пользователи
             if likely_inactive_user_dict:
