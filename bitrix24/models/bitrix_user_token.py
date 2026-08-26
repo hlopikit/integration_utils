@@ -124,22 +124,26 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
             return (self.exceptions,)
 
-        def __call__(self, func: typing.Callable):
-            def wrapper(*args, **kwargs):
-                for attempt in range(1, self.attempts + 1):
-                    try:
-                        return func(*args, **kwargs)
-                    except self.exception_classes as exc:
-                        if self.should_retry and not self.should_retry(exc):
-                            raise
+        def run(self, func: typing.Callable, *args, **kwargs):
+            for attempt in range(1, self.attempts + 1):
+                try:
+                    return func(*args, **kwargs)
+                except self.exception_classes as exc:
+                    if self.should_retry and not self.should_retry(exc):
+                        raise
 
-                        if attempt >= self.attempts:
-                            raise
+                    if attempt >= self.attempts:
+                        raise
 
-                        if self.delay:
-                            time.sleep(self.delay)
+                    if self.delay:
+                        time.sleep(self.delay)
 
-            return wrapper
+        @classmethod
+        def run_or_call(cls, retry_settings: typing.Optional["BitrixUserToken.RetrySettings"], func: typing.Callable, *args, **kwargs):
+            if retry_settings is None:
+                return func(*args, **kwargs)
+
+            return retry_settings.run(func, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         # 1) Могут в БД лежать уже готовые токены и тогда просто их используем
@@ -433,13 +437,14 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         if refresh:
             self.refresh_if_needed(timeout=timeout)
 
-        call_method = super().call_api_method
-
-        if retry_settings:
-            call_method = retry_settings(call_method)
-
         try:
-            return call_method(api_method=api_method, params=params, timeout=timeout)
+            return self.RetrySettings.run_or_call(
+                retry_settings,
+                super().call_api_method,
+                api_method=api_method,
+                params=params,
+                timeout=timeout,
+            )
         except ExpiredToken:
             if not refresh:
                 raise ExpiredToken(status_code=401)
@@ -461,18 +466,17 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         if refresh:
             self.refresh_if_needed(timeout=timeout)
 
-        call_method = super().batch_api_call
-
-        if retry_settings:
-            call_method = retry_settings(call_method)
-
         try:
-            return call_method(methods=methods,
-                               timeout=timeout,
-                               chunk_size=chunk_size,
-                               halt=halt,
-                               log_prefix=log_prefix,
-                               refresh=refresh)
+            return self.RetrySettings.run_or_call(
+                retry_settings,
+                super().batch_api_call,
+                methods=methods,
+                timeout=timeout,
+                chunk_size=chunk_size,
+                halt=halt,
+                log_prefix=log_prefix,
+                refresh=refresh,
+            )
         except BatchApiCallError as e:
             # fixme: нет такого метода
             # self.check_deactivate_errors(e.reason)
