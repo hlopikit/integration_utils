@@ -12,6 +12,7 @@ if not six.PY2:
 
     if TYPE_CHECKING:
         from ..models import BitrixUserToken
+        from integration_utils.retry_utils import RetrySettings
 
 
 def _deep_merge(*dicts):  # type: (*dict) -> dict
@@ -242,7 +243,7 @@ def call_list_fast(
     timeout: Optional[int] = DEFAULT_TIMEOUT,
     limit: Optional[int] = None,
     batch_size=50,
-    retry_settings=None,
+    retry_settings: Optional['RetrySettings'] = None,
 ) -> Generator[Dict, None, None]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
