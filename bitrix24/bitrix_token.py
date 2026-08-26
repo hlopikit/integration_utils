@@ -6,10 +6,12 @@ from django.conf import settings
 from integration_utils.bitrix24.exceptions import ExpiredToken, get_bitrix_api_error, BitrixApiServerError
 from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
+from integration_utils.retry_utils import RetrySettings
 
 
 class BaseBitrixToken:
     DEFAULT_TIMEOUT = getattr(settings, 'BITRIX_RESTAPI_DEFAULT_TIMEOUT', 10)
+    RetrySettings = RetrySettings
 
     domain = NotImplemented
     auth_token = NotImplemented
@@ -18,35 +20,46 @@ class BaseBitrixToken:
     def get_auth(self):
         return (self.web_hook_auth or self.auth_token), bool(self.web_hook_auth)
 
-    def call_api_method(self, api_method, params={}, timeout=DEFAULT_TIMEOUT):
-        auth, webhook = self.get_auth()
-        response = api_call(
-            domain=self.domain,
-            api_method=api_method,
-            auth_token=auth,
-            webhook=webhook,
-            params=params,
-            timeout=timeout,
-        )
+    def call_api_method(
+            self,
+            api_method: str,
+            params: Dict[str, Any] = {},
+            timeout: Optional[int] = DEFAULT_TIMEOUT,
+            retry_settings: Optional[RetrySettings] = None,
+    ) -> dict:
+        def call_method() -> dict:
+            auth, webhook = self.get_auth()
+            response = api_call(
+                domain=self.domain,
+                api_method=api_method,
+                auth_token=auth,
+                webhook=webhook,
+                params=params,
+                timeout=timeout,
+            )
 
-        status_code = response.status_code
-        message = response.text
+            status_code = response.status_code
+            message = response.text
 
-        # Пробуем раскодировать json
-        try:
-            json_response = response.json()
-        except ValueError as e:
-            # Ранее здесь был BitrixApiError("error": "json ValueError", status_code=601)
-            raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from e
+            # Пробуем раскодировать json
+            try:
+                json_response = response.json()
+            except ValueError as e:
+                # Ранее здесь был BitrixApiError("error": "json ValueError", status_code=601)
+                raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from e
 
-        if status_code in [200, 201] and not json_response.get('error'):
-            return json_response
+            if status_code in [200, 201] and not json_response.get('error'):
+                return json_response
 
-        if status_code == 401 and json_response['error'] == 'expired_token':
-            raise ExpiredToken
+            if status_code == 401 and json_response['error'] == 'expired_token':
+                raise ExpiredToken
 
-        #raise BitrixApiError(response.status_code, response)
-        raise get_bitrix_api_error(json_response=json_response, status_code=response.status_code, message=message)
+            #raise BitrixApiError(response.status_code, response)
+            raise get_bitrix_api_error(json_response=json_response, status_code=response.status_code, message=message)
+        if retry_settings:
+            call_method = retry_settings(call_method)
+
+        return call_method()
 
     call_api_method_v2 = call_api_method
 
@@ -65,17 +78,32 @@ class BaseBitrixToken:
 
     call_method = call_api_method_v3
 
-    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix='', refresh=True):
+    def batch_api_call(
+            self,
+            methods: Union[list, dict],
+            timeout: Optional[int] = DEFAULT_TIMEOUT,
+            chunk_size: int = 50,
+            halt: int = 0,
+            log_prefix: str = '',
+            refresh: bool = True,
+            retry_settings: Optional[RetrySettings] = None,
+    ) -> Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
-        from .functions.batch_api_call import _batch_api_call
-        return _batch_api_call(methods=methods,
-                               bitrix_user_token=self,
-                               timeout=timeout,
-                               chunk_size=chunk_size,
-                               halt=halt,
-                               log_prefix=log_prefix,
-                               refresh=refresh)
+        def call_method() -> Any:
+            from .functions.batch_api_call import _batch_api_call
+            return _batch_api_call(methods=methods,
+                                   bitrix_user_token=self,
+                                   timeout=timeout,
+                                   chunk_size=chunk_size,
+                                   halt=halt,
+                                   log_prefix=log_prefix,
+                                   refresh=refresh)
+
+        if retry_settings:
+            call_method = retry_settings(call_method)
+
+        return call_method()
 
     batch_api_call_v3 = batch_api_call
 
@@ -88,6 +116,7 @@ class BaseBitrixToken:
         timeout: Optional[int] = DEFAULT_TIMEOUT,
         limit: Optional[int] = None,
         batch_size=50,
+        retry_settings: Optional[RetrySettings] = None,
     ) -> Generator[Dict, None, None]:
         """Списочный запрос с параметром ?start=-1
         см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
@@ -98,7 +127,8 @@ class BaseBitrixToken:
         from .functions.call_list_fast import call_list_fast
         return call_list_fast(self, method, params, descending=descending,
                               limit=limit, batch_size=batch_size,
-                              timeout=timeout, log_prefix=log_prefix)
+                              timeout=timeout, log_prefix=log_prefix,
+                              retry_settings=retry_settings)
 
     def call_list_method(
             self,
@@ -111,6 +141,7 @@ class BaseBitrixToken:
             force_total=None,  # type: Optional[int]  # TODO: Убрать когда-нибудь
             log_prefix='',  # type: str
             batch_size=50,  # type: int
+            retry_settings=None,  # type: Optional[RetrySettings]
     ):  # type: (...) -> Union[list, dict]
         result = call_list_method(self, method, fields=fields,
                                        limit=limit,
@@ -120,6 +151,7 @@ class BaseBitrixToken:
                                        timeout=timeout,
                                        log_prefix=log_prefix,
                                        batch_size=batch_size,
+                                       retry_settings=retry_settings,
                                        v=2)
         return result
 

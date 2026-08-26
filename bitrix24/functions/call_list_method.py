@@ -17,6 +17,7 @@ if not six.PY2:  # type hints
 
 if typing.TYPE_CHECKING:  # type hints
     from ..models import BitrixUserToken
+    from integration_utils.retry_utils import RetrySettings
 
 
 ALLOWABLE_TIME = 2000
@@ -252,7 +253,7 @@ def call_list_method(
         force_total=None,  # type: Optional[int]
         log_prefix='',
         batch_size=50,  # type: int
-        retry_settings=None,
+        retry_settings=None,  # type: Optional[RetrySettings]
         v=0,
 ):  # type: (...) -> Union[list, dict]
     """

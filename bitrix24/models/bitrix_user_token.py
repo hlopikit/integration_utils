@@ -1,7 +1,6 @@
 # -*- coding: UTF-8 -*-
 
 import hashlib
-import time
 import typing
 from datetime import datetime, timedelta
 from typing import Iterable, Optional
@@ -16,6 +15,7 @@ from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, 
     BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixConnectionError, BitrixTimeout
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
+from integration_utils.retry_utils import RetrySettings
 from settings import ilogger
 
 if typing.TYPE_CHECKING:
@@ -98,53 +98,6 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     is_active = models.BooleanField(default=True)
     refresh_error = models.PositiveSmallIntegerField(default=0, choices=REFRESH_ERRORS)
-
-    class RetrySettings:
-        def __init__(
-                self,
-                attempts: int = 1,
-                delay: float = 0,
-                exceptions: typing.Union[typing.Type[BaseException], typing.Tuple[typing.Type[BaseException], ...]] = (Exception,),
-                should_retry: typing.Optional[typing.Callable[[BaseException], bool]] = None,
-        ):
-            if attempts < 1:
-                raise ValueError("attempts must be greater than 0")
-
-            if delay < 0:
-                raise ValueError("delay must be greater than or equal to 0")
-
-            self.attempts = attempts
-            self.delay = delay
-            self.exceptions = exceptions
-            self.should_retry = should_retry
-
-        @property
-        def exception_classes(self) -> typing.Tuple[typing.Type[BaseException], ...]:
-            if isinstance(self.exceptions, tuple):
-                return self.exceptions
-
-            return (self.exceptions,)
-
-        def run(self, func: typing.Callable, *args, **kwargs):
-            for attempt in range(1, self.attempts + 1):
-                try:
-                    return func(*args, **kwargs)
-                except self.exception_classes as exc:
-                    if self.should_retry and not self.should_retry(exc):
-                        raise
-
-                    if attempt >= self.attempts:
-                        raise
-
-                    if self.delay:
-                        time.sleep(self.delay)
-
-        @classmethod
-        def run_or_call(cls, retry_settings: typing.Optional["BitrixUserToken.RetrySettings"], func: typing.Callable, *args, **kwargs):
-            if retry_settings is None:
-                return func(*args, **kwargs)
-
-            return retry_settings.run(func, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         # 1) Могут в БД лежать уже готовые токены и тогда просто их используем
@@ -445,18 +398,23 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         raise ExpiredToken(status_code=401)
 
-    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True, retry_settings=None):
+    def call_api_method(
+            self,
+            api_method: str,
+            params: typing.Optional[dict] = None,
+            timeout: typing.Optional[int] = DEFAULT_TIMEOUT,
+            refresh: bool = True,
+            retry_settings: typing.Optional[RetrySettings] = None,
+    ) -> dict:
         if refresh:
             self.refresh_if_needed(timeout=timeout)
 
+        call_method = super().call_api_method
+        if retry_settings:
+            call_method = retry_settings(call_method)
+
         try:
-            return self.RetrySettings.run_or_call(
-                retry_settings,
-                super().call_api_method,
-                api_method=api_method,
-                params=params,
-                timeout=timeout,
-            )
+            return call_method(api_method=api_method, params=params, timeout=timeout)
         except ExpiredToken:
             if not refresh:
                 raise ExpiredToken(status_code=401)
@@ -471,75 +429,39 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             self.refresh_error = refresh_error
             self.save(force_update=True)
 
-    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix='', refresh=True, retry_settings=None):
+    def batch_api_call(
+            self,
+            methods: typing.Union[list, dict],
+            timeout: typing.Optional[int] = DEFAULT_TIMEOUT,
+            chunk_size: int = 50,
+            halt: int = 0,
+            log_prefix: str = '',
+            refresh: bool = True,
+            retry_settings: typing.Optional[RetrySettings] = None,
+    ) -> typing.Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
         from integration_utils.bitrix24.exceptions import BatchApiCallError
         if refresh:
             self.refresh_if_needed(timeout=timeout)
 
+        call_method = super().batch_api_call
+        if retry_settings:
+            call_method = retry_settings(call_method)
+
         try:
-            return self.RetrySettings.run_or_call(
-                retry_settings,
-                super().batch_api_call,
-                methods=methods,
-                timeout=timeout,
-                chunk_size=chunk_size,
-                halt=halt,
-                log_prefix=log_prefix,
-                refresh=refresh,
-            )
+            return call_method(methods=methods,
+                               timeout=timeout,
+                               chunk_size=chunk_size,
+                               halt=halt,
+                               log_prefix=log_prefix,
+                               refresh=refresh)
         except BatchApiCallError as e:
             # fixme: нет такого метода
             # self.check_deactivate_errors(e.reason)
             raise e
 
     batch_api_call_v3 = batch_api_call
-
-    def call_list_fast(
-            self,
-            method: str,
-            params: typing.Dict[str, typing.Any] = None,
-            descending=False,
-            log_prefix='',
-            timeout: typing.Optional[int] = DEFAULT_TIMEOUT,
-            limit: typing.Optional[int] = None,
-            batch_size=50,
-            retry_settings=None,
-    ) -> typing.Generator[typing.Dict, None, None]:
-        from integration_utils.bitrix24.functions.call_list_fast import call_list_fast
-        return call_list_fast(self, method, params, descending=descending,
-                              limit=limit, batch_size=batch_size,
-                              timeout=timeout, log_prefix=log_prefix,
-                              retry_settings=retry_settings)
-
-    def call_list_method(
-            self,
-            method,  # type: str
-            fields=None,  # type: typing.Optional[dict]
-            limit=None,  # type: typing.Optional[int]
-            return_total=False,  # type: bool
-            allowable_error=None,  # type: typing.Optional[int]
-            timeout=DEFAULT_TIMEOUT,  # type: typing.Optional[int]
-            force_total=None,  # type: typing.Optional[int]  # TODO: Убрать когда-нибудь
-            log_prefix='',  # type: str
-            batch_size=50,  # type: int
-            retry_settings=None,
-    ):  # type: (...) -> typing.Union[list, dict]
-        from integration_utils.bitrix24.functions.call_list_method import call_list_method
-        result = call_list_method(self, method, fields=fields,
-                                  limit=limit,
-                                  return_total=return_total,
-                                  force_total=force_total,
-                                  allowable_error=allowable_error,
-                                  timeout=timeout,
-                                  log_prefix=log_prefix,
-                                  batch_size=batch_size,
-                                  retry_settings=retry_settings,
-                                  v=2)
-        return result
-
-    call_list_method_v2 = call_list_method
 
     @classmethod
     def refresh_all(cls, timeout=DEFAULT_TIMEOUT):
