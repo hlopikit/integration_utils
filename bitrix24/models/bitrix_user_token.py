@@ -1,7 +1,9 @@
 # -*- coding: UTF-8 -*-
 
 import hashlib
+import time
 import typing
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import requests
@@ -96,6 +98,27 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
     is_active = models.BooleanField(default=True)
     refresh_error = models.PositiveSmallIntegerField(default=0, choices=REFRESH_ERRORS)
+
+    @dataclass(frozen=True)
+    class RetrySettings:
+        attempts: int = 1
+        delay: float = 0
+        exceptions: typing.Union[typing.Type[BaseException], typing.Tuple[typing.Type[BaseException], ...]] = (Exception,)
+        should_retry: typing.Optional[typing.Callable[[BaseException], bool]] = None
+
+        def __post_init__(self):
+            if self.attempts < 1:
+                raise ValueError("attempts must be greater than 0")
+
+            if self.delay < 0:
+                raise ValueError("delay must be greater than or equal to 0")
+
+        @property
+        def exception_classes(self) -> typing.Tuple[typing.Type[BaseException], ...]:
+            if isinstance(self.exceptions, tuple):
+                return self.exceptions
+
+            return (self.exceptions,)
 
     def __init__(self, *args, **kwargs):
         # 1) Могут в БД лежать уже готовые токены и тогда просто их используем
@@ -385,18 +408,39 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         raise ExpiredToken(status_code=401)
 
-    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True):
-        if refresh:
-            self.refresh_if_needed(timeout=timeout)
-        try:
-            return super().call_api_method(api_method=api_method, params=params, timeout=timeout)
-        except ExpiredToken:
-            if not refresh:
-                raise ExpiredToken(status_code=401)
+    @staticmethod
+    def _call_with_retry(func: typing.Callable, retry_settings: typing.Optional["BitrixUserToken.RetrySettings"] = None):
+        if retry_settings is None:
+            return func()
 
-            if self.refresh(timeout=timeout):
-                return self.call_api_method(api_method, params, timeout=timeout, refresh=False)
-            raise
+        for attempt in range(1, retry_settings.attempts + 1):
+            try:
+                return func()
+            except retry_settings.exception_classes as exc:
+                if retry_settings.should_retry and not retry_settings.should_retry(exc):
+                    raise
+
+                if attempt >= retry_settings.attempts:
+                    raise
+
+                if retry_settings.delay:
+                    time.sleep(retry_settings.delay)
+
+    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True, retry_settings=None):
+        def call():
+            if refresh:
+                self.refresh_if_needed(timeout=timeout)
+            try:
+                return super(BitrixUserToken, self).call_api_method(api_method=api_method, params=params, timeout=timeout)
+            except ExpiredToken:
+                if not refresh:
+                    raise ExpiredToken(status_code=401)
+
+                if self.refresh(timeout=timeout):
+                    return self.call_api_method(api_method, params, timeout=timeout, refresh=False)
+                raise
+
+        return self._call_with_retry(call, retry_settings=retry_settings)
 
     def deactivate_token(self, refresh_error):
         if self.pk:
