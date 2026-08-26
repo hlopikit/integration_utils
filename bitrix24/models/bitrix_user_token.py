@@ -409,12 +409,13 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         if refresh:
             self.refresh_if_needed(timeout=timeout)
 
-        call_method = super().call_api_method
-        if retry_settings:
-            call_method = retry_settings(call_method)
-
         try:
-            return call_method(api_method=api_method, params=params, timeout=timeout)
+            return super().call_api_method(
+                api_method=api_method,
+                params=params,
+                timeout=timeout,
+                retry_settings=retry_settings,
+            )
         except ExpiredToken:
             if not refresh:
                 raise ExpiredToken(status_code=401)
@@ -445,17 +446,14 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         if refresh:
             self.refresh_if_needed(timeout=timeout)
 
-        call_method = super().batch_api_call
-        if retry_settings:
-            call_method = retry_settings(call_method)
-
         try:
-            return call_method(methods=methods,
-                               timeout=timeout,
-                               chunk_size=chunk_size,
-                               halt=halt,
-                               log_prefix=log_prefix,
-                               refresh=refresh)
+            return super().batch_api_call(methods=methods,
+                                          timeout=timeout,
+                                          chunk_size=chunk_size,
+                                          halt=halt,
+                                          log_prefix=log_prefix,
+                                          refresh=refresh,
+                                          retry_settings=retry_settings)
         except BatchApiCallError as e:
             # fixme: нет такого метода
             # self.check_deactivate_errors(e.reason)
