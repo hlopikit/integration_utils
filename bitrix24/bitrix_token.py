@@ -27,7 +27,11 @@ class BaseBitrixToken:
             timeout: Optional[int] = DEFAULT_TIMEOUT,
             retry_settings: Optional[RetrySettings] = None,
     ) -> dict:
-        def call_method() -> dict:
+        def call_method(
+                api_method: str,
+                params: Dict[str, Any] = {},
+                timeout: Optional[int] = DEFAULT_TIMEOUT,
+        ) -> dict:
             auth, webhook = self.get_auth()
             response = api_call(
                 domain=self.domain,
@@ -59,7 +63,7 @@ class BaseBitrixToken:
         if retry_settings:
             call_method = retry_settings(call_method)
 
-        return call_method()
+        return call_method(api_method=api_method, params=params, timeout=timeout)
 
     call_api_method_v2 = call_api_method
 
@@ -90,7 +94,14 @@ class BaseBitrixToken:
     ) -> Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
-        def call_method() -> Any:
+        def call_method(
+                methods: Union[list, dict],
+                timeout: Optional[int] = DEFAULT_TIMEOUT,
+                chunk_size: int = 50,
+                halt: int = 0,
+                log_prefix: str = '',
+                refresh: bool = True,
+        ) -> Any:
             from .functions.batch_api_call import _batch_api_call
             return _batch_api_call(methods=methods,
                                    bitrix_user_token=self,
@@ -103,7 +114,12 @@ class BaseBitrixToken:
         if retry_settings:
             call_method = retry_settings(call_method)
 
-        return call_method()
+        return call_method(methods=methods,
+                           timeout=timeout,
+                           chunk_size=chunk_size,
+                           halt=halt,
+                           log_prefix=log_prefix,
+                           refresh=refresh)
 
     batch_api_call_v3 = batch_api_call
 
