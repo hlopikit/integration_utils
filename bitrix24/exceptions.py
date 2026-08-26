@@ -350,6 +350,10 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'WRONG_ENCODING'
 
     @property
+    def is_wrong_request(self):
+        return self.error == 'WRONG_REQUEST'
+
+    @property
     def is_application_not_found(self):
         return self.error == APPLICATION_NOT_FOUND
 
@@ -540,6 +544,11 @@ class BitrixApiError(BitrixApiException):
     @property
     def is_wrong_license(self):
         return self.error_description and self.error_description.startswith('This feature is not enabled for the current license:')
+
+    @property
+    def is_message_not_added(self):
+        """Битрикс не смог добавить сообщение в чат."""
+        return self.is_wrong_request and self.error_description == "Message isn't added"
 
     def dict(self):
         if isinstance(self.json_response, dict):
