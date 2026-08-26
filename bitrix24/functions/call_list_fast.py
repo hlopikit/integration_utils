@@ -242,6 +242,7 @@ def call_list_fast(
     timeout: Optional[int] = DEFAULT_TIMEOUT,
     limit: Optional[int] = None,
     batch_size=50,
+    retry_settings=None,
 ) -> Generator[Dict, None, None]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
@@ -314,8 +315,11 @@ def call_list_fast(
                 method,
                 _deep_merge({} if params is None else params, call_fast_params),
             ))
-        batch = tok.batch_api_call_v3(batch_params,
-                                      timeout=timeout, log_prefix=log_prefix)
+        batch_kwargs = dict(timeout=timeout, log_prefix=log_prefix)
+        if retry_settings:
+            batch_kwargs['retry_settings'] = retry_settings
+
+        batch = tok.batch_api_call_v3(batch_params, **batch_kwargs)
 
         duplicate_count = 0
         max_duplicate_count = getattr(settings, 'CALL_LIST_FAST_MAX_DUPLICATE_COUNT', 10)

@@ -252,6 +252,7 @@ def call_list_method(
         force_total=None,  # type: Optional[int]
         log_prefix='',
         batch_size=50,  # type: int
+        retry_settings=None,
         v=0,
 ):  # type: (...) -> Union[list, dict]
     """
@@ -284,6 +285,8 @@ def call_list_method(
     :param log_prefix: для логера
 
     :param batch_size: сколько запросов упаковывается в батч (от 1 до 50)
+
+    :param retry_settings: настройки повторных попыток для REST-запросов
 
     :param v:
 
@@ -324,9 +327,11 @@ def call_list_method(
                 params['select'] = fields.get('select')
             methods.append((method, params))
 
-        batch = bx_token.batch_api_call(methods, timeout=timeout,
-                                           chunk_size=batch_size,
-                                           log_prefix=log_prefix, halt=1)
+        batch_kwargs = dict(timeout=timeout, chunk_size=batch_size, log_prefix=log_prefix, halt=1)
+        if retry_settings:
+            batch_kwargs['retry_settings'] = retry_settings
+
+        batch = bx_token.batch_api_call(methods, **batch_kwargs)
 
         result = unwrap_batch_res_method(batch,
                                          wrapper=METHOD_WRAPPERS.get(method))
@@ -350,9 +355,11 @@ def call_list_method(
 
     # NB! fields.copy() защищает оригинал от изменения
     # (api_call2 добавляет туда auth)
-    response = bx_token.call_api_method(
-        method, params=fields and fields.copy(), timeout=timeout,
-    )
+    call_kwargs = dict(params=fields and fields.copy(), timeout=timeout)
+    if retry_settings:
+        call_kwargs['retry_settings'] = retry_settings
+
+    response = bx_token.call_api_method(method, **call_kwargs)
 
     result = unwrap_batch_res_method(BatchResultDict(), response.get('result'),
                                      wrapper=METHOD_WRAPPERS.get(method))
@@ -380,10 +387,14 @@ def call_list_method(
         batch_start = timezone.now()
         time_log.append('batch started: %s' % batch_start)
 
-        batch_res = bx_token.batch_api_call(
+        batch_kwargs = dict(
             methods=reqs, timeout=timeout, log_prefix=log_prefix,
             chunk_size=batch_size, halt=1,  # останавливается на первой ошибке
         )
+        if retry_settings:
+            batch_kwargs['retry_settings'] = retry_settings
+
+        batch_res = bx_token.batch_api_call(**batch_kwargs)
 
         # Записать результаты batch_api_call в result
         result = unwrap_batch_res_method(batch_res, result,
