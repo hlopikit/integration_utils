@@ -145,6 +145,7 @@ def to_chunks(lst, chunk_size=50):
 
     return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
 
+
 def _batch_api_call(
             methods,  # type: Methods
             bitrix_user_token,  # type: BitrixUserToken
