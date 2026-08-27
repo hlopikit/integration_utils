@@ -1,10 +1,8 @@
 import time
-import typing
+from typing import Any, Callable, Optional, Type, TypeVar, Tuple, Union
 
 
-ExceptionClasses = typing.Union[typing.Type[BaseException], typing.Tuple[typing.Type[BaseException], ...]]
-RetryPredicate = typing.Callable[[BaseException], bool]
-CallableType = typing.TypeVar("CallableType", bound=typing.Callable)
+_CallableT = TypeVar("_CallableT", bound=Callable)
 
 
 class RetrySettings:
@@ -12,8 +10,8 @@ class RetrySettings:
             self,
             attempts: int = 1,
             delay: float = 0,
-            exceptions: ExceptionClasses = (Exception,),
-            should_retry: typing.Optional[RetryPredicate] = None,
+            exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (Exception,),
+            should_retry: Optional[Callable[[Exception], bool]] = None,
     ):
         if attempts < 1:
             raise ValueError("attempts must be greater than 0")
@@ -26,19 +24,18 @@ class RetrySettings:
         self.exceptions = exceptions if isinstance(exceptions, tuple) else (exceptions,)
         self.should_retry = should_retry
 
-    def __call__(self, func: CallableType) -> CallableType:
-        def wrapper(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
-            for attempt in range(1, self.attempts + 1):
+    def __call__(self, func: _CallableT) -> _CallableT:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            for _ in range(self.attempts - 1):
                 try:
                     return func(*args, **kwargs)
                 except self.exceptions as exc:
                     if self.should_retry and not self.should_retry(exc):
                         raise
 
-                    if attempt >= self.attempts:
-                        raise
-
                     if self.delay:
                         time.sleep(self.delay)
 
-        return typing.cast(CallableType, wrapper)
+            return func(*args, **kwargs)
+
+        return wrapper

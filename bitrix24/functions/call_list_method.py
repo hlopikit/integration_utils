@@ -336,6 +336,7 @@ def call_list_method(
                                          wrapper=METHOD_WRAPPERS.get(method))
         if return_total:
             return result, {"total": len(result)}
+
         return result
     # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
 
@@ -354,11 +355,15 @@ def call_list_method(
 
     # NB! fields.copy() защищает оригинал от изменения
     # (api_call2 добавляет туда auth)
-    response = bx_token.call_api_method(method, params=fields and fields.copy(),
-                                        timeout=timeout, retry_settings=retry_settings)
+    response = bx_token.call_api_method(
+        api_method=method,
+        params=fields and fields.copy(),
+        timeout=timeout,
+        retry_settings=retry_settings,
+    )
 
-    result = unwrap_batch_res_method(BatchResultDict(), response.get('result'),
-                                     wrapper=METHOD_WRAPPERS.get(method))
+    result = unwrap_batch_res_method(BatchResultDict(), response.get('result'), wrapper=METHOD_WRAPPERS.get(method))
+
     next_step = response.get('next')
     total = total_param = response.get('total') or 0
 
@@ -374,6 +379,7 @@ def call_list_method(
         # fixme: с batch_api_call_v3 можно не нарезать вручную по 50 запросов
         reqs = []
         step = 50
+
         while next_step < total:
             # Строим список методов для batch call: {"метод": {параметры}, ...}
             new_fields = next_params(method, fields, next_step, page_size=step)
@@ -384,14 +390,16 @@ def call_list_method(
         time_log.append('batch started: %s' % batch_start)
 
         batch_res = bx_token.batch_api_call(
-            methods=reqs, timeout=timeout, log_prefix=log_prefix,
-            chunk_size=batch_size, halt=1,  # останавливается на первой ошибке
+            methods=reqs,
+            timeout=timeout,
+            log_prefix=log_prefix,
+            chunk_size=batch_size,
+            halt=1,  # останавливается на первой ошибке
             retry_settings=retry_settings,
         )
 
         # Записать результаты batch_api_call в result
-        result = unwrap_batch_res_method(batch_res, result,
-                                         wrapper=METHOD_WRAPPERS.get(method))
+        result = unwrap_batch_res_method(batch_res, result, wrapper=METHOD_WRAPPERS.get(method))
 
         batch_finished = timezone.now()
         time_log.append('batch started: %s' % batch_finished)
@@ -420,4 +428,5 @@ def call_list_method(
 
     if return_total:
         return result, {"total": total_param or len(result)}
+
     return result
