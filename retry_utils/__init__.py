@@ -1,3 +1,3 @@
-from integration_utils.retry_utils.retry_settings import RetrySettings
+from integration_utils.retry_utils.retry_decorator import RetryDecorator
 
-__all__ = ("RetrySettings",)
+__all__ = ("RetryDecorator",)

@@ -1,16 +1,17 @@
 import time
-from typing import Any, Callable, Optional, Type, TypeVar, Tuple, Union
+from typing import Any, Callable, Iterable, Optional, Type, TypeVar, Tuple, Union
 
 
 _CallableT = TypeVar("_CallableT", bound=Callable)
 
 
-class RetrySettings:
+class RetryDecorator:
     def __init__(
             self,
             attempts: int = 1,
             delay: float = 0,
             exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (Exception,),
+            exclude_exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (),
             should_retry: Optional[Callable[[Exception], bool]] = None,
     ):
         if attempts < 1:
@@ -22,6 +23,7 @@ class RetrySettings:
         self.attempts = attempts
         self.delay = delay
         self.exceptions = exceptions if isinstance(exceptions, tuple) else (exceptions,)
+        self.exclude_exceptions = exclude_exceptions if isinstance(exclude_exceptions, tuple) else (exclude_exceptions,)
         self.should_retry = should_retry
 
     def __call__(self, func: _CallableT) -> _CallableT:
@@ -30,6 +32,9 @@ class RetrySettings:
                 try:
                     return func(*args, **kwargs)
                 except self.exceptions as exc:
+                    if isinstance(exc, self.exclude_exceptions):
+                        raise
+
                     if self.should_retry and not self.should_retry(exc):
                         raise
 
