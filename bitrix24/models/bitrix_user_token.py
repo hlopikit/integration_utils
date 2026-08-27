@@ -15,7 +15,7 @@ from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, 
     BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixConnectionError, BitrixTimeout
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
-from integration_utils.retry_utils import RetrySettings
+from integration_utils.retry_utils import RetryDecorator
 from settings import ilogger
 
 if typing.TYPE_CHECKING:
@@ -404,7 +404,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             params: typing.Optional[dict] = None,
             timeout: typing.Optional[int] = DEFAULT_TIMEOUT,
             refresh: bool = True,
-            retry_settings: typing.Optional[RetrySettings] = None,
+            retry_settings: typing.Optional[RetryDecorator] = None,
     ) -> dict:
         if refresh:
             self.refresh_if_needed(timeout=timeout)
@@ -445,7 +445,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             halt: int = 0,
             log_prefix: str = '',
             refresh: bool = True,
-            retry_settings: typing.Optional[RetrySettings] = None,
+            retry_settings: typing.Optional[RetryDecorator] = None,
     ) -> typing.Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """

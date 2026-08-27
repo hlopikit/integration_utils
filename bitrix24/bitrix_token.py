@@ -6,12 +6,12 @@ from django.conf import settings
 from integration_utils.bitrix24.exceptions import ExpiredToken, get_bitrix_api_error, BitrixApiServerError
 from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
-from integration_utils.retry_utils import RetrySettings
+from integration_utils.retry_utils import RetryDecorator
 
 
 class BaseBitrixToken:
     DEFAULT_TIMEOUT = getattr(settings, 'BITRIX_RESTAPI_DEFAULT_TIMEOUT', 10)
-    RetrySettings = RetrySettings
+    RetryDecorator = RetryDecorator
 
     domain = NotImplemented
     auth_token = NotImplemented
@@ -25,7 +25,7 @@ class BaseBitrixToken:
             api_method: str,
             params: Optional[Dict[str, Any]] = None,
             timeout: Optional[int] = DEFAULT_TIMEOUT,
-            retry_settings: Optional[RetrySettings] = None,
+            retry_settings: Optional[RetryDecorator] = None,
     ) -> dict:
         def _call_method() -> dict:
             auth, webhook = self.get_auth()
@@ -69,7 +69,7 @@ class BaseBitrixToken:
             api_method: str,
             params: Optional[Dict[str, Any]] = None,
             timeout: Optional[int] = DEFAULT_TIMEOUT,
-            retry_settings: Optional[RetrySettings] = None,
+            retry_settings: Optional[RetryDecorator] = None,
     ) -> dict:
         """
         Метод для взаимодействия с REST API 3.0 Битрикс24.
@@ -106,7 +106,7 @@ class BaseBitrixToken:
             halt: int = 0,
             log_prefix: str = '',
             refresh: bool = True,
-            retry_settings: Optional[RetrySettings] = None,
+            retry_settings: Optional[RetryDecorator] = None,
     ) -> Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
@@ -140,7 +140,7 @@ class BaseBitrixToken:
         timeout: Optional[int] = DEFAULT_TIMEOUT,
         limit: Optional[int] = None,
         batch_size=50,
-        retry_settings: Optional[RetrySettings] = None,
+        retry_settings: Optional[RetryDecorator] = None,
     ) -> Generator[Dict, None, None]:
         """Списочный запрос с параметром ?start=-1
         см. описание bitrix_utils.bitrix_auth.functions.call_list_fast.call_list_fast
@@ -173,7 +173,7 @@ class BaseBitrixToken:
             force_total=None,  # type: Optional[int]  # TODO: Убрать когда-нибудь
             log_prefix='',  # type: str
             batch_size=50,  # type: int
-            retry_settings=None,  # type: Optional[RetrySettings]
+            retry_settings=None,  # type: Optional[RetryDecorator]
     ):  # type: (...) -> Union[list, dict]
         return call_list_method(
             bx_token=self,
