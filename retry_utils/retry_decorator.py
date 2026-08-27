@@ -1,8 +1,11 @@
+import functools
 import time
-from typing import Any, Callable, Iterable, Optional, Type, TypeVar, Tuple, Union
+from typing import Any, Callable, Iterable, Optional, Type, TypeVar, Union
 
 
 _CallableT = TypeVar("_CallableT", bound=Callable)
+_ExceptionType = Type[Exception]
+_Exceptions = Union[_ExceptionType, Iterable[_ExceptionType]]
 
 
 class RetryDecorator:
@@ -10,8 +13,8 @@ class RetryDecorator:
             self,
             attempts: int = 1,
             delay: float = 0,
-            exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (Exception,),
-            exclude_exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (),
+            exceptions: _Exceptions = (Exception,),
+            exclude_exceptions: _Exceptions = (),
             should_retry: Optional[Callable[[Exception], bool]] = None,
     ):
         if attempts < 1:
@@ -22,11 +25,22 @@ class RetryDecorator:
 
         self.attempts = attempts
         self.delay = delay
-        self.exceptions = exceptions if isinstance(exceptions, tuple) else (exceptions,)
-        self.exclude_exceptions = exclude_exceptions if isinstance(exclude_exceptions, tuple) else (exclude_exceptions,)
+
+        self.exceptions = (
+            (exceptions,)
+            if isinstance(exceptions, type)
+            else tuple(exceptions)
+        )
+        self.exclude_exceptions = (
+            (exclude_exceptions,)
+            if isinstance(exclude_exceptions, type)
+            else tuple(exclude_exceptions)
+        )
+
         self.should_retry = should_retry
 
     def __call__(self, func: _CallableT) -> _CallableT:
+        @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             for _ in range(self.attempts - 1):
                 try:
