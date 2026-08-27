@@ -27,11 +27,7 @@ class BaseBitrixToken:
             timeout: Optional[int] = DEFAULT_TIMEOUT,
             retry_settings: Optional[RetrySettings] = None,
     ) -> dict:
-        def call_method(
-                _api_method: str,
-                _params: Optional[Dict[str, Any]],
-                _timeout: Optional[int],
-        ) -> dict:
+        def _call_method() -> dict:
             auth, webhook = self.get_auth()
             response = api_call(
                 domain=self.domain,
@@ -62,28 +58,43 @@ class BaseBitrixToken:
             raise get_bitrix_api_error(json_response=json_response, status_code=response.status_code, message=message)
 
         if retry_settings:
-            call_method = retry_settings(call_method)
+            _call_method = retry_settings(_call_method)
 
-        return call_method(_api_method=api_method, _params=params, _timeout=timeout)
+        return _call_method()
 
     call_api_method_v2 = call_api_method
 
-    def call_api_method_v3(self, api_method: str, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
+    def call_api_method_v3(
+            self,
+            api_method: str,
+            params: Optional[Dict[str, Any]] = None,
+            timeout: Optional[int] = DEFAULT_TIMEOUT,
+            retry_settings: Optional[RetrySettings] = None,
+    ) -> dict:
         """
         Метод для взаимодействия с REST API 3.0 Битрикс24.
         В случае ошибки - кидаем исключение.
-
+        :param api_method: вызываемый REST-метод.
+        :param params: параметры REST-метода.
+        :param timeout: время таймаута в секундах для requests.
+        :param retry_settings: настройки повторных попыток REST-вызова.
         :raise ValueError: Неправильное значение аргумента.
         :raise BitrixApiException: Ошибка при работе с API Битрикс.
         """
-        return api_call_v3(
-            domain=self.domain,
-            api_method=api_method,
-            auth_token=self.auth_token,
-            web_hook_auth=self.web_hook_auth,
-            params=params,
-            timeout=timeout,
-        )
+        def _call_method() -> dict:
+            return api_call_v3(
+                domain=self.domain,
+                api_method=api_method,
+                auth_token=self.auth_token,
+                web_hook_auth=self.web_hook_auth,
+                params=params,
+                timeout=timeout,
+            )
+
+        if retry_settings:
+            _call_method = retry_settings(_call_method)
+
+        return _call_method()
 
     call_method = call_api_method_v3
 
@@ -100,16 +111,10 @@ class BaseBitrixToken:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
 
-        def call_method(
-                _methods: Union[list, dict],
-                _timeout: Optional[int],
-                _chunk_size: int,
-                _halt: int,
-                _log_prefix: str,
-                _refresh: bool,
-        ) -> Any:
-            from .functions.batch_api_call import _batch_api_call
-            return _batch_api_call(
+        def _call_method() -> Any:
+            from .functions.batch_api_call import batch_api_call
+            # TODO: Поправить типизацию bitrix_user_token (через Protocol?)
+            return batch_api_call(
                 methods=methods,
                 bitrix_user_token=self,
                 timeout=timeout,
@@ -120,16 +125,9 @@ class BaseBitrixToken:
             )
 
         if retry_settings:
-            call_method = retry_settings(call_method)
+            _call_batch_api_method = retry_settings(_call_method)
 
-        return call_method(
-            _methods=methods,
-            _timeout=timeout,
-            _chunk_size=chunk_size,
-            _halt=halt,
-            _log_prefix=log_prefix,
-            _refresh=refresh,
-        )
+        return _call_method()
 
     batch_api_call_v3 = batch_api_call
 
@@ -151,6 +149,7 @@ class BaseBitrixToken:
         в справочники METHOD_TO_* в bitrix_utils.bitrix_auth.functions.call_list_fast
         """
         from .functions.call_list_fast import call_list_fast
+        # TODO: Поправить типизацию tok (через Protocol?)
         return call_list_fast(
             tok=self,
             method=method,
