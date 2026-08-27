@@ -11,7 +11,7 @@ from integration_utils.retry_utils import RetryDecorator
 
 class BaseBitrixToken:
     DEFAULT_TIMEOUT = getattr(settings, 'BITRIX_RESTAPI_DEFAULT_TIMEOUT', 10)
-    RetryDecorator = RetryDecorator
+    RetrySettings = RetryDecorator
 
     domain = NotImplemented
     auth_token = NotImplemented
@@ -125,7 +125,7 @@ class BaseBitrixToken:
             )
 
         if retry_settings:
-            _call_batch_api_method = retry_settings(_call_method)
+            _call_method = retry_settings(_call_method)
 
         return _call_method()
 
