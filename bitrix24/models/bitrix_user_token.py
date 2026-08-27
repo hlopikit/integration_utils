@@ -396,7 +396,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         if refreshed or self.is_active and self.expires > timezone.now():
             return
 
-        raise ExpiredToken(status_code=401)
+        raise ExpiredToken()
 
     def call_api_method(
             self,
@@ -418,10 +418,17 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             )
         except ExpiredToken:
             if not refresh:
-                raise ExpiredToken(status_code=401)
+                raise ExpiredToken()
 
             if self.refresh(timeout=timeout):
-                return self.call_api_method(api_method, params, timeout=timeout, refresh=False, retry_settings=retry_settings)
+                return self.call_api_method(
+                    api_method=api_method,
+                    params=params,
+                    timeout=timeout,
+                    refresh=False,
+                    retry_settings=retry_settings,
+                )
+
             raise
 
     def deactivate_token(self, refresh_error):
@@ -442,18 +449,22 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
     ) -> typing.Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
+
         from integration_utils.bitrix24.exceptions import BatchApiCallError
+
         if refresh:
             self.refresh_if_needed(timeout=timeout)
 
         try:
-            return super().batch_api_call(methods=methods,
-                                          timeout=timeout,
-                                          chunk_size=chunk_size,
-                                          halt=halt,
-                                          log_prefix=log_prefix,
-                                          refresh=refresh,
-                                          retry_settings=retry_settings)
+            return super().batch_api_call(
+                methods=methods,
+                timeout=timeout,
+                chunk_size=chunk_size,
+                halt=halt,
+                log_prefix=log_prefix,
+                refresh=refresh,
+                retry_settings=retry_settings
+            )
         except BatchApiCallError as e:
             # fixme: нет такого метода
             # self.check_deactivate_errors(e.reason)
