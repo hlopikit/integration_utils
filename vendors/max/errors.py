@@ -25,19 +25,35 @@ class MaxError(Exception):
     def __reduce__(self) -> Tuple[type, Tuple[str, int | None, str | None, dict | None]]:
         return self.__class__, (self.message, self.status_code, self.error_code, self.response_data)
 
+    @property
+    def is_not_logic_error(self):
+        return False
+
 
 class MaxUnauthorized(MaxError):
     """Недостаточно прав для выполнения действия."""
 
     __slots__ = ()
 
+    @property
+    def is_not_logic_error(self):
+        return False
+
 
 class MaxBadRequest(MaxError):
     __slots__ = ()
 
+    @property
+    def is_not_logic_error(self):
+        return False
+
 
 class MaxNotFound(MaxError):
     __slots__ = ()
+
+    @property
+    def is_not_logic_error(self):
+        return False
 
 
 class MaxNetworkError(MaxError):
@@ -45,8 +61,16 @@ class MaxNetworkError(MaxError):
 
     __slots__ = ()
 
+    @property
+    def is_not_logic_error(self):
+        return True
+
 
 class MaxTimeout(MaxNetworkError):
     """Таймаут запроса к MAX API."""
 
     __slots__ = ()
+
+    @property
+    def is_not_logic_error(self):
+        return True
