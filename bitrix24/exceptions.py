@@ -92,12 +92,14 @@ class BitrixApiError(BitrixApiException):
     @property
     def error(self):
         if isinstance(self.json_response, dict):
-            return self.json_response.get('error')
+            return str(self.json_response.get('error', '') or '')
+        return ''
 
     @property
     def error_description(self):
         if isinstance(self.json_response, dict):
-            return self.json_response.get('error_description')
+            return str(self.json_response.get('error_description', '') or '')
+        return ''
 
     @property
     def friendly_error(self):
