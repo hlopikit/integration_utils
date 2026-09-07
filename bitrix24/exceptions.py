@@ -90,14 +90,18 @@ class BitrixApiError(BitrixApiException):
         return f"{self.json_response}, {self.status_code}, {self.message}, token={self.token}"
 
     @property
-    def error(self):
-        if isinstance(self.json_response, dict):
-            return self.json_response.get('error')
+    def error(self) -> str:
+        if isinstance(response := self.json_response, dict):
+            value = response.get("error")
+            return value if isinstance(value, str) else str(value or "")
+        return ""
 
     @property
-    def error_description(self):
-        if isinstance(self.json_response, dict):
-            return self.json_response.get('error_description')
+    def error_description(self) -> str:
+        if isinstance(response := self.json_response, dict):
+            value = response.get("error_description")
+            return value if isinstance(value, str) else str(value or "")
+        return ""
 
     @property
     def friendly_error(self):
