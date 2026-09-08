@@ -331,15 +331,56 @@ Bitrix24 ограничивает REST по времени выполнения 
 
 ## Ошибки
 
-`call_api_method` при REST-ошибке выбрасывает исключение из `integration_utils.bitrix24.exceptions`, а не возвращает успешный `dict`.
+Базовый класс ошибок API - `BitrixApiException` из `integration_utils.bitrix24.exceptions`.
 
-Для `BitrixApiException` используй смысловые свойства исключения, например `is_not_logic_error`, вместо поиска по тексту ошибки.
+`call_api_method` при REST-ошибке выбрасывает исключение, а не возвращает успешный `dict`.
+
+Основные случаи:
+
+- `BitrixApiError` - Bitrix24 вернул JSON-ответ с ошибкой;
+- `BitrixApiServerError` - сервер вернул невалидный ответ или ошибку без нормального JSON;
+- `BitrixApiErrorNotFound` - частный случай `BitrixApiError` для ошибки `Not found`;
+- `ExpiredToken` - токен протух; `BitrixUserToken` сам пробует обновить токен и повторить вызов;
+- `BitrixTokenRefreshError` - не удалось обновить OAuth-токен;
+- `SnapiError` - ошибка вызова Snapi-метода;
+- `BitrixRequestException` - `requests.RequestException` при запросе к порталу;
+- `BitrixOauthRefreshRequestException` - `requests.RequestException` при обновлении OAuth-токена;
+- `BitrixConnectionError` - не удалось подключиться к порталу;
+- `BitrixOauthRefreshConnectionError` - не удалось подключиться к серверу авторизации при обновлении OAuth-токена;
+- `BitrixTimeout` - портал не ответил за переданный `timeout`;
+- `BitrixOauthRefreshTimeout` - сервер авторизации не ответил за переданный `timeout` при обновлении OAuth-токена;
+- `BatchApiCallError` - ошибка самого REST-вызова `batch`;
+- `JsonDecodeBatchFailed` - batch вернул не JSON.
+
+Промежуточные базовые классы:
+
+- `BatchFailed` - базовый класс ошибок batch;
+- `BaseRequestException` - базовый класс ошибок `requests`;
+- `BaseConnectionError` - базовый класс ошибок соединения;
+- `BaseTimeout` - базовый класс таймаутов.
+
+Алиасы для обратной совместимости:
+
+- `ConnectionToBitrixError = BitrixConnectionError`;
+- `BitrixOauthConnectionError = BitrixOauthRefreshConnectionError`.
+
+Что использовать в обработке:
+
+- `exc.error` - код ошибки Bitrix24, если он есть;
+- `exc.error_description` - техническое описание ошибки Bitrix24, если оно есть;
+- `exc.status_code` - HTTP-статус, если он известен;
+- `exc.friendly_error` - текст, который можно показать пользователю;
+- `exc.is_not_logic_error` - признак инфраструктурной/временной ошибки, которую можно рассматривать для retry или warning-лога.
+
+Для `BitrixApiException` используй смысловые свойства исключения вместо поиска по тексту ошибки.
 
 Ошибки отдельных команд внутри `batch_api_call` нужно проверять через `BatchResultDict`:
 
 - `batch.all_ok`;
 - `batch.errors`;
 - `batch.iter_errors()`.
+
+Важно: ошибка отдельной команды в batch лежит в `BatchResultDict` и не равна Python-исключению. Исключение возникает, когда сломался сам запрос `batch`: невалидный JSON, общий `error` в ответе batch, истекший токен, timeout или ошибка соединения.
 
 Не заменяй ошибочный ответ API пустым списком, пустым словарем или `None` без явного бизнес-правила. Если такой сценарий допустим, в коде должно быть понятно, почему именно эту ошибку можно обработать как пустой результат.
 
