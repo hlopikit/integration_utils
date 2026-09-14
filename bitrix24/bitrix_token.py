@@ -1,11 +1,12 @@
 # -*- coding: UTF-8 -*-
-from typing import Optional, Any, Union, Dict, Generator
+from typing import Optional, Any, Union, Dict, Generator, Tuple
 
 from django.conf import settings
 
 from integration_utils.bitrix24.exceptions import ExpiredToken, get_bitrix_api_error, BitrixApiServerError
 from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
+from integration_utils.bitrix24.functions.call_list_method_v3 import call_list_method_v3
 
 
 class BaseBitrixToken:
@@ -61,6 +62,22 @@ class BaseBitrixToken:
         return api_call_v3(
             domain=self.domain, api_method=api_method, auth_token=self.auth_token,
             web_hook_auth=self.web_hook_auth, params=params, timeout=timeout,
+        )
+
+    def call_list_method_v3(
+        self,
+        method: str,
+        params: Optional[dict] = None,
+        timeout: int = DEFAULT_TIMEOUT,
+    ) -> Tuple[Dict[str, Any], int]:
+        return call_list_method_v3(
+            lambda api_method, api_params: self.call_api_method_v3(
+                api_method,
+                api_params,
+                timeout=timeout,
+            ),
+            method,
+            params,
         )
 
     call_method = call_api_method_v3
