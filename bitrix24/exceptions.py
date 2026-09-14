@@ -171,6 +171,7 @@ class BitrixApiError(BitrixApiException):
             self.is_cant_refresh,
             self.is_mysql_query_error,
             self.is_portal_blocked_by_license_scanner,
+            self.is_internal_error_adding_list_element,
         ]):
             return True
         return False
@@ -436,6 +437,14 @@ class BitrixApiError(BitrixApiException):
         error_description='Portal is blocked by the license scanner.'
         """
         return self.error == 'PORTAL_BLOCKED_BY_LICENSE_SCANNER'
+
+    @property
+    def is_internal_error_adding_list_element(self):
+        """
+        Внутренняя ошибка Bitrix при добавлении элемента списка,
+        обычно возникающая из-за ошибки SQL-запроса на стороне портала.
+        """
+        return self.error_description == 'Internal error adding list element. Try adding again.'
 
     @property
     def is_workflow_not_found(self):
