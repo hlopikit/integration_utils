@@ -119,6 +119,7 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
     if not isinstance(params, dict):
         return filter_key, filter_id_key, filter_ids
 
+    # Сначала проверяем обычный формат списочных методов: {'filter': {'ID': [...]}, 'select': [...]}
     for key in params:
         if key.lower() == 'filter':
             filter_key = key
@@ -126,6 +127,7 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
             break
     else:
         if filter_key and isinstance(params[filter_key], dict):
+            # В filter должен быть только ID/id/@ID. Остальные условия требуют обычной пагинации, поэтому оптимизацию не включаем
             for filter_field in params[filter_key]:
                 if filter_field.lower() in FILTER_ID_KEYS:
                     filter_id_key = filter_field
@@ -142,6 +144,7 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
     filter_key = None
     filter_id_key = None
 
+    # Если filter_key нет, проверяем методы с ID на верхнем уровне параметров, например department.get: {'ID': [...]}
     for key in params:
         if key.lower() in FILTER_ID_KEYS:
             filter_id_key = key
@@ -171,12 +174,15 @@ def _generate_filter_id_methods_for_batch(
         params = fields.copy()
 
         if filter_key:
+            # Для стандартного формата меняем только список ID внутри filter, остальные разрешенные параметры, например select, сохраняем
             filter_params = params[filter_key].copy()
             filter_params[filter_id_key] = filter_id_chunk
             params[filter_key] = filter_params
         else:
+            # Для методов с ID на верхнем уровне чанкуем само поле ID/id/@ID.
             params[filter_id_key] = filter_id_chunk
 
+        # При точной выборке по ID total не нужен, поэтому просим Bitrix24 не считать общее количество строк.
         params['start'] = -1
         methods.append((method, params))
 
