@@ -1,11 +1,15 @@
 import json
 from copy import deepcopy
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from integration_utils.bitrix24.constants import (
     REST_V3_DEFAULT_PAGE_SIZE,
     REST_V3_MAX_LIST_PAGES,
 )
+from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
+
+if TYPE_CHECKING:
+    from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 
 
 class RestV3ResponseError(ValueError):
@@ -82,9 +86,10 @@ def _cursor_key(cursor: Any) -> str:
 
 
 def call_list_method_v3(
-    call_method: Callable[[str, Optional[dict]], dict],
+    token: 'BaseBitrixToken',
     method: str,
     params: Optional[dict] = None,
+    timeout: int = DEFAULT_TIMEOUT,
     *,
     max_pages: int = REST_V3_MAX_LIST_PAGES,
 ) -> Tuple[Dict[str, Any], int]:
@@ -116,7 +121,11 @@ def call_list_method_v3(
     seen_cursors = set()
 
     for _page_number in range(1, max_pages + 1):
-        response = call_method(method, request_params)
+        response = token.call_api_method_v3(
+            method,
+            request_params,
+            timeout=timeout,
+        )
         page_result, page_items = _result_with_items(response)
 
         if aggregated_result is None:

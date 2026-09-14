@@ -64,23 +64,15 @@ class BaseBitrixToken:
             web_hook_auth=self.web_hook_auth, params=params, timeout=timeout,
         )
 
+    call_method = call_api_method_v3
+
     def call_list_method_v3(
         self,
         method: str,
         params: Optional[dict] = None,
         timeout: int = DEFAULT_TIMEOUT,
     ) -> Tuple[Dict[str, Any], int]:
-        return call_list_method_v3(
-            lambda api_method, api_params: self.call_api_method_v3(
-                api_method,
-                api_params,
-                timeout=timeout,
-            ),
-            method,
-            params,
-        )
-
-    call_method = call_api_method_v3
+        return call_list_method_v3(self, method, params, timeout=timeout)
 
     def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix='', refresh=True):
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
