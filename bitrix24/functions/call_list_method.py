@@ -13,7 +13,7 @@ from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
 
 if not six.PY2:  # type hints
-    from typing import Optional, Union
+    from typing import Any, List, Optional, Tuple, Union
 
 if typing.TYPE_CHECKING:  # type hints
     from ..models import BitrixUserToken
@@ -22,6 +22,14 @@ if typing.TYPE_CHECKING:  # type hints
 
 ALLOWABLE_TIME = 2000
 MICROSECONDS_TO_MILLISECONDS = 1000
+WEIRD_PAGINATION_METHODS = {
+    'task.item.list',
+    'task.items.getlist',
+    'task.elapseditem.getlist',
+}
+ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID = ('filter', 'select')
+FILTER_ID_KEYS = ('id', '@id')
+
 # Подавляющее большинство списочных методов возвращает просто список,
 # но некоторые оборачивают результат, здесь перечислены такие случаи
 METHOD_WRAPPERS = {
@@ -96,11 +104,89 @@ def unwrap_batch_res(batch_res, result=None, wrapper=None):
     return result
 
 
-WEIRD_PAGINATION_METHODS = {
-    'task.item.list',
-    'task.items.getlist',
-    'task.elapseditem.getlist',
-}
+def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str], Optional[List[Any]]]:
+    """
+    Проверяет, что в параметрах передан только фильтр по списку ID.
+
+    Поддерживаются оба формата:
+    - {'filter': {'ID': [...]}} / {'filter': {'id': [...]}}
+    - {'ID': [...]} / {'id': [...]}, например для department.get
+    """
+    filter_key = None
+    filter_id_key = None
+    filter_ids = None
+
+    if not isinstance(params, dict):
+        return filter_key, filter_id_key, filter_ids
+
+    # Сначала проверяем обычный формат списочных методов: {'filter': {'ID': [...]}, 'select': [...]}
+    for key in params:
+        if key.lower() == 'filter':
+            filter_key = key
+        if key.lower() not in ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID:
+            break
+    else:
+        if filter_key and isinstance(params[filter_key], dict):
+            # В filter должен быть только ID/id/@ID. Остальные условия требуют обычной пагинации, поэтому оптимизацию не включаем
+            for filter_field in params[filter_key]:
+                if filter_field.lower() in FILTER_ID_KEYS:
+                    filter_id_key = filter_field
+                else:
+                    return filter_key, filter_id_key, filter_ids
+
+            if filter_id_key:
+                filter_id_value = params[filter_key][filter_id_key]
+                if isinstance(filter_id_value, list):
+                    filter_ids = filter_id_value
+
+        return filter_key, filter_id_key, filter_ids
+
+    filter_key = None
+    filter_id_key = None
+
+    # Если filter_key нет, проверяем методы с ID на верхнем уровне параметров, например department.get: {'ID': [...]}
+    for key in params:
+        if key.lower() in FILTER_ID_KEYS:
+            filter_id_key = key
+        elif key.lower() != 'select':
+            return filter_key, filter_id_key, filter_ids
+
+    if filter_id_key:
+        filter_id_value = params[filter_id_key]
+        if isinstance(filter_id_value, list):
+            filter_ids = filter_id_value
+
+    return filter_key, filter_id_key, filter_ids
+
+
+def _generate_filter_id_methods_for_batch(
+        method: str,
+        fields: dict,
+        filter_key: Optional[str],
+        filter_id_key: str,
+        filter_ids: List[Any],
+        batch_size: int,
+) -> List[Tuple[str, dict]]:
+    methods = []
+
+    for start in range(0, len(filter_ids), batch_size):
+        filter_id_chunk = filter_ids[start:start + batch_size]
+        params = fields.copy()
+
+        if filter_key:
+            # Для стандартного формата меняем только список ID внутри filter, остальные разрешенные параметры, например select, сохраняем
+            filter_params = params[filter_key].copy()
+            filter_params[filter_id_key] = filter_id_chunk
+            params[filter_key] = filter_params
+        else:
+            # Для методов с ID на верхнем уровне чанкуем само поле ID/id/@ID.
+            params[filter_id_key] = filter_id_chunk
+
+        # При точной выборке по ID total не нужен, поэтому просим Bitrix24 не считать общее количество строк.
+        params['start'] = -1
+        methods.append((method, params))
+
+    return methods
 
 
 def next_params(method, params, next_step, page_size=50):
@@ -304,29 +390,23 @@ def call_list_method(
     assert 1 <= batch_size <= 50, 'check: 1 <= batch_size <= 50'
     fields = check_params(method, fields)
 
-    # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
-    # ЕСЛИ ПЕРЕДАНЫ ТОЛКО СПИСОК ID, то тормозит если их много,
-    # в каждый батч метод суем огромный список, например 5000 айдишников
-    # Альтернативное исполнение для таких ситуаций
-    if (
-        isinstance(fields, dict) and
-        isinstance(fields.get('filter'), dict) and
-        isinstance(fields['filter'].get('ID'), list) and
-        len(fields['filter']) == 1 and
-        len(fields) == 1
-    ):
-        # https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
-        def chunks(lst, n):
-            """Yield successive n-sized chunks from lst."""
-            for i in range(0, len(lst), n):
-                yield lst[i:i + n]
+    filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(fields)
 
-        methods = []
-        for x in chunks(fields['filter']['ID'], batch_size):
-            params = {'filter': {'ID': x}}
-            if fields.get('select'):
-                params['select'] = fields.get('select')
-            methods.append((method, params))
+    if filter_ids is not None:
+        if not filter_ids:
+            result = {METHOD_WRAPPERS[method]: []} if method in METHOD_WRAPPERS else []
+            if return_total:
+                return result, {"total": 0}
+            return result
+
+        methods = _generate_filter_id_methods_for_batch(
+            method=method,
+            fields=fields,
+            filter_key=filter_key,
+            filter_id_key=filter_id_key,
+            filter_ids=filter_ids,
+            batch_size=batch_size,
+        )
 
         batch = bx_token.batch_api_call(methods, timeout=timeout, chunk_size=batch_size,
                                         log_prefix=log_prefix, halt=1,
