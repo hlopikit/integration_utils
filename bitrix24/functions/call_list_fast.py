@@ -251,6 +251,7 @@ def iter_result_by_filter_ids(
         retry_settings=None,  # type: Optional[RetryDecorator]
 ):
     # type: (...) -> Generator[Dict, None, None]
+    # Добавляем к пользовательским параметрам сортировку по ID и start=-1,
     fields = _deep_merge(params, order_by)
     methods = _generate_filter_id_methods_for_batch(
         method=method,
@@ -341,6 +342,7 @@ def call_list_fast(
     if params and any(key in order_by for key in params):
         raise ValueError("Method doesn't support sort/order")
 
+    # Отдельно обрабатываем только фильтр вида {'filter': {'ID': [...]}} или {'filter': {'id': [...]}}.
     filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(params)
 
     if filter_ids is not None:
