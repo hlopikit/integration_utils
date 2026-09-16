@@ -86,9 +86,9 @@ def _cursor_key(cursor: Any) -> str:
 
 
 def call_list_method_v3(
-    token: 'BaseBitrixToken',
+    bx_token: 'BaseBitrixToken',
     method: str,
-    params: Optional[dict] = None,
+    fields: Optional[dict] = None,
     timeout: int = DEFAULT_TIMEOUT,
     *,
     max_pages: int = REST_V3_MAX_LIST_PAGES,
@@ -106,24 +106,21 @@ def call_list_method_v3(
     """
     max_pages = _positive_int(max_pages, name='max_pages')
 
-    if params is None:
-        request_params = {}
-    elif isinstance(params, dict):
-        request_params = deepcopy(params)
+    if fields is None:
+        params = {}
+    elif isinstance(fields, dict):
+        params = deepcopy(fields)
     else:
-        raise RestV3PaginationError(
-            'Параметры REST 3.0 должны быть объектом или null, получено {!r}'
-            .format(type(params).__name__)
-        )
+        raise RestV3PaginationError(f"Параметры REST 3.0 должны быть объектом или null, получено {type(fields).__name__!r}")
 
     all_items = []
     aggregated_result = None
     seen_cursors = set()
 
     for _page_number in range(1, max_pages + 1):
-        response = token.call_api_method_v3(
-            method,
-            request_params,
+        response = bx_token.call_api_method_v3(
+            api_method=method,
+            params=params,
             timeout=timeout,
         )
         page_result, page_items = _result_with_items(response)
@@ -154,7 +151,7 @@ def call_list_method_v3(
                 )
             seen_cursors.add(cursor_key)
 
-            pagination = request_params.get('pagination') or {}
+            pagination = params.get('pagination') or {}
             if not isinstance(pagination, dict):
                 raise RestV3PaginationError(
                     'Параметр pagination должен быть объектом'
@@ -163,10 +160,10 @@ def call_list_method_v3(
             pagination.pop('page', None)
             pagination.pop('offset', None)
             pagination['afterCursor'] = deepcopy(next_cursor)
-            request_params['pagination'] = pagination
+            params['pagination'] = pagination
             continue
 
-        pagination = request_params.get('pagination') or {}
+        pagination = params.get('pagination') or {}
         if not isinstance(pagination, dict):
             raise RestV3PaginationError(
                 'Параметр pagination должен быть объектом'
@@ -199,7 +196,7 @@ def call_list_method_v3(
         pagination = deepcopy(pagination)
         pagination.pop('page', None)
         pagination['offset'] = current_offset + len(page_items)
-        request_params['pagination'] = pagination
+        params['pagination'] = pagination
     else:
         raise RestV3PaginationError(
             'Превышено максимальное количество страниц REST 3.0: {}'
