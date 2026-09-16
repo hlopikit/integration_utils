@@ -368,3 +368,6 @@ def _batch_api_call(
                          part_resp=data)
 
     return responses
+
+
+batch_api_call = _batch_api_call

@@ -14,6 +14,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 
 from integration_utils.bitrix24.types import ItsRequest
+from integration_utils.bitrix_parse import parse_flattened_keys
 from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
 from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
@@ -582,6 +583,10 @@ class BaseBitrixRobot(models.Model):
                 res[prop] = self.params.get(full_prop, self.params.get(full_prop_0, default))
 
         return res
+
+    @cached_property
+    def parsed_params(self) -> dict:
+        return parse_flattened_keys(self.params)
 
     def get_query_dict_params(self):
         query_dict = QueryDict('', mutable=True)

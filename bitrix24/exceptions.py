@@ -44,6 +44,13 @@ class BitrixApiException(Exception):
     Ошибка при работе с API Битрикс.
     """
     @property
+    def friendly_error(self):
+        """
+        Текст ошибки, который можно отдавать конечному пользователю.
+        """
+        return 'Неизвестная ошибка Битрикс24'
+
+    @property
     def is_not_logic_error(self):
         return False
 
@@ -83,14 +90,63 @@ class BitrixApiError(BitrixApiException):
         return f"{self.json_response}, {self.status_code}, {self.message}, token={self.token}"
 
     @property
-    def error(self):
-        if isinstance(self.json_response, dict):
-            return self.json_response.get('error')
+    def error(self) -> str:
+        if isinstance(response := self.json_response, dict):
+            value = response.get("error")
+            return value if isinstance(value, str) else str(value or "")
+        return ""
 
     @property
-    def error_description(self):
-        if isinstance(self.json_response, dict):
-            return self.json_response.get('error_description')
+    def error_description(self) -> str:
+        if isinstance(response := self.json_response, dict):
+            value = response.get("error_description")
+            return value if isinstance(value, str) else str(value or "")
+        return ""
+
+    @property
+    def friendly_error(self):
+        if self.is_unable_to_authorize_user or self.is_user_cant_be_authorized_in_context:
+            return 'Пользователь Битрикс24 уволен, заблокирован или удалён'
+        if self.is_user_access_error:
+            return 'Администратор портала Битрикс24 ограничил доступ к приложению'
+        if self.is_access_denied_extended_plans or self.is_wrong_license or self.is_method_not_found:
+            return 'Доступ к действию запрещён на вашем тарифе Битрикс24'
+        if self.is_access_error or self.is_access_denied_any:
+            return 'Доступ запрещён'
+        if self.is_free_plan_error:
+            return 'Приложение доступно только на коммерческих тарифах Битрикс24'
+        if self.is_payment_required or self.is_subscription_required:
+            return 'У портала Битрикс24 закончилась активная подписка'
+        if self.is_out_of_disc_space_error:
+            return 'У портала Битрикс24 закончилось место на диске'
+        if self.is_not_found or self.is_error_not_found:
+            return 'Запрошенный ресурс не найден на портале Битрикс24'
+        if self.is_portal_deleted:
+            return 'Публичная часть портала Битрикс24 скрыта'
+        if self.is_application_not_found or self.is_application_not_installed:
+            return 'Приложение не найдено или неактивно на портале Битрикс24'
+        if self.is_error_connecting_to_authorization_server:
+            return 'Сервер авторизации Битрикс24 временно недоступен'
+        if self.is_bad_gateway or self.is_gateway_timeout or self.is_connection_to_bitrix_error:
+            return 'Битрикс24 временно недоступен'
+        if self.is_license_check_failed or self.is_portal_blocked_by_license_scanner:
+            return 'Ошибка проверки лицензии портала Битрикс24'
+        if self.is_operation_time_limit:
+            return 'Запрос заблокирован из-за превышения лимита времени выполнения операции'
+        if self.is_workflow_not_found:
+            return 'Бизнес-процесс Битрикс24 не найден или уже завершён'
+        if self.is_no_client_credentials:
+            return 'На портале Битрикс24 не настроены service_client_id/service_client_secret'
+        if self.is_https_required:
+            return 'Для запросов к Битрикс24 требуется HTTPS'
+        if self.is_overload_limit or self.is_rate_limit_exceeded or self.is_too_many_requests:
+            return 'Запросы временно заблокированы из-за перегрузки приложения'
+        if self.is_intranet_user_required:
+            return 'Метод доступен только внутренним пользователям портала Битрикс24'
+        if self.is_authorization_error or self.is_unauthorized_any or self.is_token_expired:
+            return 'Ошибка авторизации'
+
+        return 'Ошибка Битрикс24'
 
     @property
     def is_not_logic_error(self):
@@ -115,6 +171,7 @@ class BitrixApiError(BitrixApiException):
             self.is_cant_refresh,
             self.is_mysql_query_error,
             self.is_portal_blocked_by_license_scanner,
+            self.is_internal_error_adding_list_element,
         ]):
             return True
         return False
@@ -298,6 +355,10 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'WRONG_ENCODING'
 
     @property
+    def is_wrong_request(self):
+        return self.error == 'WRONG_REQUEST'
+
+    @property
     def is_application_not_found(self):
         return self.error == APPLICATION_NOT_FOUND
 
@@ -378,12 +439,129 @@ class BitrixApiError(BitrixApiException):
         return self.error == 'PORTAL_BLOCKED_BY_LICENSE_SCANNER'
 
     @property
+    def is_internal_error_adding_list_element(self):
+        """
+        Внутренняя ошибка Bitrix при добавлении элемента списка,
+        обычно возникающая из-за ошибки SQL-запроса на стороне портала.
+        """
+        return self.error_description == 'Internal error adding list element. Try adding again.'
+
+    @property
     def is_workflow_not_found(self):
         """
         Запуск бизнес-процесса в b_bp_workflow_instance не найден (возможно, завершён).
         Пример: error='404', error_description='Бизнес-процесс не найден'
         """
         return self.error_description == "Бизнес-процесс не найден"
+
+    @property
+    def is_batch_length_exceeded(self):
+        return self.error_description == 'Max batch length exceeded'
+
+    @property
+    def is_invalid_argument_value(self):
+        return self.error_description == 'Invalid argument value provided'
+
+    @property
+    def is_no_client_credentials(self):
+        return self.error_description == 'No client credentials'
+
+    @property
+    def is_https_required(self):
+        return self.error_description == 'Https required'
+
+    @property
+    def is_invalid_request_credentials(self):
+        return self.error_description == 'Invalid request credentials'
+
+    @property
+    def is_user_not_authorized(self):
+        return self.error_description == 'User not authorized'
+
+    @property
+    def is_access_denied_for_user_type(self):
+        return self.error_description == 'Access denied for this type of user'
+
+    @property
+    def is_session_failed(self):
+        return self.error_description == 'Sessid check failed'
+
+    @property
+    def is_overload_limit(self):
+        return self.error_description and self.error_description.startswith('REST API is blocked due to overload')
+
+    @property
+    def is_subscription_required(self):
+        return self.error_description == 'REST is available only by subscription.'
+
+    @property
+    def is_webhook_insufficient_scope(self):
+        return self.error_description == 'The request requires higher privileges than provided by the webhook token'
+
+    @property
+    def is_method_confirmation_waiting(self):
+        return self.error_description == 'Waiting for confirmation'
+
+    @property
+    def is_rate_limit_exceeded(self):
+        return self.error_description == 'Rate limit exceeded. Too many requests in a given amount of time.'
+
+    @property
+    def is_method_confirmation_denied(self):
+        return self.error_description == 'Method call denied'
+
+    @property
+    def is_intranet_user_required(self):
+        return self.error_description == 'Method allowed only for intranet users'
+
+    @property
+    def is_manifest_not_available(self):
+        return self.error_description == 'Manifest is not available'
+
+    @property
+    def is_batch_method_not_allowed(self):
+        return self.error_description == 'Method is not allowed for batch usage'
+
+    @property
+    def is_sql_query_error(self):
+        return self.error_description == 'SQL query error!'
+
+    @property
+    def is_unexpected_answer(self):
+        return self.error_description and self.error_description.startswith('Server returned an unexpected response')
+
+    @property
+    def is_wrong_transport(self):
+        return self.error_description == 'Wrong transport!'
+
+    @property
+    def is_wrong_handler_class(self):
+        return self.error_description == 'Wrong handler class!'
+
+    @property
+    def is_too_many_requests(self):
+        return self.error_description == 'Too many requests'
+
+    @property
+    def is_invalid_scope(self):
+        return self.error_description == 'Given scope exceeds permissions associated with given grant'
+
+    @property
+    def is_refresh_token_parameter_missing(self):
+        return self.error_description == 'No "refresh_token" parameter found'
+
+    @property
+    def is_wrong_auth_type(self):
+        return self.error_description and self.error_description.startswith('Current authorization type is denied for this method')
+
+    @property
+    def is_wrong_license(self):
+        return self.error_description and self.error_description.startswith('This feature is not enabled for the current license:')
+
+    @property
+    def is_message_not_added(self):
+        """Битрикс не смог добавить сообщение в чат."""
+        return self.is_wrong_request and self.error_description == "Message isn't added"
 
     def dict(self):
         if isinstance(self.json_response, dict):
@@ -442,6 +620,15 @@ class BitrixApiServerError(BitrixApiError):
     Обычно означает, что сервер вернул не JSON в ответе.
     """
     is_internal_server_error = True
+
+
+class BitrixUnexpectedResponseError(BitrixApiError):
+    """
+    Ответ не соответствует ожидаемому формату ошибки Bitrix.
+    """
+    @property
+    def is_not_logic_error(self):
+        return True
 
 
 class SnapiError(BitrixApiError):
@@ -511,6 +698,10 @@ class BatchApiCallError(BatchFailed):
         )
 
     @property
+    def friendly_error(self):
+        return self.bitrix_api_error.friendly_error
+
+    @property
     def is_not_logic_error(self):
         """
         Используется свойство из BitrixApiError.
@@ -531,6 +722,10 @@ class JsonDecodeBatchFailed(BatchFailed):
     def is_not_logic_error(self):
         return True
 
+    @property
+    def friendly_error(self):
+        return 'Битрикс24 вернул неправильный формат ответа'
+
 
 class BaseRequestException(BitrixApiException):
     """
@@ -544,6 +739,10 @@ class BaseRequestException(BitrixApiException):
     @property
     def is_not_logic_error(self):
         return True
+
+    @property
+    def friendly_error(self):
+        return 'Не удалось выполнить запрос к Битрикс24'
 
     def __str__(self):
         return f"{self.requests_exception}"
@@ -579,6 +778,9 @@ class BitrixConnectionError(BaseConnectionError):
     """
     Ошибка соединения при запросе к порталу Битрикс.
     """
+    @property
+    def friendly_error(self):
+        return 'Не удалось подключиться к порталу Битрикс24'
 
 
 # Для обратной совместимости
@@ -589,6 +791,9 @@ class BitrixOauthRefreshConnectionError(BaseConnectionError):
     """
     Ошибка соединения при запросе к серверу авторизации Битрикс при обновлении токена.
     """
+    @property
+    def friendly_error(self):
+        return 'Не удалось подключиться к серверу авторизации Битрикс24'
 
 
 # Для обратной совместимости
@@ -614,10 +819,15 @@ class BitrixTimeout(BaseTimeout):
     """
     Таймаут при запросе к порталу Битрикс.
     """
+    @property
+    def friendly_error(self):
+        return 'Портал Битрикс24 не ответил за отведённое время'
 
 
 class BitrixOauthRefreshTimeout(BaseTimeout):
     """
     Таймаут при запросе к серверу авторизации Битрикс при обновлении токена.
     """
-
+    @property
+    def friendly_error(self):
+        return 'Сервер авторизации Битрикс24 не ответил за отведённое время'

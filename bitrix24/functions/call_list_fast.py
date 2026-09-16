@@ -12,6 +12,7 @@ if not six.PY2:
 
     if TYPE_CHECKING:
         from ..models import BitrixUserToken
+        from integration_utils.retry_utils import RetryDecorator
 
 
 def _deep_merge(*dicts):  # type: (*dict) -> dict
@@ -242,6 +243,7 @@ def call_list_fast(
     timeout: Optional[int] = DEFAULT_TIMEOUT,
     limit: Optional[int] = None,
     batch_size=50,
+    retry_settings: Optional['RetryDecorator'] = None,
 ) -> Generator[Dict, None, None]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
@@ -314,11 +316,17 @@ def call_list_fast(
                 method,
                 _deep_merge({} if params is None else params, call_fast_params),
             ))
-        batch = tok.batch_api_call_v3(batch_params,
-                                      timeout=timeout, log_prefix=log_prefix)
+
+        batch = tok.batch_api_call_v3(
+            methods=batch_params,
+            timeout=timeout,
+            log_prefix=log_prefix,
+            retry_settings=retry_settings,
+        )
 
         duplicate_count = 0
         max_duplicate_count = getattr(settings, 'CALL_LIST_FAST_MAX_DUPLICATE_COUNT', 10)
+
         for _, response in batch.iter_successes():
             result = response['result']
             if wrapper is not None:

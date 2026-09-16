@@ -3,6 +3,7 @@
 import hashlib
 import typing
 from datetime import datetime, timedelta
+from typing import Iterable, Optional
 
 import requests
 from django.conf import settings
@@ -14,6 +15,7 @@ from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, 
     BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixConnectionError, BitrixTimeout
 from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
+from integration_utils.retry_utils import RetryDecorator
 from settings import ilogger
 
 if typing.TYPE_CHECKING:
@@ -138,16 +140,24 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             return pk
 
     @classmethod
-    def get_random_token(cls, is_admin=True, pk_desc=False, bitrix_unavailable_attempts = 2):
+    def get_random_token(
+            cls,
+            is_admin: bool = True,
+            pk_desc: bool = False,
+            bitrix_unavailable_attempts: int = 2,
+            user_ids: Optional[Iterable[int]] = None,
+    ) -> 'BitrixUserToken':
         """
         Получить один любой активный токен.
 
         :param is_admin: токен должен иметь права администратора (True - да, False - админский при наличии, иначе простого юзера)
         :param pk_desc: брать сначала последние токены
         :param bitrix_unavailable_attempts: число запросов в Битрикс, если он недоступен
+        :param user_ids: Bitrix ID пользователей, среди которых искать токен
         :raise BitrixUserTokenDoesNotExist: не найден подходящий токен
         :raise BitrixApiException: различные нерешаемые ошибки Битрикс
         """
+
         log_tag = 'integration_utils.BitrixUserToken.get_random_token'
 
         @retry_decorator(bitrix_unavailable_attempts, (BaseConnectionError, BaseTimeout))
@@ -165,6 +175,9 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             tokens = tokens.filter(user__is_admin=True).order_by(f'{"-" if pk_desc else ""}pk')
         else:
             tokens = tokens.order_by('-user__is_admin', f'{"-" if pk_desc else ""}pk')
+
+        if user_ids is not None:
+            tokens = tokens.filter(user__bitrix_id__in=user_ids)
 
         result_token = None
         likely_inactive_user_dict = {}
@@ -193,7 +206,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
                 break
 
         if result_token is None:
-            raise BitrixUserToken.DoesNotExist()
+            raise BitrixUserToken.DoesNotExist(f"{user_ids=}")
         else:
             # Смотрим, были ли найдены потенциально неактивные пользователи
             if likely_inactive_user_dict:
@@ -383,19 +396,39 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         if refreshed or self.is_active and self.expires > timezone.now():
             return
 
-        raise ExpiredToken(status_code=401)
+        raise ExpiredToken()
 
-    def call_api_method(self, api_method, params=None, timeout=DEFAULT_TIMEOUT, refresh=True):
+    def call_api_method(
+            self,
+            api_method: str,
+            params: typing.Optional[dict] = None,
+            timeout: typing.Optional[int] = DEFAULT_TIMEOUT,
+            refresh: bool = True,
+            retry_settings: typing.Optional[RetryDecorator] = None,
+    ) -> dict:
         if refresh:
             self.refresh_if_needed(timeout=timeout)
+
         try:
-            return super().call_api_method(api_method=api_method, params=params, timeout=timeout)
+            return super().call_api_method(
+                api_method=api_method,
+                params=params,
+                timeout=timeout,
+                retry_settings=retry_settings,
+            )
         except ExpiredToken:
             if not refresh:
-                raise ExpiredToken(status_code=401)
+                raise ExpiredToken()
 
             if self.refresh(timeout=timeout):
-                return self.call_api_method(api_method, params, timeout=timeout, refresh=False)
+                return self.call_api_method(
+                    api_method=api_method,
+                    params=params,
+                    timeout=timeout,
+                    refresh=False,
+                    retry_settings=retry_settings,
+                )
+
             raise
 
     def deactivate_token(self, refresh_error):
@@ -404,23 +437,40 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             self.refresh_error = refresh_error
             self.save(force_update=True)
 
-    def batch_api_call(self, methods, timeout=DEFAULT_TIMEOUT, chunk_size=50, halt=0, log_prefix='', refresh=True):
+    def batch_api_call(
+            self,
+            methods: typing.Union[list, dict],
+            timeout: typing.Optional[int] = DEFAULT_TIMEOUT,
+            chunk_size: int = 50,
+            halt: int = 0,
+            log_prefix: str = '',
+            refresh: bool = True,
+            retry_settings: typing.Optional[RetryDecorator] = None,
+    ) -> typing.Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
+
         from integration_utils.bitrix24.exceptions import BatchApiCallError
+
         if refresh:
             self.refresh_if_needed(timeout=timeout)
+
         try:
-            return super().batch_api_call(methods=methods,
-                                          timeout=timeout,
-                                          chunk_size=chunk_size,
-                                          halt=halt,
-                                          log_prefix=log_prefix,
-                                          refresh=refresh)
+            return super().batch_api_call(
+                methods=methods,
+                timeout=timeout,
+                chunk_size=chunk_size,
+                halt=halt,
+                log_prefix=log_prefix,
+                refresh=refresh,
+                retry_settings=retry_settings
+            )
         except BatchApiCallError as e:
             # fixme: нет такого метода
             # self.check_deactivate_errors(e.reason)
             raise e
+
+    batch_api_call_v3 = batch_api_call
 
     @classmethod
     def refresh_all(cls, timeout=DEFAULT_TIMEOUT):
