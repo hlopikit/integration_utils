@@ -99,14 +99,6 @@ class BaseBitrixToken:
 
     call_method = call_api_method_v3
 
-    def call_list_method_v3(
-        self,
-        method: str,
-        params: Optional[dict] = None,
-        timeout: int = DEFAULT_TIMEOUT,
-    ) -> Tuple[Dict[str, Any], int]:
-        return call_list_method_v3(self, method, params, timeout=timeout)
-
     def batch_api_call(
         self,
         methods: Union[list, dict],
@@ -200,6 +192,19 @@ class BaseBitrixToken:
         )
 
     call_list_method_v2 = call_list_method
+
+    def call_list_method_v3(
+        self,
+        method: str,
+        fields: Optional[dict] = None,
+        timeout: int = DEFAULT_TIMEOUT,
+    ) -> Tuple[Dict[str, Any], int]:
+        return call_list_method_v3(
+            bx_token=self,
+            method=method,
+            fields=fields,
+            timeout=timeout,
+        )
 
 
 class BitrixToken(BaseBitrixToken):
