@@ -24,7 +24,10 @@ class AbstractBitrixEvent(models.Model):
 
         Исключения обработчика передаются вызывающему коду.
         """
-        handler = getattr(self, self.event_name.lower(), None)
+        event_name = self.event_name.lower()
+        if event_name.startswith('on'):
+            event_name = event_name[2:]
+        handler = getattr(self, 'on_{}'.format(event_name), None)
         if handler is not None:
             return handler()
         return None
