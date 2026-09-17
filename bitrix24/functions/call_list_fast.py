@@ -262,7 +262,7 @@ def iter_result_by_filter_ids(
         batch_size=batch_size,
     )
 
-    batch = tok.batch_api_call_v3(
+    batch = tok.batch_api_call(
         methods=methods,
         timeout=timeout,
         chunk_size=batch_size,
