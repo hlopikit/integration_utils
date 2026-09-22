@@ -3,7 +3,7 @@
 
 {% block after_field_sets %}
   {{ block.super }}
-  {% if object_id %}
+  {% if object_id and has_change_permission %}
     <fieldset class="module">
       <h2>Дополнительные действия</h2>
       <div class="form-row">
