@@ -2,7 +2,7 @@
 
 from __future__ import unicode_literals
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.safestring import mark_safe
 
 import django
@@ -55,3 +55,16 @@ class Bitrix24UserTokenAdmin(JsonInfoAdmin):
     date_hierarchy = 'auth_token_date'
     raw_id_fields = ['user']
     actions = ['refresh']
+    change_form_template = 'bitrix24/admin/bitrix_user_token_change_form.html'
+
+    def refresh(self, request, queryset):
+        for instance in queryset:
+            if instance.refresh():
+                self.message_user(request, '#%s refreshed.' % instance.pk)
+            else:
+                self.message_user(
+                    request,
+                    '#%s not refreshed.' % instance.pk,
+                    level=messages.WARNING,
+                )
+    refresh.short_description = 'Refresh tokens'
