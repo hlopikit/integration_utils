@@ -1,3 +1,6 @@
+from typing import Any, Dict
+
+from dateutil.parser import isoparse
 from django.db import models
 from django.utils import timezone
 
@@ -21,3 +24,11 @@ class AbstractBitrixEvent(BitrixEvent, models.Model):
 
     def __str__(self) -> str:
         return '[{}] {}'.format(self.pk, self.event_name)
+
+    @classmethod
+    def from_bitrix_data(cls, data: Dict[str, Any]) -> "AbstractBitrixEvent":
+        return cls.objects.create(
+            event_name=data['EVENT_NAME'],
+            data=data,
+            datetime=isoparse(data['TIMESTAMP_X']),
+        )
