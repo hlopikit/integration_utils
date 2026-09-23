@@ -1,0 +1,20 @@
+{% extends 'admin/change_form.html' %}
+{% load admin_urls %}
+
+{% block after_field_sets %}
+  {{ block.super }}
+  {% if object_id and has_change_permission %}
+    <fieldset class="module">
+      <h2>Дополнительные действия</h2>
+      <div class="form-row">
+        <button type="submit"
+                class="button"
+                formaction="{% url 'admin:bitrix24_bitrixusertoken_refresh' object_id|admin_urlquote %}"
+                formmethod="post"
+                formnovalidate>
+          Обновить токен
+        </button>
+      </div>
+    </fieldset>
+  {% endif %}
+{% endblock %}

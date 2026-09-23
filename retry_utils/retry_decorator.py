@@ -16,6 +16,7 @@ class RetryDecorator:
             exceptions: _Exceptions = (Exception,),
             exclude_exceptions: _Exceptions = (),
             should_retry: Optional[Callable[[Exception], bool]] = None,
+            silent: bool = False,
     ):
         if attempts < 1:
             raise ValueError("attempts must be greater than 0")
@@ -38,11 +39,12 @@ class RetryDecorator:
         )
 
         self.should_retry = should_retry
+        self.silent = silent
 
     def __call__(self, func: _CallableT) -> _CallableT:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            for _ in range(self.attempts - 1):
+            for attempt in range(1, self.attempts + 1):
                 try:
                     return func(*args, **kwargs)
                 except self.exceptions as exc:
@@ -52,9 +54,12 @@ class RetryDecorator:
                     if self.should_retry and not self.should_retry(exc):
                         raise
 
+                    if attempt == self.attempts:
+                        if self.silent:
+                            return None
+                        raise
+
                     if self.delay:
                         time.sleep(self.delay)
-
-            return func(*args, **kwargs)
 
         return wrapper

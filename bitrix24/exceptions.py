@@ -622,6 +622,15 @@ class BitrixApiServerError(BitrixApiError):
     is_internal_server_error = True
 
 
+class BitrixUnexpectedResponseError(BitrixApiError):
+    """
+    Ответ не соответствует ожидаемому формату ошибки Bitrix.
+    """
+    @property
+    def is_not_logic_error(self):
+        return True
+
+
 class SnapiError(BitrixApiError):
     """
     Ошибка вызова Snapi-метода.
