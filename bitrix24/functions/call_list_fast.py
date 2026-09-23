@@ -6,6 +6,7 @@ from django.conf import settings
 from settings import ilogger
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.exceptions import BatchApiCallError
+from .call_list_method import _check_filter_by_id_only, _generate_filter_id_methods_for_batch
 
 if not six.PY2:
     from typing import Optional, Any, Hashable, Dict, Callable, TYPE_CHECKING, Generator
@@ -234,6 +235,60 @@ def is_invalid_filter_error(method, batch):
     )
 
 
+def iter_result_by_filter_ids(
+        tok,  # type: BitrixUserToken
+        method,  # type: str
+        params,  # type: Dict[str, Any]
+        filter_key,  # type: Optional[str]
+        filter_id_key,  # type: str
+        filter_ids,  # type: list
+        order_by,  # type: Dict[str, Any]
+        wrapper=None,  # type: Optional[str]
+        timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
+        limit=None,  # type: Optional[int]
+        batch_size=50,  # type: int
+        log_prefix='',  # type: str
+        retry_settings=None,  # type: Optional[RetryDecorator]
+):
+    # type: (...) -> Generator[Dict, None, None]
+    # Добавляем к пользовательским параметрам сортировку по ID и start=-1,
+    fields = _deep_merge(params, order_by)
+    methods = _generate_filter_id_methods_for_batch(
+        method=method,
+        fields=fields,
+        filter_key=filter_key,
+        filter_id_key=filter_id_key,
+        filter_ids=filter_ids,
+        batch_size=batch_size,
+    )
+
+    batch = tok.batch_api_call(
+        methods=methods,
+        timeout=timeout,
+        chunk_size=batch_size,
+        halt=1,
+        log_prefix=log_prefix,
+        retry_settings=retry_settings,
+    )
+
+    if not batch.all_ok:
+        raise BatchApiCallError(batch)
+
+    seen_ids_count = 0
+
+    for _, response in batch.iter_successes():
+        result = response['result']
+        if wrapper is not None:
+            result = result[wrapper]
+
+        for entity in result:
+            yield entity
+            seen_ids_count += 1
+
+            if limit is not None and seen_ids_count >= limit:
+                return
+
+
 def call_list_fast(
     tok: 'BitrixUserToken',
     method: str,
@@ -286,6 +341,30 @@ def call_list_fast(
     order_by = order_fn(descending)
     if params and any(key in order_by for key in params):
         raise ValueError("Method doesn't support sort/order")
+
+    # Отдельно обрабатываем только фильтр вида {'filter': {'ID': [...]}} или {'filter': {'id': [...]}}.
+    filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(params)
+
+    if filter_ids is not None:
+        if not filter_ids:
+            return
+
+        yield from iter_result_by_filter_ids(
+            tok=tok,
+            method=method,
+            params={} if params is None else params,
+            filter_key=filter_key,
+            filter_id_key=filter_id_key,
+            filter_ids=filter_ids,
+            order_by=order_by,
+            wrapper=wrapper,
+            timeout=timeout,
+            limit=limit,
+            batch_size=batch_size,
+            log_prefix=log_prefix,
+            retry_settings=retry_settings,
+        )
+        return
 
     while True:
         batch_params = []
