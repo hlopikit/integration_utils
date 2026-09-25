@@ -8,6 +8,7 @@ from integration_utils.bitrix24.bitrix_user_auth.authenticate_on_start_applicati
 from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import get_bitrix_user_token_from_cookie, EmptyCookie
 from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_header import get_bitrix_user_token_from_header
 from integration_utils.bitrix24.bitrix_user_auth.set_cookie import set_auth_cookie
+from integration_utils.bitrix24.exceptions import BitrixApiError
 
 
 def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=False):
@@ -24,7 +25,12 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
         def wrapper(request, *args, **kwargs):
             # Основная процедура авторизации
             if on_start:
-                authenticate_on_start_application(request=request)
+                try:
+                    authenticate_on_start_application(request=request)
+                except BitrixApiError as exc:
+                    if exc.is_invalid_token:
+                        return render(request, 'invalid_token_error.html', status=401)
+                    raise
             if on_cookies:
                 try:
                     get_bitrix_user_token_from_cookie(request)
