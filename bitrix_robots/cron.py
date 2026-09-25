@@ -4,6 +4,12 @@ from settings import ilogger
 
 
 def process_robot_requests(robot_cls, qs = None, qs_limit: int = None):
+    """
+    Обработать необработанные запросы робота.
+    :param robot_cls: класс робота.
+    :param qs: уточнённый QuerySet запросов робота.
+    :param qs_limit: ограничение числа запросов для обработки.
+    """
     if isinstance(robot_cls, str):
         robot_cls = import_string(robot_cls)
 

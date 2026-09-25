@@ -30,7 +30,16 @@ if TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
 
 
-class BaseBitrixRobot(models.Model):
+class BaseBitrixRobotObject:
+    """
+    Базовый класс для робота Битрикс24.
+    1 экземпляр класса = 1 запрос робота.
+
+    Установка, обновление и удаление робота на портале - через методы класса.
+    Разбор параметров запроса робота - через методы экземпляра класса.
+    Конкретный жизненный цикл запроса определяют наследники.
+    """
+
     CODE = NotImplemented  # type: str
     NAME = NotImplemented  # type: str
 
@@ -64,56 +73,12 @@ class BaseBitrixRobot(models.Model):
     # True активирует валидацию и приведение пропсов к нужным типам
     VALIDATE_PROPS = False
 
-    token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
-    event_token = models.CharField(max_length=255, null=True, blank=True)
-    params = JSONField()
-
-    dt_add = models.DateTimeField(default=timezone.now)
-    started = models.DateTimeField(null=True, blank=True, db_index=True)
-    finished = models.DateTimeField(null=True, blank=True)
-    is_success = models.BooleanField(default=False, db_index=True)
-    result = JSONField(null=True, blank=True)
-    is_hook_request = models.BooleanField(default=False)
-    send_result_response = models.TextField(null=True, blank=True)
-
-    class Meta:
-        abstract = True
-
-    class Admin(admin.ModelAdmin):
-        list_display = ['id', 'token', 'dt_add', 'started', 'finished', 'is_success']
-        list_display_links = list_display
-        list_filter = ['is_success', 'dt_add', 'finished']
-        raw_id_fields = ['token']
-
-    def __str__(self):
-        return '[{}] {} ({})'.format(self.id, self.token, self.dt_add)
-
-    def save(self, *args, **kwargs):
-        self.fix_json_params()
-        super().save(*args, **kwargs)
-
-    def fix_json_params(self):
-        """
-        Привести параметры к нужным типам
-        """
-        if self.is_hook_request:
-            return
-        for prop_name, desc in self.PROPERTIES.items():
-            prop = None
-            for prop_var in ['properties[{}]'.format(prop_name), 'properties[{}][0]'.format(prop_name)]:
-                if prop_var in self.params:
-                    prop = prop_var
-            if not prop:
-                return
-            if desc.get('Multiple') != 'Y' and desc.get('Type') == 'string':
-                # числа с большой разрядностью ведут сбя странно при сохранении в jsonfield
-                self.params[prop] = str(self.params[prop])
+    # Параметры запроса робота
+    params: dict
 
     @classmethod
     def handler_url(cls, view_name):
-        """
-        Получить URL обработчика через reverse+название view
-        """
+        """Получить URL обработчика через reverse и имя view."""
         return 'https://{domain}{path}'.format(
             domain=cls.APP_DOMAIN,
             path=reverse(view_name),
@@ -121,6 +86,7 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def _robot_add_params(cls, view_name: str, auth_user_id: int) -> dict:
+        """Параметры для добавления робота на портал."""
         def bx_bool(value):
             return 'Y' if value else 'N'
 
@@ -151,23 +117,25 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def _robot_update_params(cls, view_name: str, auth_user_id: int) -> dict:
+        """Параметры для обновления робота на портале."""
         add_params = cls._robot_add_params(view_name, auth_user_id)
         code = add_params.pop('CODE')
         return dict(CODE=code, FIELDS=add_params)
 
     @classmethod
     def is_installed(cls, admin_token: 'BitrixUserToken') -> bool:
-        """
-        Зарегистрирован ли робот на портале
-        """
+        """Проверить, зарегистрирован ли робот на портале."""
         robot_codes = admin_token.call_list_method_v2('bizproc.robot.list')
         return any(code == cls.CODE for code in robot_codes)
 
     @classmethod
-    def install(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: Optional['BitrixUser'] = None):
-        """
-        Встроить робота на портал
-        """
+    def install(
+        cls,
+        view_name: str,
+        admin_token: 'BitrixUserToken',
+        token_user: Optional['BitrixUser'] = None,
+    ):
+        """Установить робот на портале."""
         if token_user:
             assert token_user.id == admin_token.user_id
         else:
@@ -178,20 +146,13 @@ class BaseBitrixRobot(models.Model):
         )['result']
 
     @classmethod
-    def uninstall(cls, admin_token: 'BitrixUserToken'):
-        """
-        Удалить робота с портала
-        """
-        return admin_token.call_api_method(
-            'bizproc.robot.delete',
-            params=dict(CODE=cls.CODE),
-        )['result']
-
-    @classmethod
-    def update(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: Optional['BitrixUser'] = None):
-        """
-        Обновить параметры робота на портале
-        """
+    def update(
+        cls,
+        view_name: str,
+        admin_token: 'BitrixUserToken',
+        token_user: Optional['BitrixUser'] = None,
+    ):
+        """Обновить робот на портале."""
         if token_user:
             assert token_user.id == admin_token.user_id
         else:
@@ -202,18 +163,337 @@ class BaseBitrixRobot(models.Model):
         )['result']
 
     @classmethod
-    def install_or_update(cls, view_name: str, admin_token: 'BitrixUserToken', token_user: 'BitrixUser' = None):
-        """
-        Встроить или обновить параметры робота на портале
-        """
+    def install_or_update(
+        cls,
+        view_name: str,
+        admin_token: 'BitrixUserToken',
+        token_user: 'BitrixUser' = None,
+    ):
+        """Установить или обновить существующего робота на портале."""
         if cls.is_installed(admin_token):
-            method = cls.update
+            return cls.update(view_name, admin_token, token_user)
         else:
-            method = cls.install
-        return method(view_name=view_name, admin_token=admin_token, token_user=token_user)
+            return cls.install(view_name, admin_token, token_user)
+
+    @classmethod
+    def uninstall(cls, admin_token: 'BitrixUserToken'):
+        """Удалить робота с портала."""
+        return admin_token.call_api_method(
+            'bizproc.robot.delete',
+            params=dict(CODE=cls.CODE),
+        )['result']
+
+    @classmethod
+    def delete(cls, admin_token: 'BitrixUserToken'):
+        """Удалить робота с портала; старое имя."""
+        return cls.uninstall(admin_token)
+
+    @staticmethod
+    def _check_required(value: Any):
+        """Проверить, что обязательное поле не пустое."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise ValidationError('Поле обязательно для заполнения')
+
+    @staticmethod
+    def safe_int(value: Optional[Union[int, str]], required: bool = False) -> Optional[int]:
+        """Преобразовать значение в int или вернуть None для пустого значения."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return None
+
+        if isinstance(value, int):
+            return value
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return int(stripped)
+            except ValueError:
+                raise ValidationError(f'Значение "{stripped}" не может быть преобразовано в число')
+
+        raise ValidationError('Значение должно быть строкой или числом')
+
+    @staticmethod
+    def safe_bool(value: Optional[Union[bool, str]], required: bool = False) -> Optional[bool]:
+        """Проверить и нормализовать логическое свойство Битрикс24."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return False
+
+        if isinstance(value, bool):
+            return value
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return False
+            if stripped == 'Y':
+                return True
+            if stripped == 'N':
+                return False
+
+        raise ValidationError(f"Значение '{value}' не может быть преобразовано в bool")
+
+    @staticmethod
+    def safe_string(value: Optional[str], required: bool = False) -> Optional[str]:
+        """Проверить и вернуть строковое значение."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        raise ValidationError('Значение должно быть строкой')
+
+    @staticmethod
+    def safe_text(value: Optional[str], required: bool = False) -> Optional[str]:
+        """Проверить и вернуть текстовое значение."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        raise ValidationError('Значение должно быть текстом')
+
+    @staticmethod
+    def safe_double(value: Optional[Union[float, int, str]], required: bool = False) -> Optional[float]:
+        """Преобразовать значение в float или вернуть None для пустого значения."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return None
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return float(stripped)
+            except ValueError:
+                raise ValidationError(f'Значение "{stripped}" не может быть преобразовано в число с плавающей точкой')
+
+        raise ValidationError('Значение должно быть числом или строкой')
+
+    @staticmethod
+    def safe_date(value: Optional[str], required: bool = False) -> Optional[date]:
+        """Преобразовать строку ISO в date."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return date.fromisoformat(stripped)
+            except ValueError:
+                raise ValidationError(f'Дата "{stripped}" должна быть в формате ГГГГ-ММ-ДД')
+
+        raise ValidationError('Дата должна быть строкой в формате ГГГГ-ММ-ДД')
+
+    @staticmethod
+    def safe_datetime(value: Optional[str], required: bool = False) -> Optional[datetime]:
+        """Преобразовать строку ISO в datetime."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return datetime.fromisoformat(stripped)
+            except ValueError:
+                raise ValidationError(f'Дата и время "{stripped}" должны быть в ISO-формате')
+
+        raise ValidationError('Дата и время должны быть строкой')
+
+    @staticmethod
+    def safe_select(value: Optional[str], options: dict, required: bool = False) -> Optional[str]:
+        """Проверить значение выпадающего списка по его допустимым ключам."""
+        if required:
+            BaseBitrixRobotObject._check_required(value)
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            if stripped in options:
+                return stripped
+            allowed = ', '.join(repr(key) for key in options.keys())
+            raise ValidationError(f'Значение "{stripped}" не входит в допустимые варианты: {allowed}')
+
+        raise ValidationError('Значение должно быть строкой (ключом из Options)')
+
+    @cached_property
+    def props(self) -> dict:
+        """Разобрать свойства запроса робота."""
+        return self.collect_props()
+
+    def collect_props(self) -> dict:
+        """Разобрать параметры запроса робота согласно декларации PROPERTIES."""
+        if getattr(self, 'is_hook_request', False):
+            return self.params.get('properties', {})
+
+        result = {}
+        query_dict_params = self.get_query_dict_params()
+        for prop, desc in self.PROPERTIES.items():
+            full_prop = 'properties[%s]' % prop
+            full_prop_0 = 'properties[%s][0]' % prop
+            default = desc.get('Default')
+
+            if desc.get('Multiple') == 'Y':
+                result[prop] = get_php_style_list(query_dict_params, full_prop, [])
+            else:
+                result[prop] = self.params.get(full_prop, self.params.get(full_prop_0, default))
+
+        return result
+
+    def validate_props(self) -> dict:
+        """Проверить и нормализовать свойства запроса робота."""
+        errors = []
+
+        for prop_name, prop_value in self.props.items():
+            try:
+                prop_config = self.PROPERTIES.get(prop_name, {})
+                prop_type = prop_config.get('Type')
+                multiple = prop_config.get('Multiple')
+                required = prop_config.get('Required', 'N') == 'Y'
+                options = prop_config.get('Options', {})
+
+                validators = {
+                    'int': self.safe_int,
+                    'bool': self.safe_bool,
+                    'string': self.safe_string,
+                    'text': self.safe_text,
+                    'double': self.safe_double,
+                    'date': self.safe_date,
+                    'datetime': self.safe_datetime,
+                }
+                if multiple != 'Y' and prop_type in validators:
+                    self.props[prop_name] = validators[prop_type](prop_value, required=required)
+                elif multiple != 'Y' and prop_type == 'select':
+                    self.props[prop_name] = self.safe_select(prop_value, options=options, required=required)
+
+            except ValidationError as exc:
+                errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
+
+        if errors:
+            raise ValidationError(' '.join(errors))
+
+        return self.props
+
+    @cached_property
+    def parsed_params(self) -> dict:
+        """Получить параметры запроса робота с разобранными составными ключами."""
+        return parse_flattened_keys(self.params)
+
+    def get_query_dict_params(self):
+        """Представить параметры запроса робота как QueryDict."""
+        query_dict = QueryDict('', mutable=True)
+        query_dict.update(self.params)
+        return query_dict
+
+    def use_subscription(self):
+        """Ожидает ли бизнес-процесс ответ робота."""
+        return self.params.get('use_subscription') == 'Y'
+
+    @staticmethod
+    def fix_return_values(return_values: dict) -> dict:
+        """
+        Поправить формат ответа робота для Битрикс24.
+        В частности, меняем bool на строки Y/N.
+        """
+        return {
+            key: 'Y' if value is True else 'N' if value is False else value
+            for key, value in return_values.items()
+        }
+
+    @staticmethod
+    def get_error_result(exc: Exception) -> dict:
+        """Преобразовать исключение в стандартный результат робота."""
+        if hasattr(exc, 'message'):
+            return dict(error=exc.message)
+        return dict(error=str(exc))
+
+
+class BaseBitrixRobotModel(BaseBitrixRobotObject, models.Model):
+    """
+    Абстрактная Django-модель для запроса робота Битрикс24.
+
+    Наследники получают общую логику: view-функции для получения запроса и
+    сохранения запроса в БД, взятие запроса из БД на обработку,
+    фиксацию результата и его отправку в Битрикс24.
+    """
+
+    token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
+    event_token = models.CharField(max_length=255, null=True, blank=True)
+    params = JSONField()
+
+    dt_add = models.DateTimeField(default=timezone.now)
+    started = models.DateTimeField(null=True, blank=True, db_index=True)
+    finished = models.DateTimeField(null=True, blank=True)
+    is_success = models.BooleanField(default=False, db_index=True)
+    result = JSONField(null=True, blank=True)
+    is_hook_request = models.BooleanField(default=False)
+    send_result_response = models.TextField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+    class Admin(admin.ModelAdmin):
+        list_display = ['id', 'token', 'dt_add', 'started', 'finished', 'is_success']
+        list_display_links = list_display
+        list_filter = ['is_success', 'dt_add', 'finished']
+        raw_id_fields = ['token']
+
+    def __str__(self):
+        return '[{}] {} ({})'.format(self.id, self.token, self.dt_add)
+
+    def save(self, *args, **kwargs):
+        self.fix_json_params()
+        super().save(*args, **kwargs)
+
+    def fix_json_params(self):
+        """Привести параметры запроса робота к нужным типам."""
+        if self.is_hook_request:
+            return
+        for prop_name, desc in self.PROPERTIES.items():
+            prop = None
+            for prop_var in ['properties[{}]'.format(prop_name), 'properties[{}][0]'.format(prop_name)]:
+                if prop_var in self.params:
+                    prop = prop_var
+            if not prop:
+                return
+            if desc.get('Multiple') != 'Y' and desc.get('Type') == 'string':
+                # числа с большой разрядностью ведут сбя странно при сохранении в jsonfield
+                self.params[prop] = str(self.params[prop])
 
     @classmethod
     def as_view(cls):
+        """View-функция обработчика робота для urls."""
         @csrf_exempt
         @wraps(cls.start_process)
         def view(request: ItsRequest):
@@ -271,11 +551,12 @@ class BaseBitrixRobot(models.Model):
         raise NotImplementedError
 
     @classmethod
-    def from_hook_request(cls, request) -> 'BaseBitrixRobot':
+    def from_hook_request(cls, request) -> 'BaseBitrixRobotModel':
         raise NotImplementedError
 
     @classmethod
     def as_hook(cls):
+        """Hook-функция обработчика робота для urls."""
         from integration_utils.iu_get_params.get_params_from_sources import get_params_from_sources
         @csrf_exempt
         @get_params_from_sources
@@ -306,297 +587,17 @@ class BaseBitrixRobot(models.Model):
     def verify_event(self):
         """
         Проверка подлинности присланного события.
-        Несколько усложняется тем, что у нас несколько приложений Базы Знаний.
-
-        :raises: VerificationError
+        :raise VerificationError: ошибка проверки.
         """
         raise NotImplementedError
 
     @property
     def user(self) -> 'BitrixUser':
+        """Пользователь, из-под имени которого отправили запрос робота."""
         return self.token.user
 
-    @staticmethod
-    def _check_required(value: Any):
-        """
-        Проверяет, что обязательное поле не пустое.
-        """
-        if value is None or (isinstance(value, str) and not value.strip()):
-            raise ValidationError('Поле обязательно для заполнения')
-
-    @staticmethod
-    def safe_int(value: Optional[Union[int, str]], required: bool = False) -> Optional[int]:
-        """
-        Преобразует значение в int, если это возможно.
-        Если значение пустое или None, возвращает None.
-        При неудаче выбрасывает ValidationError.
-        """
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return None
-
-        if isinstance(value, int):
-            return value
-
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            try:
-                return int(stripped)
-            except ValueError:
-                raise ValidationError(f'Значение "{stripped}" не может быть преобразовано в число')
-
-        # Если значение ни строка, ни число – выбрасываем ошибку валидации
-        raise ValidationError('Значение должно быть строкой или числом')
-
-    @staticmethod
-    def safe_bool(value: Optional[Union[bool, str]], required: bool = False) -> Optional[bool]:
-        """
-        Производит валидацию и нормализацию логических пропсов.
-        'Y' = True
-        'N', '', и None = False, если поле не является обязательным.
-        Если поле обязательно (required==True) и значение пустое, выбрасывает ошибку.
-        """
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return False
-
-        if isinstance(value, bool):
-            return value
-
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return False
-            if stripped == 'Y':
-                return True
-            if stripped == 'N':
-                return False
-
-        raise ValidationError(f"Значение '{value}' не может быть преобразовано в bool")
-
-    @staticmethod
-    def safe_string(value: Optional[str], required: bool = False) -> Optional[str]:
-        """
-        Проверяет и возвращает строку.
-        """
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return None
-
-        if isinstance(value, str):
-            return value
-
-        raise ValidationError('Значение должно быть строкой')
-
-    @staticmethod
-    def safe_text(value: Optional[str], required: bool = False) -> Optional[str]:
-        """
-        Проверяет и возвращает текст.
-        """
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return None
-
-        if isinstance(value, str):
-            return value
-
-        raise ValidationError('Значение должно быть текстом')
-
-    @staticmethod
-    def safe_double(value: Optional[Union[float, int, str]], required: bool = False) -> Optional[float]:
-        """
-        Преобразует значение в double(float), если это возможно.
-        Если значение пустое или None, возвращает None.
-        При неудаче выбрасывает ValidationError.
-        """
-
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return None
-
-        if isinstance(value, (int, float)):
-            return float(value)
-
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            try:
-                return float(stripped)
-            except ValueError:
-                raise ValidationError(f'Значение "{stripped}" не может быть преобразовано в число с плавающей точкой')
-
-        raise ValidationError('Значение должно быть числом или строкой')
-
-    @staticmethod
-    def safe_date(value: Optional[str], required: bool = False) -> Optional[date]:
-        """
-        Преобразует значение в date, если это возможно.
-        Если значение пустое или None, возвращает None.
-        При неудаче выбрасывает ValidationError.
-        """
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return None
-
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            try:
-                return date.fromisoformat(stripped)
-            except ValueError:
-                raise ValidationError(f'Дата "{stripped}" должна быть в формате ГГГГ-ММ-ДД')
-
-        raise ValidationError('Дата должна быть строкой в формате ГГГГ-ММ-ДД')
-
-    @staticmethod
-    def safe_datetime(value: Optional[str], required: bool = False) -> Optional[datetime]:
-        """
-        Проверяет и возвращает дату и время(datetime) в ISO-формате.
-        Если значение пустое или None, возвращает None.
-        При несоответствии формату выбрасывает ValidationError.
-        """
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return None
-
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            try:
-                return datetime.fromisoformat(stripped)
-            except ValueError:
-                raise ValidationError(f'Дата и время "{stripped}" должны быть в ISO-формате')
-
-        raise ValidationError('Дата и время должны быть строкой')
-
-    @staticmethod
-    def safe_select(value: Optional[str], options: dict, required: bool = False) -> Optional[str]:
-        """
-        Производит валидацию значения из выпадающего списка (select).
-        Проверяет, что значение присутствует среди ключей Options.
-        Если значение пустое или None, возвращает None.
-        При отсутствии в списке выбрасывает ValidationError.
-        """
-        if required:
-            BaseBitrixRobot._check_required(value)
-
-        if value is None:
-            return None
-
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            if stripped in options:
-                return stripped
-            allowed = ', '.join(repr(k) for k in options.keys())
-            raise ValidationError(f'Значение "{stripped}" не входит в допустимые варианты: {allowed}')
-
-        raise ValidationError('Значение должно быть строкой (ключом из Options)')
-
-    def validate_props(self) -> dict:
-        """
-        Проверяет типы значений свойств, которые прислал Битрикс.
-        Сейчас проверяет одиночные int, bool, string и text.
-        """
-        errors = []
-
-        for prop_name, prop_value in self.props.items():
-            try:
-                prop_config = self.PROPERTIES.get(prop_name, {})
-                prop_type = prop_config.get('Type')
-                multiple = prop_config.get('Multiple')
-                required = prop_config.get('Required', 'N') == 'Y'
-                options = prop_config.get('Options', {})
-
-                if prop_type == 'int' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_int(prop_value, required=required)
-
-                elif prop_type == 'bool' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_bool(prop_value, required=required)
-
-                elif prop_type == 'string' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_string(prop_value, required=required)
-
-                elif prop_type == 'text' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_text(prop_value, required=required)
-
-                elif prop_type == 'double' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_double(prop_value, required=required)
-
-                elif prop_type == 'date' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_date(prop_value, required=required)
-
-                elif prop_type == 'datetime' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_datetime(prop_value, required=required)
-
-                elif prop_type == 'select' and multiple != 'Y':
-                    self.props[prop_name] = self.safe_select(prop_value, options=options, required=required)
-
-            except ValidationError as exc:
-                errors.append(f'Ошибка в поле "{prop_name}": {exc.message}.')
-
-        if errors:
-            # Если есть хотя бы одна ошибка, выбрасываем их все одним исключением
-            raise ValidationError(' '.join(errors))
-
-        return self.props
-
-    @cached_property
-    def props(self) -> dict:
-        """
-        Разбирает присланные данные на основании PROPERTIES
-        """
-        if self.is_hook_request:
-            return self.params.get('properties', {})
-
-        res = {}
-        query_dict_params = self.get_query_dict_params()
-        for prop, desc in self.PROPERTIES.items():
-            full_prop = 'properties[%s]' % prop
-            # иногда параметры приходят в виде 'properties[prop_name][0]', даже если поле не множественное
-            full_prop_0 = 'properties[%s][0]' % prop
-            default = desc.get('Default')
-
-            if desc.get('Multiple') == 'Y':
-                res[prop] = get_php_style_list(query_dict_params, full_prop, [])
-            else:
-                res[prop] = self.params.get(full_prop, self.params.get(full_prop_0, default))
-
-        return res
-
-    @cached_property
-    def parsed_params(self) -> dict:
-        return parse_flattened_keys(self.params)
-
-    def get_query_dict_params(self):
-        query_dict = QueryDict('', mutable=True)
-        query_dict.update(self.params)
-        return query_dict
-
-    def use_subscription(self):
-        return self.params.get('use_subscription') == 'Y'
-
     def start_process(self):
+        """Взять запрос на обработку."""
         self.started = timezone.now()
         self.save(update_fields=['started'])
 
@@ -632,23 +633,12 @@ class BaseBitrixRobot(models.Model):
         self.send_result()
         return self.result
 
-    @staticmethod
-    def get_error_result(exc: Exception) -> dict:
-        if hasattr(exc, 'message'):
-            return dict(error=exc.message)
-        return dict(error=str(exc))
-
     def get_return_values(self) -> dict:
-        return_values = {}
-
-        for key, value in self.result.items():
-            if isinstance(value, bool):
-                value = 'Y' if value else 'N'
-            return_values[key] = value
-
-        return return_values
+        """Получить значения для отправки ответа по запросу робота."""
+        return self.fix_return_values(self.result)
 
     def send_result(self):
+        """Отправить ответ по запросу робота в Битрикс24."""
         if self.is_hook_request or not self.use_subscription():
             # бп не ждёт результат
             return
@@ -678,5 +668,10 @@ class BaseBitrixRobot(models.Model):
 
     @classmethod
     def process_robot_requests(cls):
+        """Обработать все необработанные запросы робота."""
         from integration_utils.bitrix_robots.cron import process_robot_requests
         return process_robot_requests(cls)
+
+
+# Обратная совместимость: прежний импорт указывает на новый модельный класс.
+BaseBitrixRobot = BaseBitrixRobotModel

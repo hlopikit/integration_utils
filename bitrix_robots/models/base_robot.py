@@ -14,11 +14,18 @@ from integration_utils.bitrix24.bitrix_user_auth.main_auth import main_auth
 from integration_utils.bitrix24.exceptions import BitrixApiException
 from integration_utils.bitrix24.functions.api_call import api_call
 from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
-from integration_utils.bitrix_robots.base import BaseBitrixRobot
+from integration_utils.bitrix_robots.base import BaseBitrixRobotModel
 from integration_utils.bitrix_robots.errors import VerificationError
 
 
-class BaseRobot(BaseBitrixRobot):
+class BaseRobotModel(BaseBitrixRobotModel):
+    """
+    Абстрактная модель запроса робота для integration_utils.
+
+    Используйте её для роботов, запросы и результаты которых должны храниться в БД.
+    В приложении наследуйте модели роботов от этой модели.
+    """
+
     APP_DOMAIN = settings.APP_SETTINGS.app_domain  # type: str
 
     token = models.ForeignKey('bitrix24.BitrixUserToken', null=True, blank=True, on_delete=models.PROTECT)
@@ -26,7 +33,7 @@ class BaseRobot(BaseBitrixRobot):
     class Meta:
         abstract = True
 
-    class Admin(BaseBitrixRobot.Admin):
+    class Admin(BaseBitrixRobotModel.Admin):
         change_list_template = 'bitrix_robots/admin/robot_change_list.html'
 
         def get_urls(self):
@@ -175,7 +182,7 @@ class BaseRobot(BaseBitrixRobot):
         return main_auth(on_cookies=True)
 
     @classmethod
-    def from_hook_request(cls, request) -> 'BaseBitrixRobot':
+    def from_hook_request(cls, request) -> 'BaseRobotModel':
         return cls.objects.create(
             token=request.bitrix_user_token,
             params=request.its_params,
@@ -235,3 +242,7 @@ class BaseRobot(BaseBitrixRobot):
         self.token - токен
         """
         raise NotImplementedError
+
+
+# Обратная совместимость
+BaseRobot = BaseRobotModel

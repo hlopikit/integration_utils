@@ -1,1 +1,1 @@
-from .base_robot import BaseRobot
+from .base_robot import BaseRobot, BaseRobotModel
