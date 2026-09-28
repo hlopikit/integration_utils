@@ -112,47 +112,33 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
     - {'filter': {'ID': [...]}} / {'filter': {'id': [...]}}
     - {'ID': [...]} / {'id': [...]}, например для department.get
     """
-    filter_key = None
+    if not isinstance(params, dict):
+        return None, None, None
+
+    filter_key = next((key for key in params if key.lower() == 'filter'), None)
+    # Если filter_key нет, проверяем методы с ID на верхнем уровне параметров, например department.get: {'ID': [...]}
+    filter_params = params[filter_key] if filter_key else params
+
+    if not isinstance(filter_params, dict):
+        return filter_key, None, None
+
+    allowed_params = ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID if filter_key else FILTER_ID_KEYS + ('select',)
+    allowed_filter_fields = FILTER_ID_KEYS if filter_key else allowed_params
+
+    if any(key.lower() not in allowed_params for key in params):
+        return filter_key, None, None
+
     filter_id_key = None
     filter_ids = None
 
-    if not isinstance(params, dict):
-        return filter_key, filter_id_key, filter_ids
-
-    # Сначала проверяем обычный формат списочных методов: {'filter': {'ID': [...]}, 'select': [...]}
-    for key in params:
-        if key.lower() == 'filter':
-            filter_key = key
-        if key.lower() not in ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID:
-            break
-    else:
-        if filter_key and isinstance(params[filter_key], dict):
-            # В filter должен быть только ID/id/@ID. Остальные условия требуют обычной пагинации, поэтому оптимизацию не включаем
-            for filter_field in params[filter_key]:
-                if filter_field.lower() in FILTER_ID_KEYS:
-                    filter_id_key = filter_field
-                else:
-                    return filter_key, filter_id_key, filter_ids
-
-            if filter_id_key:
-                filter_id_value = params[filter_key][filter_id_key]
-                if isinstance(filter_id_value, list):
-                    filter_ids = filter_id_value
-
-        return filter_key, filter_id_key, filter_ids
-
-    filter_key = None
-    filter_id_key = None
-
-    # Если filter_key нет, проверяем методы с ID на верхнем уровне параметров, например department.get: {'ID': [...]}
-    for key in params:
-        if key.lower() in FILTER_ID_KEYS:
-            filter_id_key = key
-        elif key.lower() != 'select':
-            return filter_key, filter_id_key, filter_ids
+    for filter_field in filter_params:
+        if filter_field.lower() not in allowed_filter_fields:
+            return filter_key, None, None
+        if filter_field.lower() in FILTER_ID_KEYS:
+            filter_id_key = filter_field
 
     if filter_id_key:
-        filter_id_value = params[filter_id_key]
+        filter_id_value = filter_params[filter_id_key]
         if isinstance(filter_id_value, list):
             filter_ids = filter_id_value
 
@@ -412,10 +398,16 @@ def call_list_method(
                                         log_prefix=log_prefix, halt=1,
                                         retry_settings=retry_settings)
 
-        result = unwrap_batch_res_method(batch,
-                                         wrapper=METHOD_WRAPPERS.get(method))
+        wrapper = METHOD_WRAPPERS.get(method)
+        result = unwrap_batch_res_method(batch, wrapper=wrapper)
+        result_items = result[wrapper] if wrapper else result
+        total = len(result_items)
+
+        if limit is not None:
+            del result_items[limit:]
+
         if return_total:
-            return result, {"total": len(result)}
+            return result, {"total": total}
 
         return result
     # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ

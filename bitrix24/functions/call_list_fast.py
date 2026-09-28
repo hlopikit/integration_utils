@@ -243,6 +243,8 @@ def iter_result_by_filter_ids(
         filter_id_key,  # type: str
         filter_ids,  # type: list
         order_by,  # type: Dict[str, Any]
+        id_fn,  # type: Callable[[Any], Hashable]
+        descending=False,  # type: bool
         wrapper=None,  # type: Optional[str]
         timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
         limit=None,  # type: Optional[int]
@@ -251,7 +253,8 @@ def iter_result_by_filter_ids(
         retry_settings=None,  # type: Optional[RetryDecorator]
 ):
     # type: (...) -> Generator[Dict, None, None]
-    # Добавляем к пользовательским параметрам сортировку по ID и start=-1,
+    # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата
+    filter_ids = sorted(filter_ids, key=int, reverse=descending)
     fields = _deep_merge(params, order_by)
     methods = _generate_filter_id_methods_for_batch(
         method=method,
@@ -274,7 +277,7 @@ def iter_result_by_filter_ids(
     if not batch.all_ok:
         raise BatchApiCallError(batch)
 
-    seen_ids_count = 0
+    seen_ids = set()
 
     for _, response in batch.iter_successes():
         result = response['result']
@@ -282,10 +285,14 @@ def iter_result_by_filter_ids(
             result = result[wrapper]
 
         for entity in result:
-            yield entity
-            seen_ids_count += 1
+            entity_id = int(id_fn(entity))
+            if entity_id in seen_ids:
+                continue
 
-            if limit is not None and seen_ids_count >= limit:
+            seen_ids.add(entity_id)
+            yield entity
+
+            if limit is not None and len(seen_ids) >= limit:
                 return
 
 
@@ -357,6 +364,8 @@ def call_list_fast(
             filter_id_key=filter_id_key,
             filter_ids=filter_ids,
             order_by=order_by,
+            id_fn=id_fn,
+            descending=descending,
             wrapper=wrapper,
             timeout=timeout,
             limit=limit,
