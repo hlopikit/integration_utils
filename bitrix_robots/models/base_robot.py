@@ -20,9 +20,9 @@ from integration_utils.bitrix_robots.errors import VerificationError
 
 class BaseRobotModel(BaseBitrixRobotModel):
     """
-    Абстрактная модель запроса робота для integration_utils.
+    Абстрактная модель робота для integration_utils.
 
-    Используйте её для роботов, запросы и результаты которых должны храниться в БД.
+    Для роботов, запросы и результаты которых должны храниться в БД.
     В приложении наследуйте модели роботов от этой модели.
     """
 
