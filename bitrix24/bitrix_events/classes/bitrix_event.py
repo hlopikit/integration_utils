@@ -15,9 +15,9 @@ class BitrixEvent:
     def process(self) -> Any:
         """Вызывает <event_name>_handler; исключения передаются вызывающему коду."""
         handler = getattr(self, '{}_handler'.format(self.event_name.lower()), None)
-        if handler is not None:
-            return handler()
-        return None
+        if handler is None:
+            raise NotImplementedError('Handler for {} is not implemented'.format(self.event_name))
+        return handler()
 
     @classmethod
     def from_bitrix_data(cls, data: Dict[str, Any]) -> "BitrixEvent":

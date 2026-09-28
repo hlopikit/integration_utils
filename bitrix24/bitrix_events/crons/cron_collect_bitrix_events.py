@@ -27,6 +27,10 @@ def get_cron_collect_bitrix_events(event_class: Type[BitrixEvent]) -> Callable[[
                 event = event_class.from_bitrix_data(data)
                 if not isinstance(event, AbstractBitrixEvent):
                     event.process()
+                    logger.info(
+                        'Offline event processed without saving: event_id=%s, event_name=%s',
+                        data['ID'], data['EVENT_NAME'],
+                    )
             except Exception:
                 failed_message_ids.append(data['MESSAGE_ID'])
                 logger.exception('Offline event processing failed: event_id=%s', data['ID'])
