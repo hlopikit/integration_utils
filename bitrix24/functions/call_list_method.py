@@ -7,6 +7,7 @@ from collections import OrderedDict
 from django.http import JsonResponse
 from django.utils import timezone
 import six
+from six.moves import collections_abc
 
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
@@ -106,11 +107,10 @@ def unwrap_batch_res(batch_res, result=None, wrapper=None):
 
 def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str], Optional[List[Any]]]:
     """
-    Проверяет, что в параметрах передан только фильтр по списку ID.
+    Проверяет, можно ли разбить переданный список ID на batch-команды.
 
-    Поддерживаются оба формата:
-    - {'filter': {'ID': [...]}} / {'filter': {'id': [...]}}
-    - {'ID': [...]} / {'id': [...]}, например для department.get
+    Для ключа, который заканчивается на ID и не начинается с !,
+    пустой Iterable возвращается как пустой список, чтобы не выполнять API-запрос.
     """
     if not isinstance(params, dict):
         return None, None, None
@@ -124,23 +124,35 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
 
     allowed_params = ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID if filter_key else FILTER_ID_KEYS + ('select',)
     allowed_filter_fields = FILTER_ID_KEYS if filter_key else allowed_params
-
-    if any(key.lower() not in allowed_params for key in params):
-        return filter_key, None, None
-
+    can_optimize_by_id = all(key.lower() in allowed_params for key in params)
     filter_id_key = None
     filter_ids = None
+    excluded_iterable_types = six.string_types + (bytes, bytearray, collections_abc.Mapping)
 
-    for filter_field in filter_params:
-        if filter_field.lower() not in allowed_filter_fields:
-            return filter_key, None, None
-        if filter_field.lower() in FILTER_ID_KEYS:
+    for filter_field, filter_value in filter_params.items():
+        filter_field_lower = filter_field.lower()
+        can_optimize_by_id = can_optimize_by_id and filter_field_lower in allowed_filter_fields
+
+        if not filter_field_lower.endswith('id'):
+            continue
+
+        if not (isinstance(filter_value, collections_abc.Iterable)
+                and not isinstance(filter_value, excluded_iterable_types)):
+            continue
+
+        # Преобразуем Iterable в список, чтобы не передать в API уже пройденный генератор
+        filter_value = filter_value if isinstance(filter_value, list) else list(filter_value)
+        filter_params[filter_field] = filter_value
+
+        if filter_field_lower.endswith('id') and not filter_field_lower.startswith('!') and not filter_value:
+            return filter_key, filter_field, []
+
+        if filter_field_lower in FILTER_ID_KEYS:
             filter_id_key = filter_field
+            filter_ids = filter_value
 
-    if filter_id_key:
-        filter_id_value = filter_params[filter_id_key]
-        if isinstance(filter_id_value, list):
-            filter_ids = filter_id_value
+    if filter_ids and not can_optimize_by_id:
+        filter_ids = None
 
     return filter_key, filter_id_key, filter_ids
 
@@ -168,7 +180,7 @@ def _generate_filter_id_methods_for_batch(
             # Для методов с ID на верхнем уровне чанкуем само поле ID/id/@ID.
             params[filter_id_key] = filter_id_chunk
 
-        # При точной выборке по ID total не нужен, поэтому просим Bitrix24 не считать общее количество строк.
+        # При запросе по списку ID total не нужен, поэтому отключаем его подсчёт через start=-1
         params['start'] = -1
         methods.append((method, params))
 
@@ -375,6 +387,13 @@ def call_list_method(
 
     assert 1 <= batch_size <= 50, 'check: 1 <= batch_size <= 50'
     fields = check_params(method, fields)
+
+    # Копируем params, так как проверка ID преобразует Iterable в список
+    if isinstance(fields, dict):
+        fields = fields.copy()
+        filter_key = next((key for key in fields if key.lower() == 'filter'), None)
+        if filter_key and isinstance(fields[filter_key], dict):
+            fields[filter_key] = fields[filter_key].copy()
 
     filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(fields)
 

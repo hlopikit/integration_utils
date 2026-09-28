@@ -349,7 +349,11 @@ def call_list_fast(
     if params and any(key in order_by for key in params):
         raise ValueError("Method doesn't support sort/order")
 
-    # Отдельно обрабатываем только фильтр вида {'filter': {'ID': [...]}} или {'filter': {'id': [...]}}.
+    # Копируем params, так как проверка ID преобразует Iterable в список
+    if params is not None:
+        params = _deep_merge(params)
+
+    # Фильтр только по ID разбиваем на batch-команды
     filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(params)
 
     if filter_ids is not None:
