@@ -1,1 +1,1 @@
-from .bitrix_event import AbstractBitrixEvent
+from .abstract_bitrix_event import AbstractBitrixEvent
