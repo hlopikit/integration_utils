@@ -27,7 +27,7 @@ else:
     from django.contrib.postgres.fields import JSONField
 
 if TYPE_CHECKING:
-    from integration_utils.bitrix24.models import BitrixUserToken, BitrixUser
+    from integration_utils.bitrix24.models import BitrixUser
 
 
 class BaseBitrixRobotObject:
@@ -123,7 +123,7 @@ class BaseBitrixRobotObject:
         return dict(CODE=code, FIELDS=add_params)
 
     @classmethod
-    def is_installed(cls, admin_token: 'BitrixUserToken') -> bool:
+    def is_installed(cls, admin_token: Any) -> bool:
         """Проверить, зарегистрирован ли робот на портале."""
         robot_codes = admin_token.call_list_method_v2('bizproc.robot.list')
         return any(code == cls.CODE for code in robot_codes)
@@ -132,8 +132,8 @@ class BaseBitrixRobotObject:
     def install(
         cls,
         view_name: str,
-        admin_token: 'BitrixUserToken',
-        token_user: Optional['BitrixUser'] = None,
+        admin_token: Any,
+        token_user: Optional[Any] = None,
     ):
         """Установить робот на портале."""
         if token_user:
@@ -149,8 +149,8 @@ class BaseBitrixRobotObject:
     def update(
         cls,
         view_name: str,
-        admin_token: 'BitrixUserToken',
-        token_user: Optional['BitrixUser'] = None,
+        admin_token: Any,
+        token_user: Optional[Any] = None,
     ):
         """Обновить робот на портале."""
         if token_user:
@@ -166,8 +166,8 @@ class BaseBitrixRobotObject:
     def install_or_update(
         cls,
         view_name: str,
-        admin_token: 'BitrixUserToken',
-        token_user: 'BitrixUser' = None,
+        admin_token: Any,
+        token_user: Optional[Any] = None,
     ):
         """Установить или обновить существующего робота на портале."""
         if cls.is_installed(admin_token):
@@ -176,7 +176,7 @@ class BaseBitrixRobotObject:
             return cls.install(view_name, admin_token, token_user)
 
     @classmethod
-    def uninstall(cls, admin_token: 'BitrixUserToken'):
+    def uninstall(cls, admin_token: Any):
         """Удалить робота с портала."""
         return admin_token.call_api_method(
             'bizproc.robot.delete',
@@ -184,7 +184,7 @@ class BaseBitrixRobotObject:
         )['result']
 
     @classmethod
-    def delete(cls, admin_token: 'BitrixUserToken'):
+    def delete(cls, admin_token: Any):
         """Удалить робота с портала; старое имя."""
         return cls.uninstall(admin_token)
 
@@ -448,7 +448,7 @@ class BaseBitrixRobotModel(BaseBitrixRobotObject, models.Model):
     фиксацию результата и его отправку в Битрикс24.
     """
 
-    token = models.ForeignKey('BitrixUserToken', on_delete=models.PROTECT)
+    token: Any
     event_token = models.CharField(max_length=255, null=True, blank=True)
     params = JSONField()
 
