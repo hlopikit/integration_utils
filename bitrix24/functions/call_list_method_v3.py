@@ -102,10 +102,8 @@ def call_list_method_v3(
     поскольку следующая страница при таком способе зависит от предыдущей.
 
     Возвращает агрегированный ``result`` и количество фактически полученных
-    элементов. Переданные ``params`` не изменяет.
+    элементов. Переданный ``fields`` не изменяет.
     """
-    max_pages = _positive_int(max_pages, name='max_pages')
-
     if fields is None:
         params = {}
     elif isinstance(fields, dict):
@@ -136,12 +134,13 @@ def call_list_method_v3(
         if has_more is False:
             break
 
+        if has_more is True and (not cursor_field_exists or next_cursor is None):
+            raise RestV3PaginationError(
+                'REST 3.0 сообщил hasMore=true, но не вернул курсор'
+            )
+
         if cursor_field_exists:
             if next_cursor is None:
-                if has_more is True:
-                    raise RestV3PaginationError(
-                        'REST 3.0 сообщил hasMore=true, но не вернул курсор'
-                    )
                 break
 
             cursor_key = _cursor_key(next_cursor)
