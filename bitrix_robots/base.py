@@ -448,7 +448,7 @@ class BaseBitrixRobotModel(BaseBitrixRobotObject, models.Model):
     фиксацию результата и его отправку в Битрикс24.
     """
 
-    token: Any
+    token: Any  # ForeignKey задан в наследниках (BaseRobotModel)
     event_token = models.CharField(max_length=255, null=True, blank=True)
     params = JSONField()
 
