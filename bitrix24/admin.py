@@ -2,7 +2,10 @@
 
 from __future__ import unicode_literals
 
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
+from django.http import Http404, HttpResponseNotAllowed, HttpResponseRedirect
+from django.urls import path, reverse
 from django.utils.safestring import mark_safe
 
 import django
@@ -28,10 +31,11 @@ class Bitrix24UserTokenAdminInline(admin.TabularInline):
     fields = ['id', 'name', 'is_active', 'refresh_error']
     readonly_fields = fields
 
+    # noinspection PyMethodMayBeStatic
     def name(self, obj):
-        return mark_safe('<a href="/admin/{}/{}/{}/change/" target="_blank">{}</a>'.format(
-            obj._meta.app_label, obj._meta.model_name, obj.id, obj.application
-        ))
+        return mark_safe(
+            f'<a href="/admin/bitrix24/bitrixusertoken/{obj.id}/change/" target="_blank">{obj.application}</a>'
+        )
 
 
 @admin.register(BitrixUser)
@@ -55,3 +59,45 @@ class Bitrix24UserTokenAdmin(JsonInfoAdmin):
     date_hierarchy = 'auth_token_date'
     raw_id_fields = ['user']
     actions = ['refresh']
+    change_form_template = 'bitrix24/admin/bitrix_user_token_change_form.html'
+
+    def get_urls(self):
+        custom_urls = [
+            path(
+                '<path:object_id>/refresh/',
+                self.admin_site.admin_view(self.refresh_view),
+                name='bitrix24_bitrixusertoken_refresh',
+            ),
+        ]
+        return custom_urls + super().get_urls()
+
+    def refresh(self, request, queryset):
+        for instance in queryset:
+            if instance.refresh():
+                self.message_user(request, '#%s refreshed.' % instance.pk)
+            else:
+                self.message_user(
+                    request,
+                    '#%s not refreshed.' % instance.pk,
+                    level=messages.WARNING,
+                )
+    refresh.short_description = 'Refresh tokens'
+
+    def refresh_view(self, request, object_id):
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+
+        instance = self.get_object(request, object_id)
+        if instance is None:
+            raise Http404
+        if not self.has_change_permission(request, instance):
+            raise PermissionDenied
+
+        self.refresh(request, [instance])
+
+        change_url = reverse(
+            'admin:bitrix24_bitrixusertoken_change',
+            args=[object_id],
+            current_app=self.admin_site.name,
+        )
+        return HttpResponseRedirect(change_url)
