@@ -673,5 +673,5 @@ class BaseBitrixRobotModel(BaseBitrixRobotObject, models.Model):
         return process_robot_requests(cls)
 
 
-# Обратная совместимость: прежний импорт указывает на новый модельный класс.
+# Обратная совместимость
 BaseBitrixRobot = BaseBitrixRobotModel
