@@ -220,7 +220,7 @@ class BitrixApiError(BitrixApiException):
     def is_authorization_error(self):
         """
         Ошибка авторизации. Может быть из-за увольнения/блокировки, может быть и по другим причинам.
-        TODO: Разобраться с REST_OAUTH_ERROR_LOGOUT_BEFORE в \Bitrix\Rest\OAuth\Auth::onRestCheckAuth.
+        TODO: Разобраться с REST_OAUTH_ERROR_LOGOUT_BEFORE в \\Bitrix\\Rest\\OAuth\\Auth::onRestCheckAuth.
         Пример: error='authorization_error', error_description='Unable to authorize user'
         """
         return self.error == AUTHORIZATION_ERROR
@@ -239,7 +239,7 @@ class BitrixApiError(BitrixApiException):
         """
         Сотрудник удалён с коробки, не подтвердил регистрацию или с пустым LAST_ACTIVITY_DATE или LAST_LOGIN_DATE.
         При упрощённом протоколе OAuth (через iframe) - может не упасть, если не удалён пользователь.
-        Код ядра: \Bitrix\Rest\OAuth\Auth::check -> !$accessChecker->canAuthorize()
+        Код ядра: \\Bitrix\\Rest\\OAuth\\Auth::check -> !$accessChecker->canAuthorize()
         Желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
         Пример: error='ACCESS_DENIED', error_description='Current user can't be authorized in this context'
         """
