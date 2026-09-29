@@ -17,8 +17,6 @@ class AbstractBitrixEvent(BitrixEvent, models.Model):
 
     class Meta:
         abstract = True
-        verbose_name = 'Событие'
-        verbose_name_plural = 'События'
 
     def __init__(self, *args, **kwargs):
         """Инициализирует Django-модель без вызова конструктора BitrixEvent."""
