@@ -71,7 +71,6 @@ class BaseBitrixToken:
             params: Optional[Dict[str, Any]] = None,
             timeout: Union[int, float, Tuple[float, float]] = DEFAULT_TIMEOUT,
             retry_settings: Optional[RetryDecorator] = None,
-            log_response: bool = True,
     ) -> dict:
         """
         Метод для взаимодействия с REST API 3.0 Битрикс24.
@@ -80,7 +79,6 @@ class BaseBitrixToken:
         :param params: параметры REST-метода.
         :param timeout: время таймаута в секундах для requests.
         :param retry_settings: настройки повторных попыток REST-вызова.
-        :param log_response: записывать тело успешного ответа в лог.
         :raise ValueError: Неправильное значение аргумента.
         :raise BitrixApiException: Ошибка при работе с API Битрикс.
         """
@@ -92,7 +90,6 @@ class BaseBitrixToken:
                 web_hook_auth=self.web_hook_auth,
                 params=params,
                 timeout=timeout,
-                log_response=log_response,
             )
 
         if retry_settings:
