@@ -178,15 +178,17 @@ def call_list_method_v3(
             break
 
         pagination = deepcopy(pagination)
-        current_offset = pagination.get('offset')
-        if current_offset is None and 'page' in pagination:
+        if 'page' in pagination:
             page = _positive_int(
                 pagination.get('page'),
                 name='pagination.page',
             )
             pagination['page'] = page + 1
+            pagination.pop('offset', None)
             params['pagination'] = pagination
             continue
+
+        current_offset = pagination.get('offset')
         if current_offset is None:
             current_offset = 0
         elif isinstance(current_offset, str) and current_offset.isdigit():
