@@ -1,11 +1,8 @@
 import json
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
-from integration_utils.bitrix24.constants import (
-    REST_V3_DEFAULT_PAGE_SIZE,
-    REST_V3_MAX_LIST_PAGES,
-)
+from integration_utils.bitrix24.constants import REST_V3_MAX_LIST_PAGES
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 
 if TYPE_CHECKING:
@@ -13,11 +10,15 @@ if TYPE_CHECKING:
 
 
 class RestV3ResponseError(ValueError):
-    """REST 3.0 вернул ответ с неожиданной структурой."""
+    """
+    REST 3.0 вернул ответ с неожиданной структурой.
+    """
 
 
 class RestV3PaginationError(RestV3ResponseError):
-    """REST 3.0 вернул ответ, который нельзя безопасно обработать как список."""
+    """
+    REST 3.0 вернул ответ, который нельзя безопасно обработать как список.
+    """
 
 
 def _positive_int(value: Any, *, name: str) -> int:
@@ -63,7 +64,9 @@ def _result_with_items(response: Any) -> Tuple[Dict[str, Any], list]:
 
 
 def _cursor(result: Dict[str, Any]) -> Tuple[bool, Any]:
-    """Вернуть признак наличия курсорного поля и сам следующий курсор."""
+    """
+    Вернуть признак наличия курсорного поля и сам следующий курсор.
+    """
     if 'nextCursor' in result:
         return True, result['nextCursor']
     if 'afterCursor' in result:
@@ -89,7 +92,7 @@ def call_list_method_v3(
     bx_token: 'BaseBitrixToken',
     method: str,
     fields: Optional[dict] = None,
-    timeout: int = DEFAULT_TIMEOUT,
+    timeout: Union[int, float, Tuple[float, float]] = DEFAULT_TIMEOUT,
     *,
     max_pages: int = REST_V3_MAX_LIST_PAGES,
 ) -> Tuple[Dict[str, Any], int]:
@@ -98,7 +101,7 @@ def call_list_method_v3(
 
     REST 3.0 возвращает элементы в ``result.items``, но использует разные
     способы навигации: курсор ``nextCursor``/``afterCursor`` либо
-    ``pagination.limit`` + ``pagination.offset``. Курсоры имеют приоритет,
+    ``pagination.page``/``pagination.offset``. Курсоры имеют приоритет,
     поскольку следующая страница при таком способе зависит от предыдущей.
 
     Возвращает агрегированный ``result`` и количество фактически полученных
@@ -109,7 +112,10 @@ def call_list_method_v3(
     elif isinstance(fields, dict):
         params = deepcopy(fields)
     else:
-        raise RestV3PaginationError(f"Параметры REST 3.0 должны быть объектом или null, получено {type(fields).__name__!r}")
+        raise RestV3PaginationError(
+            'Параметры REST 3.0 должны быть объектом или null, '
+            'получено {!r}'.format(type(fields).__name__)
+        )
 
     all_items = []
     aggregated_result = None
@@ -168,20 +174,21 @@ def call_list_method_v3(
                 'Параметр pagination должен быть объектом'
             )
 
-        limit = _positive_int(
-            pagination.get('limit', REST_V3_DEFAULT_PAGE_SIZE),
-            name='pagination.limit',
-        )
-        if len(page_items) < limit:
+        if not page_items:
             break
 
+        pagination = deepcopy(pagination)
         current_offset = pagination.get('offset')
-        if current_offset is None:
+        if current_offset is None and 'page' in pagination:
             page = _positive_int(
-                pagination.get('page', 1),
+                pagination.get('page'),
                 name='pagination.page',
             )
-            current_offset = (page - 1) * limit
+            pagination['page'] = page + 1
+            params['pagination'] = pagination
+            continue
+        if current_offset is None:
+            current_offset = 0
         elif isinstance(current_offset, str) and current_offset.isdigit():
             current_offset = int(current_offset)
 
@@ -192,7 +199,6 @@ def call_list_method_v3(
                 'получено {!r}'.format(current_offset)
             )
 
-        pagination = deepcopy(pagination)
         pagination.pop('page', None)
         pagination['offset'] = current_offset + len(page_items)
         params['pagination'] = pagination

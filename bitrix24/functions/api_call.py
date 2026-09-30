@@ -1,6 +1,7 @@
 import time
 import urllib
 from pprint import pformat
+from typing import Tuple, Union
 from urllib.parse import urlparse
 
 import requests
@@ -304,11 +305,20 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     return response
 
 
-def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_auth: str = None, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
+def api_call_v3(
+    domain: str,
+    api_method: str,
+    auth_token: str = None,
+    web_hook_auth: str = None,
+    params: dict = None,
+    timeout: Union[int, float, Tuple[float, float]] = DEFAULT_TIMEOUT,
+    log_response: bool = True,
+):
     """
     POST-запрос к REST API 3.0 Битрикс24.
     В случае ошибки - кидаем исключение.
 
+    :param log_response: записывать тело успешного ответа в лог.
     :raise ValueError: Неправильное значение аргумента.
     :raise BitrixConnectionError: requests.ConnectionError/SSLError.
     :raise BitrixTimeout: requests.Timeout.
@@ -379,9 +389,10 @@ def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_a
 
     ilogger.info('bitrix_request', f"{t}\n{url=}, {params=}", params=log_params, tag=log_tag)
 
-    try:
-        ilogger.info('bitrix_response', f"{t}\n{response.text=}", params=log_params, tag=log_tag)
-    except Exception as e:
-        ilogger.error('bitrix_response', f"{t}\n{repr(e)}", params=log_params, tag=log_tag)
+    if log_response:
+        try:
+            ilogger.info('bitrix_response', f"{t}\n{response.text=}", params=log_params, tag=log_tag)
+        except Exception as e:
+            ilogger.error('bitrix_response', f"{t}\n{repr(e)}", params=log_params, tag=log_tag)
 
     return json_response
