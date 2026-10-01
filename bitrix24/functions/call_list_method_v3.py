@@ -25,21 +25,15 @@ def _positive_int(value: Any, *, name: str) -> int:
     if isinstance(value, str) and value.isdigit():
         value = int(value)
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-        raise RestV3PaginationError(
-            '{} должен быть положительным целым числом, получено {!r}'.format(
-                name,
-                value,
-            )
-        )
+        raise RestV3PaginationError(f'{name} должен быть положительным целым числом, получено {value!r}')
     return value
 
 
 def unwrap_rest_v3_result(response: Any) -> Any:
     if not isinstance(response, dict):
         raise RestV3ResponseError(
-            'Ответ REST 3.0 должен быть объектом, получено {!r}'.format(
-                type(response).__name__,
-            )
+            'Ответ REST 3.0 должен быть объектом, '
+            f'получено {type(response).__name__!r}'
         )
     if 'result' not in response:
         raise RestV3ResponseError('Ответ REST 3.0 не содержит result')
@@ -114,7 +108,7 @@ def call_list_method_v3(
     else:
         raise RestV3PaginationError(
             'Параметры REST 3.0 должны быть объектом или null, '
-            'получено {!r}'.format(type(fields).__name__)
+            f'получено {type(fields).__name__!r}'
         )
 
     all_items = []
@@ -198,7 +192,7 @@ def call_list_method_v3(
                 or current_offset < 0:
             raise RestV3PaginationError(
                 'pagination.offset должен быть неотрицательным целым числом, '
-                'получено {!r}'.format(current_offset)
+                f'получено {current_offset!r}'
             )
 
         pagination.pop('page', None)
@@ -206,8 +200,7 @@ def call_list_method_v3(
         params['pagination'] = pagination
     else:
         raise RestV3PaginationError(
-            'Превышено максимальное количество страниц REST 3.0: {}'
-            .format(max_pages)
+            f'Превышено максимальное количество страниц REST 3.0: {max_pages}'
         )
 
     # После полной выгрузки не возвращаем курсор последней обработанной
