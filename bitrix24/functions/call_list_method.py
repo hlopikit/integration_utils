@@ -1,27 +1,37 @@
 # -*- coding: utf-8 -*-
-from __future__ import division
+from __future__ import annotations, division
 
-import typing
 from collections import OrderedDict
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any, TYPE_CHECKING, TypeAlias
 
 from django.http import JsonResponse
 from django.utils import timezone
-import six
 
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
 
-if not six.PY2:  # type hints
-    from typing import Optional, Union
-
-if typing.TYPE_CHECKING:  # type hints
+if TYPE_CHECKING:
     from ..models import BitrixUserToken
     from integration_utils.retry_utils import RetryDecorator
 
 
 ALLOWABLE_TIME = 2000
 MICROSECONDS_TO_MILLISECONDS = 1000
+WEIRD_PAGINATION_METHODS = {
+    'task.item.list',
+    'task.items.getlist',
+    'task.elapseditem.getlist',
+}
+ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID = ('filter', 'select')
+FILTER_ID_KEYS = ('id', '@id')
+
+CallListFields: TypeAlias = dict[str, Any] | list[Any] | tuple[Any, ...] | None
+CallListResult: TypeAlias = list[Any] | dict[str, Any]
+CallListResultWithTotal: TypeAlias = tuple[CallListResult, dict[str, int]]
+CallListTimeout: TypeAlias = int | float | tuple[float, float] | None
+
 # Подавляющее большинство списочных методов возвращает просто список,
 # но некоторые оборачивают результат, здесь перечислены такие случаи
 METHOD_WRAPPERS = {
@@ -51,16 +61,16 @@ METHOD_WRAPPERS = {
 
 
 class CallListException(Exception):
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:
         super(CallListException, self).__init__(*args)
         self.error = args[0] if args else None
 
-    def dict(self):
+    def dict(self) -> dict[str, Any]:
         if isinstance(self.error, dict):
             return self.error
         return dict(error=self.error)
 
-    def json_response(self, status=500):
+    def json_response(self, status: int = 500) -> JsonResponse:
         json_error_response = JsonResponse(self.dict(), status=status)
         if status >= 500:
             # skip django reports for 5xx responses
@@ -68,8 +78,11 @@ class CallListException(Exception):
         return json_error_response
 
 
-def unwrap_batch_res(batch_res, result=None, wrapper=None):
-    # type: (BatchResultDict, Union[list, dict], Optional[str]) -> Union[list, dict]
+def unwrap_batch_res(
+        batch_res: BatchResultDict,
+        result: CallListResult | None = None,
+        wrapper: str | None = None,
+) -> CallListResult:
     """
     Собрать результаты batch_api_call в один список.
     Может использоваться ка самостоятельный метод.
@@ -96,15 +109,97 @@ def unwrap_batch_res(batch_res, result=None, wrapper=None):
     return result
 
 
-WEIRD_PAGINATION_METHODS = {
-    'task.item.list',
-    'task.items.getlist',
-    'task.elapseditem.getlist',
-}
+def _check_filter_by_id_only(params: Any) -> tuple[str | None, str | None, list[Any] | None]:
+    """
+    Проверяет, можно ли разбить переданный список ID на batch-команды.
+
+    Для ключа, который заканчивается на ID и не начинается с !,
+    пустой Iterable возвращается как пустой список, чтобы не выполнять API-запрос.
+    """
+    if not isinstance(params, dict):
+        return None, None, None
+
+    filter_key = next((key for key in params if key.lower() == 'filter'), None)
+    # Если filter_key нет, проверяем методы с ID на верхнем уровне параметров, например department.get: {'ID': [...]}
+    filter_params = params[filter_key] if filter_key else params
+
+    if not isinstance(filter_params, dict):
+        return filter_key, None, None
+
+    allowed_params = ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID if filter_key else FILTER_ID_KEYS + ('select',)
+    allowed_filter_fields = FILTER_ID_KEYS if filter_key else allowed_params
+    can_optimize_by_id = all(key.lower() in allowed_params for key in params)
+    filter_id_key = None
+    filter_ids = None
+    excluded_iterable_types = (str, bytes, bytearray, Mapping)
+
+    for filter_field, filter_value in filter_params.items():
+        filter_field_lower = filter_field.lower()
+        can_optimize_by_id = can_optimize_by_id and filter_field_lower in allowed_filter_fields
+
+        if not filter_field_lower.endswith('id'):
+            continue
+
+        if not (isinstance(filter_value, Iterable)
+                and not isinstance(filter_value, excluded_iterable_types)):
+            continue
+
+        # Преобразуем Iterable в список, чтобы не передать в API уже пройденный генератор
+        filter_value = filter_value if isinstance(filter_value, list) else list(filter_value)
+        filter_params[filter_field] = filter_value
+
+        if filter_field_lower.endswith('id') and not filter_field_lower.startswith('!') and not filter_value:
+            return filter_key, filter_field, []
+
+        if filter_field_lower in FILTER_ID_KEYS:
+            filter_id_key = filter_field
+            filter_ids = filter_value
+
+    if filter_ids and not can_optimize_by_id:
+        filter_ids = None
+
+    return filter_key, filter_id_key, filter_ids
 
 
-def next_params(method, params, next_step, page_size=50):
-    # type: (str, dict, int, int) -> dict
+def _generate_filter_id_methods_for_batch(
+        method: str,
+        fields: dict[str, Any],
+        filter_key: str | None,
+        filter_id_key: str,
+        filter_ids: list[Any],
+        batch_size: int,
+) -> list[tuple[str, dict[str, Any]]]:
+    methods = []
+    # Через OrderedDict делаем дедупликацию для сохранения порядка
+    unique_filter_ids = list(OrderedDict.fromkeys(filter_ids))
+
+    for start in range(0, len(unique_filter_ids), batch_size):
+        filter_id_chunk = unique_filter_ids[start:start + batch_size]
+        params = fields.copy()
+
+        if filter_key:
+            # Для стандартного формата меняем только список ID внутри filter.
+            # Остальные разрешенные параметры, например select, сохраняем.
+            filter_params = params[filter_key].copy()
+            filter_params[filter_id_key] = filter_id_chunk
+            params[filter_key] = filter_params
+        else:
+            # Для методов с ID на верхнем уровне используем его.
+            params[filter_id_key] = filter_id_chunk
+
+        # При запросе по списку ID total не нужен, поэтому отключаем его подсчёт через start=-1
+        params['start'] = -1
+        methods.append((method, params))
+
+    return methods
+
+
+def next_params(
+        method: str,
+        params: dict[str, Any],
+        next_step: int,
+        page_size: int = 50,
+) -> dict[str, Any]:
     """Конструирует параметры для следующего запроса,
     для большинства методов просто устанавливает ?start=next_step,
     для нескольких стремных методов происходит магия:
@@ -141,7 +236,7 @@ def next_params(method, params, next_step, page_size=50):
     params.pop('PARAMS', None)
 
     # Подсчет кол-ва обязательных параметров
-    def _count_required_params(optional_params_n=0):
+    def _count_required_params(optional_params_n: int = 0) -> int:
         return len(params) - optional_params_n
 
     if method.lower() == 'task.item.list':
@@ -222,7 +317,7 @@ def next_params(method, params, next_step, page_size=50):
     return params
 
 
-def check_params(method, params):
+def check_params(method: str, params: CallListFields) -> CallListFields:
     if method.lower() == 'task.ctasks.getlist':
         raise ValueError(
             'Нестандартный коробочный метод %s, не работает в облаке, '
@@ -242,20 +337,20 @@ def check_params(method, params):
 
 
 def call_list_method(
-        bx_token,  # type: BitrixUserToken
-        method,  # type: str
-        fields=None,  # type: Union[dict, list, None]
-        limit=None,  # type: Optional[int]
-        return_total=False,  # type: bool
-        allowable_error=None,  # type: Optional[int]
-        unwrap_batch_res_method=unwrap_batch_res,
-        timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-        force_total=None,  # type: Optional[int]
-        log_prefix='',
-        batch_size=50,  # type: int
-        retry_settings=None,  # type: Optional[RetryDecorator]
-        v=0,
-):  # type: (...) -> Union[list, dict]
+        bx_token: BitrixUserToken,
+        method: str,
+        fields: CallListFields = None,
+        limit: int | None = None,
+        return_total: bool = False,
+        allowable_error: int | None = None,
+        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
+        timeout: CallListTimeout = DEFAULT_TIMEOUT,
+        force_total: int | None = None,
+        log_prefix: str = '',
+        batch_size: int = 50,
+        retry_settings: RetryDecorator | None = None,
+        v: int = 0,
+) -> CallListResult | CallListResultWithTotal:
     """
     Выполнить списочный метод битрикс 24
 
@@ -264,7 +359,7 @@ def call_list_method(
     :param fields: параметры
 
     :param limit: максимальное количество объектов, которые нужно получить.
-                  Если None, получить все. Должно быть кратно 50
+                  Если None, получить все. Если задано, должно быть больше 0
 
     :param return_total: если True, дополнительно возвращает словарь с `total` по полной выборке Bitrix24,
                          даже если результат был ограничен параметром `limit`
@@ -294,6 +389,9 @@ def call_list_method(
     :return: старый результат либо кортеж `(результат, {"total": <полное количество>})`, если `return_total=True`
     """
 
+    if limit is not None and limit <= 0:
+        raise ValueError('limit must be greater than 0')
+
     if force_total:
         ilogger.warning('deprecated_force_total', 'deprecated_force_total')
         limit = force_total
@@ -304,38 +402,47 @@ def call_list_method(
     assert 1 <= batch_size <= 50, 'check: 1 <= batch_size <= 50'
     fields = check_params(method, fields)
 
-    # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
-    # ЕСЛИ ПЕРЕДАНЫ ТОЛКО СПИСОК ID, то тормозит если их много,
-    # в каждый батч метод суем огромный список, например 5000 айдишников
-    # Альтернативное исполнение для таких ситуаций
-    if (
-        isinstance(fields, dict) and
-        isinstance(fields.get('filter'), dict) and
-        isinstance(fields['filter'].get('ID'), list) and
-        len(fields['filter']) == 1 and
-        len(fields) == 1
-    ):
-        # https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
-        def chunks(lst, n):
-            """Yield successive n-sized chunks from lst."""
-            for i in range(0, len(lst), n):
-                yield lst[i:i + n]
+    # Копируем params, так как проверка ID преобразует Iterable в список
+    if isinstance(fields, dict):
+        fields = fields.copy()
+        filter_key = next((key for key in fields if key.lower() == 'filter'), None)
+        if filter_key and isinstance(fields[filter_key], dict):
+            fields[filter_key] = fields[filter_key].copy()
 
-        methods = []
-        for x in chunks(fields['filter']['ID'], batch_size):
-            params = {'filter': {'ID': x}}
-            if fields.get('select'):
-                params['select'] = fields.get('select')
-            methods.append((method, params))
+    filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(fields)
+
+    if filter_ids is not None:
+        if not filter_ids:
+            result = {METHOD_WRAPPERS[method]: []} if method in METHOD_WRAPPERS else []
+            if return_total:
+                return result, {"total": 0}
+            return result
+
+        assert isinstance(fields, dict)
+        assert filter_id_key is not None
+        methods = _generate_filter_id_methods_for_batch(
+            method=method,
+            fields=fields,
+            filter_key=filter_key,
+            filter_id_key=filter_id_key,
+            filter_ids=filter_ids,
+            batch_size=batch_size,
+        )
 
         batch = bx_token.batch_api_call(methods, timeout=timeout, chunk_size=batch_size,
                                         log_prefix=log_prefix, halt=1,
                                         retry_settings=retry_settings)
 
-        result = unwrap_batch_res_method(batch,
-                                         wrapper=METHOD_WRAPPERS.get(method))
+        wrapper = METHOD_WRAPPERS.get(method)
+        result = unwrap_batch_res_method(batch, wrapper=wrapper)
+        result_items = result[wrapper] if wrapper else result
+        total = len(result_items)
+
+        if limit is not None:
+            del result_items[limit:]
+
         if return_total:
-            return result, {"total": len(result)}
+            return result, {"total": total}
 
         return result
     # ### TODO БЛОК УСЛОВИЯ ВЫНЕСТИ В ФУНКЦИЮ ПОСЛЕ ОТЛАДКИ
