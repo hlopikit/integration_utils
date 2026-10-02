@@ -1,29 +1,37 @@
-from operator import itemgetter
+from __future__ import annotations
 
-import six
+from collections.abc import Callable, Iterator
+from operator import itemgetter
+from typing import Any, TYPE_CHECKING, TypeAlias
+
 from django.conf import settings
 
-from settings import ilogger
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.exceptions import BatchApiCallError
 from .call_list_method import _check_filter_by_id_only, _generate_filter_id_methods_for_batch
 
-if not six.PY2:
-    from typing import Any, Callable, Dict, Generator, Hashable, List, Optional, TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from ..models import BitrixUserToken
-        from integration_utils.retry_utils import RetryDecorator
+if TYPE_CHECKING:
+    from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
+    from integration_utils.retry_utils import RetryDecorator
+    from ..models import BitrixUserToken
 
 
-def _deep_merge(*dicts):  # type: (*dict) -> dict
+ApiParams: TypeAlias = dict[str, Any]
+ApiEntity: TypeAlias = dict[str, Any]
+OrderFunction: TypeAlias = Callable[[bool], ApiParams]
+FilterFunction: TypeAlias = Callable[[int, int | None, str | None, bool], ApiParams]
+EntityIdGetter: TypeAlias = Callable[[ApiEntity], int | str]
+CallListFastTimeout: TypeAlias = int | None
+
+
+def _deep_merge(*dicts: ApiParams) -> ApiParams:
     """Слияние словарей слева на право:
     >>> d1 = {'foo': None, 'bar': {'baz': 42}}
     >>> d2 = {'foo': {'hello': 'world'}, 'bar': {'quux': 666}}
     >>> _deep_merge(d1, d2)
     {'foo': {'hello': 'world'}, 'bar': {'baz': 42, 'quux': 666}}
     """
-    res = {}
+    res: ApiParams = {}
     for d in dicts:
         for k, v in d.items():
             if isinstance(v, dict):
@@ -36,20 +44,20 @@ def _deep_merge(*dicts):  # type: (*dict) -> dict
     return res
 
 
-def simple_order(descending=False):
+def simple_order(descending: bool = False) -> ApiParams:
     return {'order': {'ID': 'DESC' if descending else 'ASC'}}
 
 
-def simple_order_lower(descending=False):
+def simple_order_lower(descending: bool = False) -> ApiParams:
     return {'order': {'id': 'DESC' if descending else 'ASC'}}
 
 
-def voximplant_statistic_order(descending=False):
+def voximplant_statistic_order(descending: bool = False) -> ApiParams:
     return {'order': 'DESC' if descending else 'ASC', 'sort': 'ID'}
 
 
 # Как выглядят параметры сортировки, у большинства: {'order': {'ID': 'DESC'}}
-METHOD_TO_ORDER = {
+METHOD_TO_ORDER: dict[str, OrderFunction] = {
     'tasks.task.list': simple_order,
 
     'crm.deal.list': simple_order,
@@ -89,11 +97,11 @@ METHOD_TO_ORDER = {
 
 
 def filter_id_upper(
-    index,  # type: int
-    last_id=None,  # type: Optional[int]
-    wrapper=None,  # type: Optional[str]
-    descending=False,
-):
+    index: int,
+    last_id: int | None = None,
+    wrapper: str | None = None,
+    descending: bool = False,
+) -> ApiParams:
     cmp = '<' if descending else '>'
     prop = cmp + 'ID'
     if index == 0:
@@ -107,11 +115,11 @@ def filter_id_upper(
 
 
 def filter_id_lower(
-    index,  # type: int
-    last_id=None,  # type: Optional[int]
-    wrapper=None,  # type: Optional[str]
-    descending=False,
-):
+    index: int,
+    last_id: int | None = None,
+    wrapper: str | None = None,
+    descending: bool = False,
+) -> ApiParams:
     cmp = '<' if descending else '>'
     prop = cmp + 'id'
     if index == 0:
@@ -125,11 +133,11 @@ def filter_id_lower(
 
 
 def filter_id_mixed(
-    index,  # type: int
-    last_id=None,  # type: Optional[int]
-    wrapper=None,  # type: Optional[str]
-    descending=False,
-):  # У задач в результате `id`, а в запросе `ID`
+    index: int,
+    last_id: int | None = None,
+    wrapper: str | None = None,
+    descending: bool = False,
+) -> ApiParams:  # У задач в результате `id`, а в запросе `ID`
     cmp = '<' if descending else '>'
     prop = cmp + 'ID'
     if index == 0:
@@ -143,7 +151,7 @@ def filter_id_mixed(
 
 
 # Как выглядят параметры фильтра, у большинства: {'filter': {'>ID': ...}}
-METHOD_TO_FILTER = {
+METHOD_TO_FILTER: dict[str, FilterFunction] = {
     'tasks.task.list': filter_id_mixed,
 
     'crm.deal.list': filter_id_upper,
@@ -178,7 +186,7 @@ METHOD_TO_FILTER = {
 
 
 # Получить ID из сущности, у большинства `entity['ID']` или `entity['id']`
-METHOD_TO_ID = {
+METHOD_TO_ID: dict[str, EntityIdGetter] = {
     'tasks.task.list': itemgetter('id'),
 
     'crm.deal.list': itemgetter('ID'),
@@ -214,7 +222,7 @@ METHOD_TO_ID = {
 
 # Большинство методов возвращают просто список, но некоторые
 # (в основном у задач) имеют доп. обертку (например resp['result']['tasks'])
-METHOD_TO_WRAPPER = {
+METHOD_TO_WRAPPER: dict[str, str] = {
     'tasks.task.list': 'tasks',
     'crm.item.list': 'items',
     'crm.stagehistory.list': 'items',
@@ -224,11 +232,11 @@ METHOD_TO_WRAPPER = {
 }
 
 
-def is_sql_query_error(batch):
+def is_sql_query_error(batch: BatchResultDict) -> bool:
     return 'sql query error' in list(batch.errors.values())[0]['error_description'].lower()
 
 
-def is_invalid_filter_error(method, batch):
+def is_invalid_filter_error(method: str, batch: BatchResultDict) -> bool:
     return (
             method == 'crm.item.list' and
             'invalid filter' in list(batch.errors.values())[0]['error_description'].lower()
@@ -236,22 +244,22 @@ def is_invalid_filter_error(method, batch):
 
 
 def iter_result_by_filter_ids(
-        tok: 'BitrixUserToken',
+        tok: BitrixUserToken,
         method: str,
-        params: Dict[str, Any],
-        filter_key: Optional[str],
+        params: ApiParams,
+        filter_key: str | None,
         filter_id_key: str,
-        filter_ids: List[Any],
-        order_by: Dict[str, Any],
-        id_fn: Callable[[Any], Hashable],
+        filter_ids: list[Any],
+        order_by: ApiParams,
+        id_fn: EntityIdGetter,
         descending: bool = False,
-        wrapper: Optional[str] = None,
-        timeout: Optional[int] = DEFAULT_TIMEOUT,
-        limit: Optional[int] = None,
+        wrapper: str | None = None,
+        timeout: CallListFastTimeout = DEFAULT_TIMEOUT,
+        limit: int | None = None,
         batch_size: int = 50,
         log_prefix: str = '',
-        retry_settings: Optional['RetryDecorator'] = None,
-) -> Generator[Dict[str, Any], None, None]:
+        retry_settings: RetryDecorator | None = None,
+) -> Iterator[ApiEntity]:
     # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата
     filter_ids = sorted(filter_ids, key=int, reverse=descending)
     fields = _deep_merge(params, order_by)
@@ -276,7 +284,7 @@ def iter_result_by_filter_ids(
     if not batch.all_ok:
         raise BatchApiCallError(batch)
 
-    seen_ids = set()
+    seen_ids: set[int] = set()
 
     for _, response in batch.iter_successes():
         result = response['result']
@@ -296,16 +304,16 @@ def iter_result_by_filter_ids(
 
 
 def call_list_fast(
-    tok: 'BitrixUserToken',
+    tok: BitrixUserToken,
     method: str,
-    params: Dict[str, Any] = None,
-    descending=False,
-    log_prefix='',
-    timeout: Optional[int] = DEFAULT_TIMEOUT,
-    limit: Optional[int] = None,
-    batch_size=50,
-    retry_settings: Optional['RetryDecorator'] = None,
-) -> Generator[Dict, None, None]:
+    params: ApiParams | None = None,
+    descending: bool = False,
+    log_prefix: str = '',
+    timeout: CallListFastTimeout = DEFAULT_TIMEOUT,
+    limit: int | None = None,
+    batch_size: int = 50,
+    retry_settings: RetryDecorator | None = None,
+) -> Iterator[ApiEntity]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
     https://dev.1c-bitrix.ru/rest_help/rest_sum/start.php
@@ -334,15 +342,15 @@ def call_list_fast(
     альтернативно можно собрать в список:
         >>> deals = list(but.call_list_fast('crm.deal.list'))
     """
-    order_fn = METHOD_TO_ORDER[method]  # type: Callable[[bool], Dict[str, Any]]
-    filter_fn = METHOD_TO_FILTER[method]  # type: Callable[[int, Optional[int], Optional[str], bool], Dict[str, Any]]
-    id_fn = METHOD_TO_ID[method]  # type: Callable[[Any], Hashable]
-    wrapper = METHOD_TO_WRAPPER.get(method)  # type: Optional[str]
+    order_fn = METHOD_TO_ORDER[method]
+    filter_fn = METHOD_TO_FILTER[method]
+    id_fn = METHOD_TO_ID[method]
+    wrapper = METHOD_TO_WRAPPER.get(method)
     assert 1 <= batch_size <= 50
     assert limit is None or limit >= 0
 
-    last_entity_id = None
-    seen_ids = set()
+    last_entity_id: int | None = None
+    seen_ids: set[int] = set()
 
     order_by = order_fn(descending)
     if params and any(key in order_by for key in params):
@@ -359,6 +367,7 @@ def call_list_fast(
         if not filter_ids:
             return
 
+        assert filter_id_key is not None
         yield from iter_result_by_filter_ids(
             tok=tok,
             method=method,
@@ -422,8 +431,6 @@ def call_list_fast(
             result = response['result']
             if wrapper is not None:
                 result = result[wrapper]
-            # ilogger.debug('fast_batch_debug', "результат ".format(', '.join(id_fn(x) for x in result)))
-
             if not result:
                 return
 

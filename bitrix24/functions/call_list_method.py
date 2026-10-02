@@ -1,22 +1,18 @@
 # -*- coding: utf-8 -*-
-from __future__ import division
+from __future__ import annotations, division
 
-import typing
 from collections import OrderedDict
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any, Literal, TYPE_CHECKING, TypeAlias, overload
 
 from django.http import JsonResponse
 from django.utils import timezone
-import six
-from six.moves import collections_abc
 
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
 
-if not six.PY2:  # type hints
-    from typing import Any, List, Optional, Tuple, Union
-
-if typing.TYPE_CHECKING:  # type hints
+if TYPE_CHECKING:
     from ..models import BitrixUserToken
     from integration_utils.retry_utils import RetryDecorator
 
@@ -30,6 +26,11 @@ WEIRD_PAGINATION_METHODS = {
 }
 ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID = ('filter', 'select')
 FILTER_ID_KEYS = ('id', '@id')
+
+CallListFields: TypeAlias = dict[str, Any] | list[Any] | tuple[Any, ...] | None
+CallListResult: TypeAlias = list[Any] | dict[str, Any]
+CallListResultWithTotal: TypeAlias = tuple[CallListResult, dict[str, int]]
+CallListTimeout: TypeAlias = int | None
 
 # Подавляющее большинство списочных методов возвращает просто список,
 # но некоторые оборачивают результат, здесь перечислены такие случаи
@@ -60,16 +61,16 @@ METHOD_WRAPPERS = {
 
 
 class CallListException(Exception):
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:
         super(CallListException, self).__init__(*args)
         self.error = args[0] if args else None
 
-    def dict(self):
+    def dict(self) -> dict[str, Any]:
         if isinstance(self.error, dict):
             return self.error
         return dict(error=self.error)
 
-    def json_response(self, status=500):
+    def json_response(self, status: int = 500) -> JsonResponse:
         json_error_response = JsonResponse(self.dict(), status=status)
         if status >= 500:
             # skip django reports for 5xx responses
@@ -77,8 +78,11 @@ class CallListException(Exception):
         return json_error_response
 
 
-def unwrap_batch_res(batch_res, result=None, wrapper=None):
-    # type: (BatchResultDict, Union[list, dict], Optional[str]) -> Union[list, dict]
+def unwrap_batch_res(
+        batch_res: BatchResultDict,
+        result: CallListResult | None = None,
+        wrapper: str | None = None,
+) -> CallListResult:
     """
     Собрать результаты batch_api_call в один список.
     Может использоваться ка самостоятельный метод.
@@ -105,7 +109,7 @@ def unwrap_batch_res(batch_res, result=None, wrapper=None):
     return result
 
 
-def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str], Optional[List[Any]]]:
+def _check_filter_by_id_only(params: Any) -> tuple[str | None, str | None, list[Any] | None]:
     """
     Проверяет, можно ли разбить переданный список ID на batch-команды.
 
@@ -127,7 +131,7 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
     can_optimize_by_id = all(key.lower() in allowed_params for key in params)
     filter_id_key = None
     filter_ids = None
-    excluded_iterable_types = six.string_types + (bytes, bytearray, collections_abc.Mapping)
+    excluded_iterable_types = (str, bytes, bytearray, Mapping)
 
     for filter_field, filter_value in filter_params.items():
         filter_field_lower = filter_field.lower()
@@ -136,7 +140,7 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
         if not filter_field_lower.endswith('id'):
             continue
 
-        if not (isinstance(filter_value, collections_abc.Iterable)
+        if not (isinstance(filter_value, Iterable)
                 and not isinstance(filter_value, excluded_iterable_types)):
             continue
 
@@ -159,12 +163,12 @@ def _check_filter_by_id_only(params: Any) -> Tuple[Optional[str], Optional[str],
 
 def _generate_filter_id_methods_for_batch(
         method: str,
-        fields: dict,
-        filter_key: Optional[str],
+        fields: dict[str, Any],
+        filter_key: str | None,
         filter_id_key: str,
-        filter_ids: List[Any],
+        filter_ids: list[Any],
         batch_size: int,
-) -> List[Tuple[str, dict]]:
+) -> list[tuple[str, dict[str, Any]]]:
     methods = []
     # Через OrderedDict делаем дедупликацию для сохранения порядка
     unique_filter_ids = list(OrderedDict.fromkeys(filter_ids))
@@ -189,8 +193,12 @@ def _generate_filter_id_methods_for_batch(
     return methods
 
 
-def next_params(method, params, next_step, page_size=50):
-    # type: (str, dict, int, int) -> dict
+def next_params(
+        method: str,
+        params: dict[str, Any],
+        next_step: int,
+        page_size: int = 50,
+) -> dict[str, Any]:
     """Конструирует параметры для следующего запроса,
     для большинства методов просто устанавливает ?start=next_step,
     для нескольких стремных методов происходит магия:
@@ -227,7 +235,7 @@ def next_params(method, params, next_step, page_size=50):
     params.pop('PARAMS', None)
 
     # Подсчет кол-ва обязательных параметров
-    def _count_required_params(optional_params_n=0):
+    def _count_required_params(optional_params_n: int = 0) -> int:
         return len(params) - optional_params_n
 
     if method.lower() == 'task.item.list':
@@ -308,7 +316,7 @@ def next_params(method, params, next_step, page_size=50):
     return params
 
 
-def check_params(method, params):
+def check_params(method: str, params: CallListFields) -> CallListFields:
     if method.lower() == 'task.ctasks.getlist':
         raise ValueError(
             'Нестандартный коробочный метод %s, не работает в облаке, '
@@ -327,21 +335,78 @@ def check_params(method, params):
     return params
 
 
+@overload
 def call_list_method(
-        bx_token,  # type: BitrixUserToken
-        method,  # type: str
-        fields=None,  # type: Union[dict, list, None]
-        limit=None,  # type: Optional[int]
-        return_total=False,  # type: bool
-        allowable_error=None,  # type: Optional[int]
-        unwrap_batch_res_method=unwrap_batch_res,
-        timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-        force_total=None,  # type: Optional[int]
-        log_prefix='',
-        batch_size=50,  # type: int
-        retry_settings=None,  # type: Optional[RetryDecorator]
-        v=0,
-):  # type: (...) -> Union[list, dict]
+        bx_token: BitrixUserToken,
+        method: str,
+        fields: CallListFields = None,
+        limit: int | None = None,
+        return_total: Literal[False] = False,
+        allowable_error: int | None = None,
+        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
+        timeout: CallListTimeout = DEFAULT_TIMEOUT,
+        force_total: int | None = None,
+        log_prefix: str = '',
+        batch_size: int = 50,
+        retry_settings: RetryDecorator | None = None,
+        v: int = 0,
+) -> CallListResult:
+    ...
+
+
+@overload
+def call_list_method(
+        bx_token: BitrixUserToken,
+        method: str,
+        fields: CallListFields = None,
+        limit: int | None = None,
+        return_total: Literal[True] = True,
+        allowable_error: int | None = None,
+        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
+        timeout: CallListTimeout = DEFAULT_TIMEOUT,
+        force_total: int | None = None,
+        log_prefix: str = '',
+        batch_size: int = 50,
+        retry_settings: RetryDecorator | None = None,
+        v: int = 0,
+) -> CallListResultWithTotal:
+    ...
+
+
+@overload
+def call_list_method(
+        bx_token: BitrixUserToken,
+        method: str,
+        fields: CallListFields = None,
+        limit: int | None = None,
+        return_total: bool = False,
+        allowable_error: int | None = None,
+        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
+        timeout: CallListTimeout = DEFAULT_TIMEOUT,
+        force_total: int | None = None,
+        log_prefix: str = '',
+        batch_size: int = 50,
+        retry_settings: RetryDecorator | None = None,
+        v: int = 0,
+) -> CallListResult | CallListResultWithTotal:
+    ...
+
+
+def call_list_method(
+        bx_token: BitrixUserToken,
+        method: str,
+        fields: CallListFields = None,
+        limit: int | None = None,
+        return_total: bool = False,
+        allowable_error: int | None = None,
+        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
+        timeout: CallListTimeout = DEFAULT_TIMEOUT,
+        force_total: int | None = None,
+        log_prefix: str = '',
+        batch_size: int = 50,
+        retry_settings: RetryDecorator | None = None,
+        v: int = 0,
+) -> CallListResult | CallListResultWithTotal:
     """
     Выполнить списочный метод битрикс 24
 
@@ -406,6 +471,8 @@ def call_list_method(
                 return result, {"total": 0}
             return result
 
+        assert isinstance(fields, dict)
+        assert filter_id_key is not None
         methods = _generate_filter_id_methods_for_batch(
             method=method,
             fields=fields,
