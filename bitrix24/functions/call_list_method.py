@@ -3,7 +3,7 @@ from __future__ import annotations, division
 
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, Literal, TYPE_CHECKING, TypeAlias, overload
+from typing import Any, TYPE_CHECKING, TypeAlias
 
 from django.http import JsonResponse
 from django.utils import timezone
@@ -334,103 +334,6 @@ def check_params(method: str, params: CallListFields) -> CallListFields:
     # ):
     #     raise ValueError(u'Надо использовать OrderedDict с %s' % method)
     return params
-
-
-@overload
-def call_list_method(
-        bx_token: BitrixUserToken,
-        method: str,
-        fields: CallListFields = None,
-        limit: int | None = None,
-        return_total: Literal[False] = False,
-        allowable_error: int | None = None,
-        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
-        timeout: CallListTimeout = DEFAULT_TIMEOUT,
-        force_total: int | None = None,
-        log_prefix: str = '',
-        batch_size: int = 50,
-        retry_settings: RetryDecorator | None = None,
-        v: int = 0,
-) -> CallListResult:
-    ...
-
-
-@overload
-def call_list_method(
-        bx_token: BitrixUserToken,
-        method: str,
-        fields: CallListFields,
-        limit: int | None,
-        return_total: Literal[True],
-        allowable_error: int | None = None,
-        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
-        timeout: CallListTimeout = DEFAULT_TIMEOUT,
-        force_total: int | None = None,
-        log_prefix: str = '',
-        batch_size: int = 50,
-        retry_settings: RetryDecorator | None = None,
-        v: int = 0,
-) -> CallListResultWithTotal:
-    ...
-
-
-@overload
-def call_list_method(
-        bx_token: BitrixUserToken,
-        method: str,
-        fields: CallListFields,
-        limit: int | None,
-        return_total: bool,
-        allowable_error: int | None = None,
-        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
-        timeout: CallListTimeout = DEFAULT_TIMEOUT,
-        force_total: int | None = None,
-        log_prefix: str = '',
-        batch_size: int = 50,
-        retry_settings: RetryDecorator | None = None,
-        v: int = 0,
-) -> CallListResult | CallListResultWithTotal:
-    ...
-
-
-@overload
-def call_list_method(
-        bx_token: BitrixUserToken,
-        method: str,
-        fields: CallListFields = None,
-        limit: int | None = None,
-        *,
-        return_total: Literal[True],
-        allowable_error: int | None = None,
-        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
-        timeout: CallListTimeout = DEFAULT_TIMEOUT,
-        force_total: int | None = None,
-        log_prefix: str = '',
-        batch_size: int = 50,
-        retry_settings: RetryDecorator | None = None,
-        v: int = 0,
-) -> CallListResultWithTotal:
-    ...
-
-
-@overload
-def call_list_method(
-        bx_token: BitrixUserToken,
-        method: str,
-        fields: CallListFields = None,
-        limit: int | None = None,
-        *,
-        return_total: bool,
-        allowable_error: int | None = None,
-        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
-        timeout: CallListTimeout = DEFAULT_TIMEOUT,
-        force_total: int | None = None,
-        log_prefix: str = '',
-        batch_size: int = 50,
-        retry_settings: RetryDecorator | None = None,
-        v: int = 0,
-) -> CallListResult | CallListResultWithTotal:
-    ...
 
 
 def call_list_method(
