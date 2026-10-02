@@ -563,12 +563,13 @@ class BitrixApiError(BitrixApiException):
         """Битрикс не смог добавить сообщение в чат."""
         return self.is_wrong_request and self.error_description == "Message isn't added"
 
-    def dict(self):
+    def dict(self, include_message=True):
         if isinstance(self.json_response, dict):
-            error = self.json_response
+            error = dict(self.json_response)
         else:
             error = dict(error=self.json_response)
-        error.setdefault('error_message', self.message)
+        if include_message:
+            error.setdefault('error_message', self.message)
         return error
 
     # def __str__(self):

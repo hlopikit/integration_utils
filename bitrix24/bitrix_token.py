@@ -1,11 +1,12 @@
 # -*- coding: UTF-8 -*-
-from typing import Optional, Any, Union, Dict, Generator
+from typing import Optional, Any, Union, Dict, Generator, Tuple
 
 from django.conf import settings
 
 from integration_utils.bitrix24.exceptions import ExpiredToken, get_bitrix_api_error, BitrixApiServerError
 from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
 from integration_utils.bitrix24.functions.call_list_method import call_list_method
+from integration_utils.bitrix24.functions.call_list_method_v3 import call_list_method_v3
 from integration_utils.retry_utils import RetryDecorator
 
 
@@ -68,7 +69,7 @@ class BaseBitrixToken:
             self,
             api_method: str,
             params: Optional[Dict[str, Any]] = None,
-            timeout: Optional[int] = DEFAULT_TIMEOUT,
+            timeout: Union[int, float, Tuple[float, float]] = DEFAULT_TIMEOUT,
             retry_settings: Optional[RetryDecorator] = None,
     ) -> dict:
         """
@@ -99,14 +100,14 @@ class BaseBitrixToken:
     call_method = call_api_method_v3
 
     def batch_api_call(
-            self,
-            methods: Union[list, dict],
-            timeout: Optional[int] = DEFAULT_TIMEOUT,
-            chunk_size: int = 50,
-            halt: int = 0,
-            log_prefix: str = '',
-            refresh: bool = True,
-            retry_settings: Optional[RetryDecorator] = None,
+        self,
+        methods: Union[list, dict],
+        timeout: Optional[int] = DEFAULT_TIMEOUT,
+        chunk_size: int = 50,
+        halt: int = 0,
+        log_prefix: str = '',
+        refresh: bool = True,
+        retry_settings: Optional[RetryDecorator] = None,
     ) -> Any:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
@@ -191,6 +192,19 @@ class BaseBitrixToken:
         )
 
     call_list_method_v2 = call_list_method
+
+    def call_list_method_v3(
+        self,
+        method: str,
+        fields: Optional[dict] = None,
+        timeout: Union[int, float, Tuple[float, float]] = DEFAULT_TIMEOUT,
+    ) -> Tuple[Dict[str, Any], int]:
+        return call_list_method_v3(
+            bx_token=self,
+            method=method,
+            fields=fields,
+            timeout=timeout,
+        )
 
 
 class BitrixToken(BaseBitrixToken):
