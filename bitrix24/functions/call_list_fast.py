@@ -21,7 +21,7 @@ ApiEntity: TypeAlias = dict[str, Any]
 OrderFunction: TypeAlias = Callable[[bool], ApiParams]
 FilterFunction: TypeAlias = Callable[[int, int | None, str | None, bool], ApiParams]
 EntityIdGetter: TypeAlias = Callable[[ApiEntity], int | str]
-CallListFastTimeout: TypeAlias = int | None
+CallListFastTimeout: TypeAlias = int | float | tuple[float, float] | None
 
 
 def _deep_merge(*dicts: ApiParams) -> ApiParams:
@@ -260,6 +260,9 @@ def iter_result_by_filter_ids(
         log_prefix: str = '',
         retry_settings: RetryDecorator | None = None,
 ) -> Iterator[ApiEntity]:
+    if limit is not None and limit <= 0:
+        raise ValueError('limit must be greater than 0')
+
     # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата
     filter_ids = sorted(filter_ids, key=int, reverse=descending)
     fields = _deep_merge(params, order_by)
@@ -342,12 +345,14 @@ def call_list_fast(
     альтернативно можно собрать в список:
         >>> deals = list(but.call_list_fast('crm.deal.list'))
     """
+    if limit is not None and limit <= 0:
+        raise ValueError('limit must be greater than 0')
+
     order_fn = METHOD_TO_ORDER[method]
     filter_fn = METHOD_TO_FILTER[method]
     id_fn = METHOD_TO_ID[method]
     wrapper = METHOD_TO_WRAPPER.get(method)
     assert 1 <= batch_size <= 50
-    assert limit is None or limit >= 0
 
     last_entity_id: int | None = None
     seen_entity_ids: set[int] = set()

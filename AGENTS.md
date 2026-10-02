@@ -213,10 +213,10 @@ batch = but.batch_api_call([
 
 - `method: str` - обязательный списочный REST-метод;
 - `fields: dict | list | None` - параметры метода: `filter`, `select`, `order` и другие;
-- `limit: int | None` - максимальное количество элементов, которое нужно вернуть;
+- `limit: int | None` - максимальное количество элементов, которое нужно вернуть; если задан, должен быть больше 0;
 - `return_total: bool` - вернуть полный `total` вместе с результатом;
 - `allowable_error: int | None` - допустимое расхождение длины результата с `total`;
-- `timeout: int | tuple | None` - таймаут каждого HTTP-запроса к Bitrix24;
+- `timeout: int | float | tuple[float, float] | None` - таймаут каждого HTTP-запроса к Bitrix24;
 - `batch_size: int` - сколько страниц запрашивать в одном batch, от 1 до 50;
 - `retry_settings: RetryDecorator | None` - настройки повторных попыток, если они нужны.
 
@@ -257,8 +257,8 @@ deals = but.call_list_method(
 - `method: str` - обязательный списочный REST-метод;
 - `params: dict | None` - параметры метода;
 - `descending: bool` - направление обхода по ID;
-- `timeout: int | tuple | None` - таймаут каждого HTTP-запроса к Bitrix24;
-- `limit: int | None` - максимальное количество элементов;
+- `timeout: int | float | tuple[float, float] | None` - таймаут каждого HTTP-запроса к Bitrix24;
+- `limit: int | None` - максимальное количество элементов; если задан, должен быть больше 0;
 - `batch_size: int` - размер batch от 1 до 50;
 - `retry_settings: RetryDecorator | None` - настройки повторных попыток, если они нужны.
 

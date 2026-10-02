@@ -30,7 +30,7 @@ FILTER_ID_KEYS = ('id', '@id')
 CallListFields: TypeAlias = dict[str, Any] | list[Any] | tuple[Any, ...] | None
 CallListResult: TypeAlias = list[Any] | dict[str, Any]
 CallListResultWithTotal: TypeAlias = tuple[CallListResult, dict[str, int]]
-CallListTimeout: TypeAlias = int | None
+CallListTimeout: TypeAlias = int | float | tuple[float, float] | None
 
 # Подавляющее большинство списочных методов возвращает просто список,
 # но некоторые оборачивают результат, здесь перечислены такие случаи
@@ -359,9 +359,48 @@ def call_list_method(
 def call_list_method(
         bx_token: BitrixUserToken,
         method: str,
+        fields: CallListFields,
+        limit: int | None,
+        return_total: Literal[True],
+        allowable_error: int | None = None,
+        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
+        timeout: CallListTimeout = DEFAULT_TIMEOUT,
+        force_total: int | None = None,
+        log_prefix: str = '',
+        batch_size: int = 50,
+        retry_settings: RetryDecorator | None = None,
+        v: int = 0,
+) -> CallListResultWithTotal:
+    ...
+
+
+@overload
+def call_list_method(
+        bx_token: BitrixUserToken,
+        method: str,
+        fields: CallListFields,
+        limit: int | None,
+        return_total: bool,
+        allowable_error: int | None = None,
+        unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
+        timeout: CallListTimeout = DEFAULT_TIMEOUT,
+        force_total: int | None = None,
+        log_prefix: str = '',
+        batch_size: int = 50,
+        retry_settings: RetryDecorator | None = None,
+        v: int = 0,
+) -> CallListResult | CallListResultWithTotal:
+    ...
+
+
+@overload
+def call_list_method(
+        bx_token: BitrixUserToken,
+        method: str,
         fields: CallListFields = None,
         limit: int | None = None,
-        return_total: Literal[True] = True,
+        *,
+        return_total: Literal[True],
         allowable_error: int | None = None,
         unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
         timeout: CallListTimeout = DEFAULT_TIMEOUT,
@@ -380,7 +419,8 @@ def call_list_method(
         method: str,
         fields: CallListFields = None,
         limit: int | None = None,
-        return_total: bool = False,
+        *,
+        return_total: bool,
         allowable_error: int | None = None,
         unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
         timeout: CallListTimeout = DEFAULT_TIMEOUT,
@@ -416,7 +456,7 @@ def call_list_method(
     :param fields: параметры
 
     :param limit: максимальное количество объектов, которые нужно получить.
-                  Если None, получить все. Должно быть кратно 50
+                  Если None, получить все. Если задано, должно быть больше 0
 
     :param return_total: если True, дополнительно возвращает словарь с `total` по полной выборке Bitrix24,
                          даже если результат был ограничен параметром `limit`
@@ -445,6 +485,9 @@ def call_list_method(
 
     :return: старый результат либо кортеж `(результат, {"total": <полное количество>})`, если `return_total=True`
     """
+
+    if limit is not None and limit <= 0:
+        raise ValueError('limit must be greater than 0')
 
     if force_total:
         ilogger.warning('deprecated_force_total', 'deprecated_force_total')
