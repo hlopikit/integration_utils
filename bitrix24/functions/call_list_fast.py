@@ -9,7 +9,7 @@ from integration_utils.bitrix24.exceptions import BatchApiCallError
 from .call_list_method import _check_filter_by_id_only, _generate_filter_id_methods_for_batch
 
 if not six.PY2:
-    from typing import Optional, Any, Hashable, Dict, Callable, TYPE_CHECKING, Generator
+    from typing import Any, Callable, Dict, Generator, Hashable, List, Optional, TYPE_CHECKING
 
     if TYPE_CHECKING:
         from ..models import BitrixUserToken
@@ -236,23 +236,22 @@ def is_invalid_filter_error(method, batch):
 
 
 def iter_result_by_filter_ids(
-        tok,  # type: BitrixUserToken
-        method,  # type: str
-        params,  # type: Dict[str, Any]
-        filter_key,  # type: Optional[str]
-        filter_id_key,  # type: str
-        filter_ids,  # type: list
-        order_by,  # type: Dict[str, Any]
-        id_fn,  # type: Callable[[Any], Hashable]
-        descending=False,  # type: bool
-        wrapper=None,  # type: Optional[str]
-        timeout=DEFAULT_TIMEOUT,  # type: Optional[int]
-        limit=None,  # type: Optional[int]
-        batch_size=50,  # type: int
-        log_prefix='',  # type: str
-        retry_settings=None,  # type: Optional[RetryDecorator]
-):
-    # type: (...) -> Generator[Dict, None, None]
+        tok: 'BitrixUserToken',
+        method: str,
+        params: Dict[str, Any],
+        filter_key: Optional[str],
+        filter_id_key: str,
+        filter_ids: List[Any],
+        order_by: Dict[str, Any],
+        id_fn: Callable[[Any], Hashable],
+        descending: bool = False,
+        wrapper: Optional[str] = None,
+        timeout: Optional[int] = DEFAULT_TIMEOUT,
+        limit: Optional[int] = None,
+        batch_size: int = 50,
+        log_prefix: str = '',
+        retry_settings: Optional['RetryDecorator'] = None,
+) -> Generator[Dict[str, Any], None, None]:
     # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата
     filter_ids = sorted(filter_ids, key=int, reverse=descending)
     fields = _deep_merge(params, order_by)
