@@ -166,9 +166,11 @@ def _generate_filter_id_methods_for_batch(
         batch_size: int,
 ) -> List[Tuple[str, dict]]:
     methods = []
+    # Через OrderedDict делаем дедупликацию для сохранения порядка
+    unique_filter_ids = list(OrderedDict.fromkeys(filter_ids))
 
-    for start in range(0, len(filter_ids), batch_size):
-        filter_id_chunk = filter_ids[start:start + batch_size]
+    for start in range(0, len(unique_filter_ids), batch_size):
+        filter_id_chunk = unique_filter_ids[start:start + batch_size]
         params = fields.copy()
 
         if filter_key:
