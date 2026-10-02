@@ -178,12 +178,13 @@ def _generate_filter_id_methods_for_batch(
         params = fields.copy()
 
         if filter_key:
-            # Для стандартного формата меняем только список ID внутри filter, остальные разрешенные параметры, например select, сохраняем
+            # Для стандартного формата меняем только список ID внутри filter.
+            # Остальные разрешенные параметры, например select, сохраняем.
             filter_params = params[filter_key].copy()
             filter_params[filter_id_key] = filter_id_chunk
             params[filter_key] = filter_params
         else:
-            # Для методов с ID на верхнем уровне чанкуем само поле ID/id/@ID.
+            # Для методов с ID на верхнем уровне используем его.
             params[filter_id_key] = filter_id_chunk
 
         # При запросе по списку ID total не нужен, поэтому отключаем его подсчёт через start=-1

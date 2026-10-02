@@ -26,10 +26,10 @@ CallListFastTimeout: TypeAlias = int | None
 
 def _deep_merge(*dicts: ApiParams) -> ApiParams:
     """Слияние словарей слева на право:
-    >>> d1 = {'foo': None, 'bar': {'baz': 42}}
-    >>> d2 = {'foo': {'hello': 'world'}, 'bar': {'quux': 666}}
+    >>> d1 = {'foo': None, 'bar': {'answer': 42}}
+    >>> d2 = {'foo': {'hello': 'world'}, 'bar': {'number': 666}}
     >>> _deep_merge(d1, d2)
-    {'foo': {'hello': 'world'}, 'bar': {'baz': 42, 'quux': 666}}
+    {'foo': {'hello': 'world'}, 'bar': {'answer': 42, 'number': 666}}
     """
     res: ApiParams = {}
     for d in dicts:
@@ -350,7 +350,7 @@ def call_list_fast(
     assert limit is None or limit >= 0
 
     last_entity_id: int | None = None
-    seen_ids: set[int] = set()
+    seen_entity_ids: set[int] = set()
 
     order_by = order_fn(descending)
     if params and any(key in order_by for key in params):
@@ -435,8 +435,8 @@ def call_list_fast(
                 return
 
             for entity in result:
-                id = int(id_fn(entity))
-                if id in seen_ids:
+                entity_id = int(id_fn(entity))
+                if entity_id in seen_entity_ids:
                     if duplicate_count < max_duplicate_count:
                         # https://b24.it-solution.ru/workgroups/group/347/tasks/task/view/50889/
                         # crm.deal.list может вернуть одну сделку дважды. пропускаем первый дублированный элемент
@@ -446,20 +446,20 @@ def call_list_fast(
                     return  # Если дублей несколько - завершаем выполнение
 
                 if last_entity_id:
-                    if (descending and last_entity_id < id) or (not descending and last_entity_id > id):
+                    if (descending and last_entity_id < entity_id) or (not descending and last_entity_id > entity_id):
                         # https://b24.it-solution.ru/workgroups/group/421/tasks/task/view/79144/
                         # фикс на случае, когда в запросе есть фильтр по id
                         return
 
                 yield entity
-                seen_ids.add(id)
-                last_entity_id = id
-                if limit is not None and len(seen_ids) >= limit:
+                seen_entity_ids.add(entity_id)
+                last_entity_id = entity_id
+                if limit is not None and len(seen_entity_ids) >= limit:
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
             if is_sql_query_error(batch) or is_invalid_filter_error(method, batch):
                 # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
-                #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
+                #        убыванию при выходе batch за границы начинает отдавать 'SQL query error'. здесь мы уже
                 #        получили все элементы, поэтому можем игнорировать ошибку
                 return
             raise BatchApiCallError(batch)
