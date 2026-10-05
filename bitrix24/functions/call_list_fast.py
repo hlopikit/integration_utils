@@ -1,28 +1,37 @@
-from operator import itemgetter
+from __future__ import annotations
 
-import six
+from collections.abc import Callable, Iterator
+from operator import itemgetter
+from typing import Any, TYPE_CHECKING, TypeAlias
+
 from django.conf import settings
 
-from settings import ilogger
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.exceptions import BatchApiCallError
+from .call_list_method import _check_filter_by_id_only, _generate_filter_id_methods_for_batch
 
-if not six.PY2:
-    from typing import Optional, Any, Hashable, Dict, Callable, TYPE_CHECKING, Generator
-
-    if TYPE_CHECKING:
-        from ..models import BitrixUserToken
-        from integration_utils.retry_utils import RetryDecorator
+if TYPE_CHECKING:
+    from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
+    from integration_utils.retry_utils import RetryDecorator
+    from ..models import BitrixUserToken
 
 
-def _deep_merge(*dicts):  # type: (*dict) -> dict
+ApiParams: TypeAlias = dict[str, Any]
+ApiEntity: TypeAlias = dict[str, Any]
+OrderFunction: TypeAlias = Callable[[bool], ApiParams]
+FilterFunction: TypeAlias = Callable[[int, int | None, str | None, bool], ApiParams]
+EntityIdGetter: TypeAlias = Callable[[ApiEntity], int | str]
+CallListFastTimeout: TypeAlias = int | float | tuple[float, float] | None
+
+
+def _deep_merge(*dicts: ApiParams) -> ApiParams:
     """Слияние словарей слева на право:
-    >>> d1 = {'foo': None, 'bar': {'baz': 42}}
-    >>> d2 = {'foo': {'hello': 'world'}, 'bar': {'quux': 666}}
+    >>> d1 = {'foo': None, 'bar': {'answer': 42}}
+    >>> d2 = {'foo': {'hello': 'world'}, 'bar': {'number': 666}}
     >>> _deep_merge(d1, d2)
-    {'foo': {'hello': 'world'}, 'bar': {'baz': 42, 'quux': 666}}
+    {'foo': {'hello': 'world'}, 'bar': {'answer': 42, 'number': 666}}
     """
-    res = {}
+    res: ApiParams = {}
     for d in dicts:
         for k, v in d.items():
             if isinstance(v, dict):
@@ -35,20 +44,20 @@ def _deep_merge(*dicts):  # type: (*dict) -> dict
     return res
 
 
-def simple_order(descending=False):
+def simple_order(descending: bool = False) -> ApiParams:
     return {'order': {'ID': 'DESC' if descending else 'ASC'}}
 
 
-def simple_order_lower(descending=False):
+def simple_order_lower(descending: bool = False) -> ApiParams:
     return {'order': {'id': 'DESC' if descending else 'ASC'}}
 
 
-def voximplant_statistic_order(descending=False):
+def voximplant_statistic_order(descending: bool = False) -> ApiParams:
     return {'order': 'DESC' if descending else 'ASC', 'sort': 'ID'}
 
 
 # Как выглядят параметры сортировки, у большинства: {'order': {'ID': 'DESC'}}
-METHOD_TO_ORDER = {
+METHOD_TO_ORDER: dict[str, OrderFunction] = {
     'tasks.task.list': simple_order,
 
     'crm.deal.list': simple_order,
@@ -88,11 +97,11 @@ METHOD_TO_ORDER = {
 
 
 def filter_id_upper(
-    index,  # type: int
-    last_id=None,  # type: Optional[int]
-    wrapper=None,  # type: Optional[str]
-    descending=False,
-):
+    index: int,
+    last_id: int | None = None,
+    wrapper: str | None = None,
+    descending: bool = False,
+) -> ApiParams:
     cmp = '<' if descending else '>'
     prop = cmp + 'ID'
     if index == 0:
@@ -106,11 +115,11 @@ def filter_id_upper(
 
 
 def filter_id_lower(
-    index,  # type: int
-    last_id=None,  # type: Optional[int]
-    wrapper=None,  # type: Optional[str]
-    descending=False,
-):
+    index: int,
+    last_id: int | None = None,
+    wrapper: str | None = None,
+    descending: bool = False,
+) -> ApiParams:
     cmp = '<' if descending else '>'
     prop = cmp + 'id'
     if index == 0:
@@ -124,11 +133,11 @@ def filter_id_lower(
 
 
 def filter_id_mixed(
-    index,  # type: int
-    last_id=None,  # type: Optional[int]
-    wrapper=None,  # type: Optional[str]
-    descending=False,
-):  # У задач в результате `id`, а в запросе `ID`
+    index: int,
+    last_id: int | None = None,
+    wrapper: str | None = None,
+    descending: bool = False,
+) -> ApiParams:  # У задач в результате `id`, а в запросе `ID`
     cmp = '<' if descending else '>'
     prop = cmp + 'ID'
     if index == 0:
@@ -142,7 +151,7 @@ def filter_id_mixed(
 
 
 # Как выглядят параметры фильтра, у большинства: {'filter': {'>ID': ...}}
-METHOD_TO_FILTER = {
+METHOD_TO_FILTER: dict[str, FilterFunction] = {
     'tasks.task.list': filter_id_mixed,
 
     'crm.deal.list': filter_id_upper,
@@ -177,7 +186,7 @@ METHOD_TO_FILTER = {
 
 
 # Получить ID из сущности, у большинства `entity['ID']` или `entity['id']`
-METHOD_TO_ID = {
+METHOD_TO_ID: dict[str, EntityIdGetter] = {
     'tasks.task.list': itemgetter('id'),
 
     'crm.deal.list': itemgetter('ID'),
@@ -213,7 +222,7 @@ METHOD_TO_ID = {
 
 # Большинство методов возвращают просто список, но некоторые
 # (в основном у задач) имеют доп. обертку (например resp['result']['tasks'])
-METHOD_TO_WRAPPER = {
+METHOD_TO_WRAPPER: dict[str, str] = {
     'tasks.task.list': 'tasks',
     'crm.item.list': 'items',
     'crm.stagehistory.list': 'items',
@@ -223,28 +232,91 @@ METHOD_TO_WRAPPER = {
 }
 
 
-def is_sql_query_error(batch):
+def is_sql_query_error(batch: BatchResultDict) -> bool:
     return 'sql query error' in list(batch.errors.values())[0]['error_description'].lower()
 
 
-def is_invalid_filter_error(method, batch):
+def is_invalid_filter_error(method: str, batch: BatchResultDict) -> bool:
     return (
             method == 'crm.item.list' and
             'invalid filter' in list(batch.errors.values())[0]['error_description'].lower()
     )
 
 
+def iter_result_by_filter_ids(
+        tok: BitrixUserToken,
+        method: str,
+        params: ApiParams,
+        filter_key: str | None,
+        filter_id_key: str,
+        filter_ids: list[Any],
+        order_by: ApiParams,
+        id_fn: EntityIdGetter,
+        descending: bool = False,
+        wrapper: str | None = None,
+        timeout: CallListFastTimeout = DEFAULT_TIMEOUT,
+        limit: int | None = None,
+        batch_size: int = 50,
+        log_prefix: str = '',
+        retry_settings: RetryDecorator | None = None,
+) -> Iterator[ApiEntity]:
+    if limit is not None and limit <= 0:
+        raise ValueError('limit must be greater than 0')
+
+    # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата
+    filter_ids = sorted(filter_ids, key=int, reverse=descending)
+    fields = _deep_merge(params, order_by)
+    methods = _generate_filter_id_methods_for_batch(
+        method=method,
+        fields=fields,
+        filter_key=filter_key,
+        filter_id_key=filter_id_key,
+        filter_ids=filter_ids,
+        batch_size=batch_size,
+    )
+
+    batch = tok.batch_api_call(
+        methods=methods,
+        timeout=timeout,
+        chunk_size=batch_size,
+        halt=1,
+        log_prefix=log_prefix,
+        retry_settings=retry_settings,
+    )
+
+    if not batch.all_ok:
+        raise BatchApiCallError(batch)
+
+    seen_ids: set[int] = set()
+
+    for _, response in batch.iter_successes():
+        result = response['result']
+        if wrapper is not None:
+            result = result[wrapper]
+
+        for entity in result:
+            entity_id = int(id_fn(entity))
+            if entity_id in seen_ids:
+                continue
+
+            seen_ids.add(entity_id)
+            yield entity
+
+            if limit is not None and len(seen_ids) >= limit:
+                return
+
+
 def call_list_fast(
-    tok: 'BitrixUserToken',
+    tok: BitrixUserToken,
     method: str,
-    params: Dict[str, Any] = None,
-    descending=False,
-    log_prefix='',
-    timeout: Optional[int] = DEFAULT_TIMEOUT,
-    limit: Optional[int] = None,
-    batch_size=50,
-    retry_settings: Optional['RetryDecorator'] = None,
-) -> Generator[Dict, None, None]:
+    params: ApiParams | None = None,
+    descending: bool = False,
+    log_prefix: str = '',
+    timeout: CallListFastTimeout = DEFAULT_TIMEOUT,
+    limit: int | None = None,
+    batch_size: int = 50,
+    retry_settings: RetryDecorator | None = None,
+) -> Iterator[ApiEntity]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
     https://dev.1c-bitrix.ru/rest_help/rest_sum/start.php
@@ -273,19 +345,52 @@ def call_list_fast(
     альтернативно можно собрать в список:
         >>> deals = list(but.call_list_fast('crm.deal.list'))
     """
-    order_fn = METHOD_TO_ORDER[method]  # type: Callable[[bool], Dict[str, Any]]
-    filter_fn = METHOD_TO_FILTER[method]  # type: Callable[[int, Optional[int], Optional[str], bool], Dict[str, Any]]
-    id_fn = METHOD_TO_ID[method]  # type: Callable[[Any], Hashable]
-    wrapper = METHOD_TO_WRAPPER.get(method)  # type: Optional[str]
-    assert 1 <= batch_size <= 50
-    assert limit is None or limit >= 0
+    if limit is not None and limit <= 0:
+        raise ValueError('limit must be greater than 0')
 
-    last_entity_id = None
-    seen_ids = set()
+    order_fn = METHOD_TO_ORDER[method]
+    filter_fn = METHOD_TO_FILTER[method]
+    id_fn = METHOD_TO_ID[method]
+    wrapper = METHOD_TO_WRAPPER.get(method)
+    assert 1 <= batch_size <= 50
+
+    last_entity_id: int | None = None
+    seen_entity_ids: set[int] = set()
 
     order_by = order_fn(descending)
     if params and any(key in order_by for key in params):
         raise ValueError("Method doesn't support sort/order")
+
+    # Копируем params, так как проверка ID преобразует Iterable в список
+    if params is not None:
+        params = _deep_merge(params)
+
+    # Фильтр только по ID разбиваем на batch-команды
+    filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(params)
+
+    if filter_ids is not None:
+        if not filter_ids:
+            return
+
+        assert filter_id_key is not None
+        yield from iter_result_by_filter_ids(
+            tok=tok,
+            method=method,
+            params={} if params is None else params,
+            filter_key=filter_key,
+            filter_id_key=filter_id_key,
+            filter_ids=filter_ids,
+            order_by=order_by,
+            id_fn=id_fn,
+            descending=descending,
+            wrapper=wrapper,
+            timeout=timeout,
+            limit=limit,
+            batch_size=batch_size,
+            log_prefix=log_prefix,
+            retry_settings=retry_settings,
+        )
+        return
 
     while True:
         batch_params = []
@@ -331,14 +436,12 @@ def call_list_fast(
             result = response['result']
             if wrapper is not None:
                 result = result[wrapper]
-            # ilogger.debug('fast_batch_debug', "результат ".format(', '.join(id_fn(x) for x in result)))
-
             if not result:
                 return
 
             for entity in result:
-                id = int(id_fn(entity))
-                if id in seen_ids:
+                entity_id = int(id_fn(entity))
+                if entity_id in seen_entity_ids:
                     if duplicate_count < max_duplicate_count:
                         # https://b24.it-solution.ru/workgroups/group/347/tasks/task/view/50889/
                         # crm.deal.list может вернуть одну сделку дважды. пропускаем первый дублированный элемент
@@ -348,20 +451,20 @@ def call_list_fast(
                     return  # Если дублей несколько - завершаем выполнение
 
                 if last_entity_id:
-                    if (descending and last_entity_id < id) or (not descending and last_entity_id > id):
+                    if (descending and last_entity_id < entity_id) or (not descending and last_entity_id > entity_id):
                         # https://b24.it-solution.ru/workgroups/group/421/tasks/task/view/79144/
                         # фикс на случае, когда в запросе есть фильтр по id
                         return
 
                 yield entity
-                seen_ids.add(id)
-                last_entity_id = id
-                if limit is not None and len(seen_ids) >= limit:
+                seen_entity_ids.add(entity_id)
+                last_entity_id = entity_id
+                if limit is not None and len(seen_entity_ids) >= limit:
                     return  # Достигли запрошенного лимита
         if not batch.all_ok:
             if is_sql_query_error(batch) or is_invalid_filter_error(method, batch):
                 # fixme: количество методов в батче берётся с запасом. voximplant.statistic.get с сортировкой по
-                #        убыванию при выходе батча за границы начинает отдавать 'SQL query error'. здесь мы уже
+                #        убыванию при выходе batch за границы начинает отдавать 'SQL query error'. здесь мы уже
                 #        получили все элементы, поэтому можем игнорировать ошибку
                 return
             raise BatchApiCallError(batch)

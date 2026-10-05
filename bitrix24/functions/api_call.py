@@ -1,6 +1,7 @@
 import time
 import urllib
 from pprint import pformat
+from typing import Tuple, Union
 from urllib.parse import urlparse
 
 import requests
@@ -304,7 +305,14 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     return response
 
 
-def api_call_v3(domain: str, api_method: str, auth_token: str = None, web_hook_auth: str = None, params: dict = None, timeout: int = DEFAULT_TIMEOUT):
+def api_call_v3(
+    domain: str,
+    api_method: str,
+    auth_token: str = None,
+    web_hook_auth: str = None,
+    params: dict = None,
+    timeout: Union[int, float, Tuple[float, float]] = DEFAULT_TIMEOUT,
+):
     """
     POST-запрос к REST API 3.0 Битрикс24.
     В случае ошибки - кидаем исключение.

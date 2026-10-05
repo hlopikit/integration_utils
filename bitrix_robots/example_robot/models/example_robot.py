@@ -1,7 +1,9 @@
-from integration_utils.bitrix_robots.models import BaseRobot
+from integration_utils.bitrix_robots.models import BaseRobotModel
 
 
-class ExampleRobot(BaseRobot):
+class ExampleRobot(BaseRobotModel):
+    """Пример сохраняемого робота на базе integration_utils."""
+
     CODE = 'its_example_robot'
     NAME = 'Пример робота - отправить уведомление пользователю'
 
