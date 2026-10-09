@@ -6,10 +6,6 @@ from copy import deepcopy
 from inspect import Parameter, signature
 from typing import get_origin, get_type_hints
 
-from cattrs import Converter, transform_error
-from cattrs.cols import list_structure_factory, mapping_structure_factory
-from cattrs.errors import BaseValidationError
-
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 import six
@@ -47,6 +43,16 @@ def expect_typed_params(*, from_='its_params', api=False):
         def save_items(request, items: list[dict[str, int]], page: int = 0):
             ...
     """
+    # Старые декораторы должны импортироваться без необязательной зависимости cattrs.
+    try:
+        from cattrs import Converter, transform_error
+        from cattrs.cols import list_structure_factory, mapping_structure_factory
+        from cattrs.errors import BaseValidationError
+    except ImportError as import_error:
+        raise ImportError(
+            'expect_typed_params requires cattrs>=24.1.0'
+        ) from import_error
+
     def decorator(view):
         converter = Converter(detailed_validation=True)
         view_signature = signature(view)
@@ -88,28 +94,28 @@ def expect_typed_params(*, from_='its_params', api=False):
             return bool_param(value)
 
         def strict_list_structure_factory(expected_type, current_converter):
-            structure_list = list_structure_factory(
+            structure_list_items = list_structure_factory(
                 expected_type,
                 current_converter,
             )
 
-            def structure_list_strict(value, type_):
+            def structure_list_strict(value, target_type):
                 if not isinstance(value, list):
                     raise TypeError('expected list')
-                return structure_list(value, type_)
+                return structure_list_items(value, target_type)
 
             return structure_list_strict
 
         def strict_dict_structure_factory(expected_type, current_converter):
-            structure_dict = mapping_structure_factory(
+            structure_dict_items = mapping_structure_factory(
                 expected_type,
                 current_converter,
             )
 
-            def structure_dict_strict(value, type_):
+            def structure_dict_strict(value, target_type):
                 if not isinstance(value, dict):
                     raise TypeError('expected dict')
-                return structure_dict(value, type_)
+                return structure_dict_items(value, target_type)
 
             return structure_dict_strict
 
@@ -126,58 +132,84 @@ def expect_typed_params(*, from_='its_params', api=False):
             strict_dict_structure_factory,
         )
 
-        parameters = []
-        hints = get_type_hints(view, include_extras=True)
-        for name, parameter in view_signature.parameters.items():
-            if name == 'request' or name not in hints or parameter.kind in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD):
+        typed_parameters = []
+        type_hints = get_type_hints(view, include_extras=True)
+        for parameter_name, parameter in view_signature.parameters.items():
+            parameter_is_request = parameter_name == 'request'
+            parameter_is_untyped = parameter_name not in type_hints
+            parameter_is_variadic = parameter.kind in (
+                Parameter.VAR_POSITIONAL,
+                Parameter.VAR_KEYWORD,
+            )
+            if parameter_is_request or parameter_is_untyped or parameter_is_variadic:
                 continue
 
-            expected_type = hints[name]
-            structure = converter.get_structure_hook(expected_type)
+            expected_type = type_hints[parameter_name]
+            structure_value = converter.get_structure_hook(expected_type)
 
             if parameter.default is Parameter.empty:
                 default = missing
             else:
-                # Invalid defaults are programming errors, detected at startup.
-                default = structure(parameter.default, expected_type)
-            parameters.append((name, expected_type, structure, default))
+                # Некорректный default — ошибка программиста, выявляем её при запуске.
+                default = structure_value(parameter.default, expected_type)
+            typed_parameters.append(
+                (parameter_name, expected_type, structure_value, default)
+            )
 
-        err = json_error_response if api else HttpResponseBadRequest
+        error_response = json_error_response if api else HttpResponseBadRequest
 
         @functools.wraps(view)
         def decorated_view(request, *args, **kwargs):
-            data = getattr(request, from_)
+            source_params = getattr(request, from_)
             bound_arguments = view_signature.bind_partial(
                 request,
                 *args,
                 **kwargs,
             )
-            for name, expected_type, structure, default in parameters:
-                if name in bound_arguments.arguments:
+            for (
+                parameter_name,
+                expected_type,
+                structure_value,
+                default,
+            ) in typed_parameters:
+                if parameter_name in bound_arguments.arguments:
                     continue
-                if name not in data:
+                if parameter_name not in source_params:
                     if default is missing:
-                        return err('missing required {} param'.format(name))
-                    value = deepcopy(default)
+                        return error_response(
+                            f'missing required {parameter_name} param'
+                        )
+                    parameter_value = deepcopy(default)
                 else:
-                    raw = data[name]
-                    if from_ in ('GET', 'POST') and isinstance(raw, str):
+                    raw_value = source_params[parameter_name]
+                    if from_ in ('GET', 'POST') and isinstance(raw_value, str):
                         try:
-                            raw = json.loads(raw)
+                            raw_value = json.loads(raw_value)
                         except json.JSONDecodeError:
                             pass
                     try:
-                        value = structure(raw, expected_type)
-                    except (BaseValidationError, TypeError, ValueError, OverflowError) as error:
-                        messages = []
-                        for message in transform_error(error):
-                            description, separator, path = message.rpartition(' @ $')
-                            if separator:
-                                messages.append('{}{}: {}'.format(name, path, description))
+                        parameter_value = structure_value(raw_value, expected_type)
+                    except (
+                        BaseValidationError,
+                        TypeError,
+                        ValueError,
+                        OverflowError,
+                    ) as structure_error:
+                        error_messages = []
+                        for error_message in transform_error(structure_error):
+                            description, path_separator, path = (
+                                error_message.rpartition(' @ $')
+                            )
+                            if path_separator:
+                                error_messages.append(
+                                    f'{parameter_name}{path}: {description}'
+                                )
                             else:
-                                messages.append('{}: {}'.format(name, message))
-                        return err('; '.join(messages))
-                kwargs[name] = value
+                                error_messages.append(
+                                    f'{parameter_name}: {error_message}'
+                                )
+                        return error_response('; '.join(error_messages))
+                kwargs[parameter_name] = parameter_value
             return view(request, *args, **kwargs)
 
         return decorated_view
