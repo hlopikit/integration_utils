@@ -31,8 +31,9 @@ def expect_typed_params(*, source='its_params', api=False):
     """Привести аннотированные аргументы view через cattrs.
 
     ``request`` и аргументы, уже переданные Django позиционно или по имени,
-    не обрабатываются. Параметр без аннотации также не обрабатывается. Значение
-    по умолчанию используется только при отсутствии ключа; явный null допустим
+    не обрабатываются. Параметр без аннотации также не обрабатывается.
+    Аннотированные positional-only параметры не поддерживаются. Значение по
+    умолчанию используется только при отсутствии ключа; явный null допустим
     лишь для Optional/Union с None (или Any). Ошибки возвращаются с HTTP 400;
     при ``api=True`` тело ответа имеет вид ``{"error": "..."}``.
 
@@ -157,11 +158,20 @@ def expect_typed_params(*, source='its_params', api=False):
         for signature_param_name, signature_param in view_signature.parameters.items():
             param_is_request = signature_param_name == 'request'
             param_is_untyped = signature_param_name not in type_hints
+            if param_is_request or param_is_untyped:
+                continue
+
+            if signature_param.kind is Parameter.POSITIONAL_ONLY:
+                raise TypeError(
+                    'expect_typed_params does not support positional-only '
+                    f'parameter {signature_param_name!r}'
+                )
+
             param_is_variadic = signature_param.kind in (
                 Parameter.VAR_POSITIONAL,
                 Parameter.VAR_KEYWORD,
             )
-            if param_is_request or param_is_untyped or param_is_variadic:
+            if param_is_variadic:
                 continue
 
             signature_param_type = type_hints[signature_param_name]
