@@ -1,14 +1,15 @@
 from typing import Any, Dict
 
 from dateutil.parser import isoparse
+from django.contrib import admin
 from django.db import models
 from django.utils import timezone
 
-from ..classes import BitrixEvent
+from ..classes import BaseBitrixEventObject
 
 
-class AbstractBitrixEvent(BitrixEvent, models.Model):
-    """Абстрактный класс события Bitrix24."""
+class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
+    """Сохраняемое событие; сборщик сохраняет модель, обработчик запускает приложение"""
 
     bitrix_id = models.CharField(max_length=255, unique=True)
     event_name = models.CharField(max_length=127, default='', db_index=True)
@@ -18,15 +19,19 @@ class AbstractBitrixEvent(BitrixEvent, models.Model):
     class Meta:
         abstract = True
 
+    class Admin(admin.ModelAdmin):
+        list_display = ['bitrix_id', 'event_name', 'data', 'datetime']
+        list_display_links = list_display
+
     def __init__(self, *args, **kwargs):
-        """Инициализирует Django-модель без вызова конструктора BitrixEvent."""
+        """Инициализирует Django-модель без конструктора BaseBitrixEventObject"""
         models.Model.__init__(self, *args, **kwargs)
 
     def __str__(self) -> str:
         return '[{}] {}'.format(self.pk, self.event_name)
 
     @classmethod
-    def from_bitrix_data(cls, data: Dict[str, Any]) -> "AbstractBitrixEvent":
+    def from_bitrix_data(cls, data: Dict[str, Any]) -> "BaseBitrixEventModel":
         event, _ = cls.objects.get_or_create(
             bitrix_id=data['ID'],
             defaults={

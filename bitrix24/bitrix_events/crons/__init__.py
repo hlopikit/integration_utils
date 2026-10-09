@@ -1,1 +1,0 @@
-from .cron_collect_bitrix_events import get_cron_collect_bitrix_events
