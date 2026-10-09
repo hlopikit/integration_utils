@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 import functools
+import json
+from copy import deepcopy
+from inspect import Parameter, signature
+from typing import get_type_hints
+
+from cattrs import Converter, transform_error
+from cattrs.errors import BaseValidationError
 
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
@@ -20,6 +27,87 @@ if not six.PY2:  # typing
 
 
 missing = object()
+
+
+def expect_typed_params(*, from_='its_params', api=False):
+    """Привести аннотированные аргументы view через cattrs.
+
+    ``request`` и аргументы, уже переданные через URL kwargs, не обрабатываются.
+    Параметр без аннотации также не обрабатывается. Значение по умолчанию
+    используется только при отсутствии ключа; явный null допустим лишь для
+    Optional/Union с None (или Any). Ошибки возвращаются с HTTP 400; при
+    ``api=True`` тело ответа имеет вид ``{"error": "..."}``.
+
+    Декоратор ставится под ``@get_params_from_sources`` для ``its_params``::
+
+        @get_params_from_sources
+        @expect_typed_params(api=True)
+        def save_items(request, items: list[dict[str, int]], page: int = 0):
+            ...
+    """
+    def decorator(view):
+        converter = Converter(detailed_validation=True)
+
+        def structure_str(value, _):
+            if value is None:
+                raise TypeError('null is not a valid str')
+            return str(value)
+
+        converter.register_structure_hook(str, structure_str)
+        converter.register_structure_hook(bool, lambda value, _: bool_param(value))
+
+        parameters = []
+        hints = get_type_hints(view, include_extras=True)
+        for name, parameter in signature(view).parameters.items():
+            if name == 'request' or name not in hints or parameter.kind in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD):
+                continue
+
+            expected_type = hints[name]
+            structure = converter.get_structure_hook(expected_type)
+
+            if parameter.default is Parameter.empty:
+                default = missing
+            else:
+                # Invalid defaults are programming errors, detected at startup.
+                default = structure(parameter.default, expected_type)
+            parameters.append((name, expected_type, structure, default))
+
+        err = json_error_response if api else HttpResponseBadRequest
+
+        @functools.wraps(view)
+        def decorated_view(request, *args, **kwargs):
+            data = getattr(request, from_)
+            for name, expected_type, structure, default in parameters:
+                if name in kwargs:
+                    continue
+                if name not in data:
+                    if default is missing:
+                        return err('missing required {} param'.format(name))
+                    value = deepcopy(default)
+                else:
+                    raw = data[name]
+                    if from_ in ('GET', 'POST') and isinstance(raw, str):
+                        try:
+                            raw = json.loads(raw)
+                        except json.JSONDecodeError:
+                            pass
+                    try:
+                        value = structure(raw, expected_type)
+                    except (BaseValidationError, TypeError, ValueError, OverflowError) as error:
+                        messages = []
+                        for message in transform_error(error):
+                            description, separator, path = message.rpartition(' @ $')
+                            if separator:
+                                messages.append('{}{}: {}'.format(name, path, description))
+                            else:
+                                messages.append('{}: {}'.format(name, message))
+                        return err('; '.join(messages))
+                kwargs[name] = value
+            return view(request, *args, **kwargs)
+
+        return decorated_view
+
+    return decorator
 
 
 def expect_param(
