@@ -43,8 +43,8 @@ def expect_typed_params(*, source='its_params', api=False):
         def save_items(request, items: list[dict[str, int]], page: int = 0):
             ...
     """
-    # Старые декораторы должны импортироваться без необязательной зависимости cattrs.
     try:
+        # Импортируем cattrs внутри декоратора, чтобы не сломались старые декораторы при отсутствии cattrs.
         from cattrs import Converter, transform_error
         from cattrs.cols import list_structure_factory, mapping_structure_factory
         from cattrs.errors import BaseValidationError
@@ -152,6 +152,8 @@ def expect_typed_params(*, source='its_params', api=False):
 
         typed_params = []
         type_hints = get_type_hints(view, include_extras=True)
+
+        # Берём типизированные параметры из сигнатуры view
         for signature_param_name, signature_param in view_signature.parameters.items():
             param_is_request = signature_param_name == 'request'
             param_is_untyped = signature_param_name not in type_hints
@@ -162,80 +164,63 @@ def expect_typed_params(*, source='its_params', api=False):
             if param_is_request or param_is_untyped or param_is_variadic:
                 continue
 
-            annotated_type = type_hints[signature_param_name]
-            structure_param = converter.get_structure_hook(annotated_type)
+            signature_param_type = type_hints[signature_param_name]
+            signature_param_structure_hook = converter.get_structure_hook(signature_param_type)
 
             if signature_param.default is Parameter.empty:
-                structured_default = missing
+                # Не указан default в параметрах view.
+                signature_param_default = missing
             else:
-                # Некорректный default — ошибка программиста, выявляем её при запуске.
-                structured_default = structure_param(
-                    signature_param.default,
-                    annotated_type,
-                )
-            typed_params.append(
-                (
-                    signature_param_name,
-                    annotated_type,
-                    structure_param,
-                    structured_default,
-                )
-            )
+                # Указан default в параметрах view.
+                # Проверяем через structure_hook, что default подходит под type.
+                signature_param_default = signature_param_structure_hook(signature_param.default, signature_param_type)
+
+            typed_params.append((
+                signature_param_name,
+                signature_param_type,
+                signature_param_structure_hook,
+                signature_param_default,
+            ))
 
         error_response = json_error_response if api else HttpResponseBadRequest
 
         @functools.wraps(view)
         def decorated_view(request, *args, **kwargs):
             source_params = getattr(request, source)
-            bound_arguments = view_signature.bind_partial(
-                request,
-                *args,
-                **kwargs,
-            )
-            for (
-                param_name,
-                param_type,
-                structure_value,
-                default,
-            ) in typed_params:
+            bound_arguments = view_signature.bind_partial(request, *args, **kwargs)
+            for param_name, param_type, param_structure_hook, param_default in typed_params:
                 if param_name in bound_arguments.arguments:
+                    # Не обрабатываем параметры, переданные самим Django во view.
+                    # Считаем такие параметры корректно типизированными.
                     continue
+
                 if param_name not in source_params:
-                    if default is missing:
-                        return error_response(
-                            f'missing required {param_name} param'
-                        )
-                    param_value = deepcopy(default)
+                    if param_default is missing:
+                        return error_response(f'missing required {param_name} param')
+                    param_value = deepcopy(param_default)
                 else:
                     raw_value = source_params[param_name]
                     if source in ('GET', 'POST') and isinstance(raw_value, str):
                         try:
+                            # Проверяем raw_value на наличие JSON-строки
                             raw_value = json.loads(raw_value)
                         except json.JSONDecodeError:
                             pass
                     try:
-                        param_value = structure_value(raw_value, param_type)
-                    except (
-                        BaseValidationError,
-                        TypeError,
-                        ValueError,
-                        OverflowError,
-                    ) as structure_error:
+                        # Пытаемся преобразовать параметр в структуру нужного типа
+                        param_value = param_structure_hook(raw_value, param_type)
+                    except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
                         error_messages = []
                         for error_message in transform_error(structure_error):
-                            description, path_separator, path = (
-                                error_message.rpartition(' @ $')
-                            )
+                            description, path_separator, path = error_message.rpartition(' @ $')
                             if path_separator:
-                                error_messages.append(
-                                    f'{param_name}{path}: {description}'
-                                )
+                                error_messages.append(f'{param_name}{path}: {description}')
                             else:
-                                error_messages.append(
-                                    f'{param_name}: {error_message}'
-                                )
+                                error_messages.append(f'{param_name}: {error_message}')
                         return error_response('; '.join(error_messages))
+
                 kwargs[param_name] = param_value
+
             return view(request, *args, **kwargs)
 
         return decorated_view
