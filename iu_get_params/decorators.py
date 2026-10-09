@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import functools
 import json
+import math
 from copy import deepcopy
 from inspect import Parameter, signature
-from typing import get_type_hints
+from typing import get_origin, get_type_hints
 
 from cattrs import Converter, transform_error
+from cattrs.cols import list_structure_factory, mapping_structure_factory
 from cattrs.errors import BaseValidationError
 
 from django.http import HttpResponse
@@ -50,12 +52,79 @@ def expect_typed_params(*, from_='its_params', api=False):
         view_signature = signature(view)
 
         def structure_str(value, _):
-            if value is None:
-                raise TypeError('null is not a valid str')
-            return str(value)
+            if not isinstance(value, str):
+                raise TypeError('expected str')
+            return value
+
+        def structure_int(value, _):
+            if type(value) is int:
+                return value
+            invalid_integer_format = (
+                not isinstance(value, str)
+                or value != value.strip()
+                or '_' in value
+            )
+            if invalid_integer_format:
+                raise TypeError('expected int')
+            return int(value)
+
+        def structure_float(value, _):
+            if type(value) not in (int, float, str):
+                raise TypeError('expected float')
+            invalid_float_format = (
+                isinstance(value, str)
+                and (value != value.strip() or '_' in value)
+            )
+            if invalid_float_format:
+                raise TypeError('expected float')
+            structured_value = float(value)
+            if not math.isfinite(structured_value):
+                raise ValueError('expected finite float')
+            return structured_value
+
+        def structure_bool(value, _):
+            if type(value) not in (bool, int, str):
+                raise TypeError('expected bool')
+            return bool_param(value)
+
+        def strict_list_structure_factory(expected_type, current_converter):
+            structure_list = list_structure_factory(
+                expected_type,
+                current_converter,
+            )
+
+            def structure_list_strict(value, type_):
+                if not isinstance(value, list):
+                    raise TypeError('expected list')
+                return structure_list(value, type_)
+
+            return structure_list_strict
+
+        def strict_dict_structure_factory(expected_type, current_converter):
+            structure_dict = mapping_structure_factory(
+                expected_type,
+                current_converter,
+            )
+
+            def structure_dict_strict(value, type_):
+                if not isinstance(value, dict):
+                    raise TypeError('expected dict')
+                return structure_dict(value, type_)
+
+            return structure_dict_strict
 
         converter.register_structure_hook(str, structure_str)
-        converter.register_structure_hook(bool, lambda value, _: bool_param(value))
+        converter.register_structure_hook(int, structure_int)
+        converter.register_structure_hook(float, structure_float)
+        converter.register_structure_hook(bool, structure_bool)
+        converter.register_structure_hook_factory(
+            lambda expected_type: get_origin(expected_type) is list,
+            strict_list_structure_factory,
+        )
+        converter.register_structure_hook_factory(
+            lambda expected_type: get_origin(expected_type) is dict,
+            strict_dict_structure_factory,
+        )
 
         parameters = []
         hints = get_type_hints(view, include_extras=True)
@@ -78,7 +147,11 @@ def expect_typed_params(*, from_='its_params', api=False):
         @functools.wraps(view)
         def decorated_view(request, *args, **kwargs):
             data = getattr(request, from_)
-            bound_arguments = view_signature.bind_partial(request, *args, **kwargs)
+            bound_arguments = view_signature.bind_partial(
+                request,
+                *args,
+                **kwargs,
+            )
             for name, expected_type, structure, default in parameters:
                 if name in bound_arguments.arguments:
                     continue
