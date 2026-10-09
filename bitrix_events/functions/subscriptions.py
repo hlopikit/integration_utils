@@ -3,7 +3,7 @@ from typing import Iterable
 from settings import ilogger
 
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
-from .crons.cron_collect_bitrix_events import LOG_TAG
+from integration_utils.bitrix_events.crons.cron_collect_bitrix_events import LOG_TAG
 
 
 def _change_subscriptions(method: str, events: Iterable[str]) -> BatchResultDict:

@@ -9,7 +9,9 @@ from ..classes import BaseBitrixEventObject
 
 
 class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
-    """Сохраняемое событие; сборщик сохраняет модель, обработчик запускает приложение"""
+    """
+    Абстрактная Django-модель для события Битрикс24.
+    """
 
     bitrix_id = models.CharField(max_length=255, unique=True)
     event_name = models.CharField(max_length=127, default='', db_index=True)
@@ -28,10 +30,11 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         models.Model.__init__(self, *args, **kwargs)
 
     def __str__(self) -> str:
-        return '[{}] {}'.format(self.pk, self.event_name)
+        return f'[{self.pk}] {self.event_name}'
 
     @classmethod
     def from_bitrix_data(cls, data: Dict[str, Any]) -> "BaseBitrixEventModel":
+        """Создать или получить объект события в БД из словаря с Битрикс-данными"""
         event, _ = cls.objects.get_or_create(
             bitrix_id=data['ID'],
             defaults={
