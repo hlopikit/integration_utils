@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 import functools
+import json
+import math
+from copy import deepcopy
+from inspect import Parameter, signature
+from typing import Literal, get_args, get_origin, get_type_hints
 
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
@@ -20,6 +25,217 @@ if not six.PY2:  # typing
 
 
 missing = object()
+
+
+def expect_typed_params(*, source='its_params', api=False):
+    """Привести аннотированные аргументы view через cattrs.
+
+    ``request`` и аргументы, уже переданные Django позиционно или по имени,
+    не обрабатываются. Параметр без аннотации также не обрабатывается.
+    Аннотированные positional-only параметры не поддерживаются. Значение по
+    умолчанию используется только при отсутствии ключа; явный null допустим
+    лишь для Optional/Union с None (или Any). Ошибки возвращаются с HTTP 400;
+    при ``api=True`` тело ответа имеет вид ``{"error": "..."}``.
+
+    Декоратор ставится под ``@get_params_from_sources`` для ``its_params``::
+
+        @get_params_from_sources
+        @expect_typed_params(api=True)
+        def save_items(request, items: list[dict[str, int]], page: int = 0):
+            ...
+    """
+    try:
+        # Импортируем cattrs внутри декоратора, чтобы не сломались старые декораторы при отсутствии cattrs.
+        from cattrs import Converter, transform_error
+        from cattrs.cols import list_structure_factory, mapping_structure_factory
+        from cattrs.errors import BaseValidationError
+    except ImportError as import_error:
+        raise ImportError(
+            'expect_typed_params requires cattrs>=24.1.0'
+        ) from import_error
+
+    def decorator(view):
+        converter = Converter(detailed_validation=True)
+        view_signature = signature(view)
+
+        def structure_str(value, _):
+            if not isinstance(value, str):
+                raise TypeError('expected str')
+            return value
+
+        def structure_int(value, _):
+            if type(value) is int:
+                return value
+            invalid_integer_format = (
+                not isinstance(value, str)
+                or value != value.strip()
+                or '_' in value
+            )
+            if invalid_integer_format:
+                raise TypeError('expected int')
+            return int(value)
+
+        def structure_float(value, _):
+            if type(value) not in (int, float, str):
+                raise TypeError('expected float')
+            invalid_float_format = (
+                isinstance(value, str)
+                and (value != value.strip() or '_' in value)
+            )
+            if invalid_float_format:
+                raise TypeError('expected float')
+            structured_value = float(value)
+            if not math.isfinite(structured_value):
+                raise ValueError('expected finite float')
+            return structured_value
+
+        def structure_bool(value, _):
+            if type(value) not in (bool, int, str):
+                raise TypeError('expected bool')
+            return bool_param(value)
+
+        def strict_literal_structure_factory(literal_type):
+            literal_values = get_args(literal_type)
+
+            def structure_literal(value, _):
+                value_matches_literal = any(
+                    type(value) is type(literal_value) and value == literal_value
+                    for literal_value in literal_values
+                )
+                if not value_matches_literal:
+                    raise ValueError(f'{value!r} is not a valid {literal_type}')
+                return value
+
+            return structure_literal
+
+        def strict_list_structure_factory(list_type, current_converter):
+            structure_list_items = list_structure_factory(
+                list_type,
+                current_converter,
+            )
+
+            def structure_list_strict(value, target_type):
+                if not isinstance(value, list):
+                    raise TypeError('expected list')
+                return structure_list_items(value, target_type)
+
+            return structure_list_strict
+
+        def strict_dict_structure_factory(dict_type, current_converter):
+            structure_dict_items = mapping_structure_factory(
+                dict_type,
+                current_converter,
+            )
+
+            def structure_dict_strict(value, target_type):
+                if not isinstance(value, dict):
+                    raise TypeError('expected dict')
+                return structure_dict_items(value, target_type)
+
+            return structure_dict_strict
+
+        converter.register_structure_hook(str, structure_str)
+        converter.register_structure_hook(int, structure_int)
+        converter.register_structure_hook(float, structure_float)
+        converter.register_structure_hook(bool, structure_bool)
+        converter.register_structure_hook_factory(
+            lambda candidate_type: get_origin(candidate_type) is Literal,
+            strict_literal_structure_factory,
+        )
+        converter.register_structure_hook_factory(
+            lambda candidate_type: get_origin(candidate_type) is list,
+            strict_list_structure_factory,
+        )
+        converter.register_structure_hook_factory(
+            lambda candidate_type: get_origin(candidate_type) is dict,
+            strict_dict_structure_factory,
+        )
+
+        typed_params = []
+        type_hints = get_type_hints(view, include_extras=True)
+
+        # Берём типизированные параметры из сигнатуры view
+        for signature_param_name, signature_param in view_signature.parameters.items():
+            param_is_request = signature_param_name == 'request'
+            param_is_untyped = signature_param_name not in type_hints
+            if param_is_request or param_is_untyped:
+                continue
+
+            if signature_param.kind is Parameter.POSITIONAL_ONLY:
+                raise TypeError(
+                    'expect_typed_params does not support positional-only '
+                    f'parameter {signature_param_name!r}'
+                )
+
+            param_is_variadic = signature_param.kind in (
+                Parameter.VAR_POSITIONAL,
+                Parameter.VAR_KEYWORD,
+            )
+            if param_is_variadic:
+                continue
+
+            signature_param_type = type_hints[signature_param_name]
+            signature_param_structure_hook = converter.get_structure_hook(signature_param_type)
+
+            if signature_param.default is Parameter.empty:
+                # Не указан default в параметрах view.
+                signature_param_default = missing
+            else:
+                # Указан default в параметрах view.
+                # Проверяем через structure_hook, что default подходит под type.
+                signature_param_default = signature_param_structure_hook(signature_param.default, signature_param_type)
+
+            typed_params.append((
+                signature_param_name,
+                signature_param_type,
+                signature_param_structure_hook,
+                signature_param_default,
+            ))
+
+        error_response = json_error_response if api else HttpResponseBadRequest
+
+        @functools.wraps(view)
+        def decorated_view(request, *args, **kwargs):
+            source_params = getattr(request, source)
+            bound_arguments = view_signature.bind_partial(request, *args, **kwargs)
+            for param_name, param_type, param_structure_hook, param_default in typed_params:
+                if param_name in bound_arguments.arguments:
+                    # Не обрабатываем параметры, переданные самим Django во view.
+                    # Считаем такие параметры корректно типизированными.
+                    continue
+
+                if param_name not in source_params:
+                    if param_default is missing:
+                        return error_response(f'missing required {param_name} param')
+                    param_value = deepcopy(param_default)
+                else:
+                    raw_value = source_params[param_name]
+                    if source in ('GET', 'POST') and isinstance(raw_value, str):
+                        try:
+                            # Проверяем raw_value на наличие JSON-строки
+                            raw_value = json.loads(raw_value)
+                        except json.JSONDecodeError:
+                            pass
+                    try:
+                        # Пытаемся преобразовать параметр в структуру нужного типа
+                        param_value = param_structure_hook(raw_value, param_type)
+                    except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
+                        error_messages = []
+                        for error_message in transform_error(structure_error):
+                            description, path_separator, path = error_message.rpartition(' @ $')
+                            if path_separator:
+                                error_messages.append(f'{param_name}{path}: {description}')
+                            else:
+                                error_messages.append(f'{param_name}: {error_message}')
+                        return error_response('; '.join(error_messages))
+
+                kwargs[param_name] = param_value
+
+            return view(request, *args, **kwargs)
+
+        return decorated_view
+
+    return decorator
 
 
 def expect_param(
