@@ -24,14 +24,15 @@ as_=None, err=HttpResponseBadRequest)` читает один ключ. Отсу�
 
 ## expect_typed_params
 
-`expect_typed_params(from_='its_params', api=False)` обрабатывает все
+`expect_typed_params(source='its_params', api=False)` обрабатывает все
 аннотированные аргументы view одним декоратором. Он использует `cattrs` для
 рекурсивного преобразования. Для него требуется `cattrs>=24.1.0`; остальные
 декораторы из модуля работают без этой зависимости. Неаннотированные параметры,
 `request`, а также параметры сигнатуры `*args` и `**kwargs` пропускаются.
 Аргумент, уже переданный Django позиционно или по имени, не читается из запроса.
 Необязательность определяется наличием `default` в сигнатуре: `Optional[T]`
-без `default` остаётся обязательным параметром.
+без `default` остаётся обязательным параметром. `source` может быть
+`its_params`, `GET` или `POST`.
 
 ```python
 from integration_utils.iu_get_params import get_params_from_sources
@@ -64,6 +65,9 @@ def save_items(request, items: list[dict[str, int]], page: int = 0):
 Контейнеры и nullable-типы можно вкладывать друг в друга:
 `list[dict[str, int]]`, `list[str | None]`, `dict[str, list[int]]`.
 Объединение `int | str` не поддерживается.
+
+Для `Literal[...]` должны совпадать и значение, и его тип: например, `True`
+не считается допустимым значением для `Literal[1]`. Несовпадение даёт HTTP 400.
 
 Для `bool` поддерживаются `true`/`false`, `1`/`0` и соответствующие
 строковые формы. Строковые целые и дробные числа преобразуются в `int` и
