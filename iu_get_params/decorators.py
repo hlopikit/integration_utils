@@ -32,11 +32,11 @@ missing = object()
 def expect_typed_params(*, from_='its_params', api=False):
     """Привести аннотированные аргументы view через cattrs.
 
-    ``request`` и аргументы, уже переданные через URL kwargs, не обрабатываются.
-    Параметр без аннотации также не обрабатывается. Значение по умолчанию
-    используется только при отсутствии ключа; явный null допустим лишь для
-    Optional/Union с None (или Any). Ошибки возвращаются с HTTP 400; при
-    ``api=True`` тело ответа имеет вид ``{"error": "..."}``.
+    ``request`` и аргументы, уже переданные Django позиционно или по имени,
+    не обрабатываются. Параметр без аннотации также не обрабатывается. Значение
+    по умолчанию используется только при отсутствии ключа; явный null допустим
+    лишь для Optional/Union с None (или Any). Ошибки возвращаются с HTTP 400;
+    при ``api=True`` тело ответа имеет вид ``{"error": "..."}``.
 
     Декоратор ставится под ``@get_params_from_sources`` для ``its_params``::
 
@@ -47,6 +47,7 @@ def expect_typed_params(*, from_='its_params', api=False):
     """
     def decorator(view):
         converter = Converter(detailed_validation=True)
+        view_signature = signature(view)
 
         def structure_str(value, _):
             if value is None:
@@ -58,7 +59,7 @@ def expect_typed_params(*, from_='its_params', api=False):
 
         parameters = []
         hints = get_type_hints(view, include_extras=True)
-        for name, parameter in signature(view).parameters.items():
+        for name, parameter in view_signature.parameters.items():
             if name == 'request' or name not in hints or parameter.kind in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD):
                 continue
 
@@ -77,8 +78,9 @@ def expect_typed_params(*, from_='its_params', api=False):
         @functools.wraps(view)
         def decorated_view(request, *args, **kwargs):
             data = getattr(request, from_)
+            bound_arguments = view_signature.bind_partial(request, *args, **kwargs)
             for name, expected_type, structure, default in parameters:
-                if name in kwargs:
+                if name in bound_arguments.arguments:
                     continue
                 if name not in data:
                     if default is missing:

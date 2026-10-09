@@ -27,9 +27,10 @@ as_=None, err=HttpResponseBadRequest)` читает один ключ. Отсу�
 `expect_typed_params(from_='its_params', api=False)` обрабатывает все
 аннотированные аргументы view одним декоратором. Он использует `cattrs` для
 рекурсивного преобразования. Неаннотированные аргументы, `request`,
-`*args` и `**kwargs` пропускаются. Аргумент, уже переданный через URL kwargs,
-не читается из запроса. Необязательность определяется наличием default в
-сигнатуре: `Optional[T]` без default остаётся обязательным параметром.
+`*args` и `**kwargs` пропускаются. Аргумент, уже переданный Django через
+позиционные или именованные URL-аргументы, не читается из запроса.
+Необязательность определяется наличием default в сигнатуре: `Optional[T]`
+без default остаётся обязательным параметром.
 
 ```python
 from integration_utils.iu_get_params import get_params_from_sources
