@@ -1,0 +1,1 @@
+from .base_bitrix_event_object import BaseBitrixEventObject
