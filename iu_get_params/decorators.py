@@ -2,6 +2,8 @@
 import functools
 import json
 import math
+import re
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from inspect import Parameter, signature
 from typing import Literal, get_args, get_origin, get_type_hints
@@ -30,8 +32,8 @@ missing = object()
 def expect_typed_params(*, source: str = 'its_params', api: bool = False):
     """Привести аннотированные аргументы view через cattrs.
 
-    ``request`` и аргументы, уже переданные Django позиционно или по имени,
-    не обрабатываются. Параметр без аннотации также не обрабатывается.
+    Аргументы, переданные Django позиционно или по имени, тоже преобразуются.
+    ``request`` и параметры без аннотации не обрабатываются.
     Аннотированные positional-only параметры не поддерживаются. Значение по
     умолчанию используется только при отсутствии ключа; явный null допустим
     лишь для Optional/Union с None (или Any). Ошибки возвращаются с HTTP 400;
@@ -59,21 +61,18 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
         view_signature = signature(view)
 
         def structure_str(value, _):
-            if not isinstance(value, str):
-                raise TypeError('expected str')
-            return value
+            if type(value) not in (str, int, float):
+                raise TypeError('expected str or number')
+            return str(value)
 
         def structure_int(value, _):
             if type(value) is int:
                 return value
-            invalid_integer_format = (
-                not isinstance(value, str)
-                or value != value.strip()
-                or '_' in value
-            )
-            if invalid_integer_format:
-                raise TypeError('expected int')
-            return int(value)
+            if type(value) is float and value.is_integer():
+                return int(value)
+            if isinstance(value, str) and re.fullmatch(r'[+-]?[0-9]+(?:\.0+)?', value):
+                return int(value.partition('.')[0])
+            raise ValueError('expected int without a fractional part')
 
         def structure_float(value, _):
             if type(value) not in (int, float, str):
@@ -90,7 +89,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
             return structured_value
 
         def structure_bool(value, _):
-            if type(value) not in (bool, int, str):
+            if type(value) not in (bool, int, float, str):
                 raise TypeError('expected bool')
             return bool_param(value)
 
@@ -115,8 +114,8 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
             )
 
             def structure_list_strict(value, target_type):
-                if not isinstance(value, list):
-                    raise TypeError('expected list')
+                if not isinstance(value, Sequence) or isinstance(value, str):
+                    raise TypeError('expected a sequence, not a string')
                 return structure_list_items(value, target_type)
 
             return structure_list_strict
@@ -128,8 +127,8 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
             )
 
             def structure_dict_strict(value, target_type):
-                if not isinstance(value, dict):
-                    raise TypeError('expected dict')
+                if not isinstance(value, Mapping):
+                    raise TypeError('expected mapping')
                 return structure_dict_items(value, target_type)
 
             return structure_dict_strict
@@ -200,14 +199,12 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
             bound_arguments = view_signature.bind_partial(request, *args, **kwargs)
             for param_name, param_type, param_structure_hook, param_default in typed_params:
                 if param_name in bound_arguments.arguments:
-                    # Не обрабатываем параметры, переданные самим Django во view.
-                    # Считаем такие параметры корректно типизированными.
-                    continue
-
-                if param_name not in source_params:
+                    raw_value = bound_arguments.arguments[param_name]
+                elif param_name not in source_params:
                     if param_default is missing:
                         return error_response(f'missing required {param_name} param')
-                    param_value = deepcopy(param_default)
+                    bound_arguments.arguments[param_name] = deepcopy(param_default)
+                    continue
                 else:
                     raw_value = source_params[param_name]
                     if source in ('GET', 'POST') and isinstance(raw_value, str):
@@ -216,22 +213,22 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
                             raw_value = json.loads(raw_value)
                         except json.JSONDecodeError:
                             pass
-                    try:
-                        # Пытаемся преобразовать параметр в структуру нужного типа
-                        param_value = param_structure_hook(raw_value, param_type)
-                    except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
-                        error_messages = []
-                        for error_message in transform_error(structure_error):
-                            description, path_separator, path = error_message.rpartition(' @ $')
-                            if path_separator:
-                                error_messages.append(f'{param_name}{path}: {description}')
-                            else:
-                                error_messages.append(f'{param_name}: {error_message}')
-                        return error_response('; '.join(error_messages))
+                try:
+                    # Преобразуем и входные параметры, и аргументы самого вызова view
+                    param_value = param_structure_hook(raw_value, param_type)
+                except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
+                    error_messages = []
+                    for error_message in transform_error(structure_error):
+                        description, path_separator, path = error_message.rpartition(' @ $')
+                        if path_separator:
+                            error_messages.append(f'{param_name}{path}: {description}')
+                        else:
+                            error_messages.append(f'{param_name}: {error_message}')
+                    return error_response('; '.join(error_messages))
 
-                kwargs[param_name] = param_value
+                bound_arguments.arguments[param_name] = param_value
 
-            return view(request, *args, **kwargs)
+            return view(*bound_arguments.args, **bound_arguments.kwargs)
 
         return decorated_view
 
