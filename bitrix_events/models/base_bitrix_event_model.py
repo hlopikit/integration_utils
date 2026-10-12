@@ -13,6 +13,8 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
     Абстрактная Django-модель для события Битрикс24.
     """
 
+    PROCESS_ON_COLLECT = False
+
     bitrix_id = models.CharField(max_length=255, unique=True)
     event_name = models.CharField(max_length=127, default='', db_index=True)
     data = models.JSONField(default=dict)

@@ -10,6 +10,8 @@ class BaseBitrixEventObject:
     Для обработки события через process нужно добавить handler-метод.
     """
 
+    PROCESS_ON_COLLECT = True
+
     def __init__(self, event_name: str, datetime: dt, data: Optional[Dict[str, Any]] = None):
         self.event_name = event_name
         self.data = data if data is not None else {}
@@ -32,7 +34,7 @@ class BaseBitrixEventObject:
         )
 
     @classmethod
-    def collect_bitrix_events(cls) -> str:
+    def collect_offline_events(cls) -> str:
         """Собрать новую пачку событий"""
-        from ..crons.cron_collect_bitrix_events import collect_bitrix_events
-        return collect_bitrix_events(cls)
+        from ..crons.cron_collect_offline_events import collect_offline_events
+        return collect_offline_events(cls)
