@@ -27,7 +27,7 @@ if not six.PY2:  # typing
 missing = object()
 
 
-def expect_typed_params(*, source='its_params', api=False):
+def expect_typed_params(*, source: str = 'its_params', api: bool = False):
     """Привести аннотированные аргументы view через cattrs.
 
     ``request`` и аргументы, уже переданные Django позиционно или по имени,
