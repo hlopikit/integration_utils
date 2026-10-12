@@ -11,9 +11,6 @@ if TYPE_CHECKING:
     from integration_utils.bitrix24.models.bitrix_user_token import BitrixUserToken
 
 
-LOG_TAG = 'integration_utils.bitrix_events'
-
-
 class BitrixEventCollectionError(RuntimeError):
     """Часть событий в пачке не удалось сохранить или обработать"""
 
@@ -23,9 +20,9 @@ def validate_event_class(event_class: Type[BaseBitrixEventObject]):
         raise TypeError('event_class must inherit BaseBitrixEventObject')
 
 
-def process_offline_events(result: Dict[str, Any], event_class: Type[BaseBitrixEventObject],
-                           token: 'BitrixUserToken') -> Tuple[int, int]:
+def process_offline_events(result: Dict[str, Any], event_class: Type[BaseBitrixEventObject], token: 'BitrixUserToken') -> Tuple[int, int]:
     """Обработать и подтвердить полученные события"""
+    log_tag = 'integration_utils.bitrix_events.crons.cron_collect_bitrix_events.process_offline_events'
     process_id = result['process_id']
     processed_message_ids = []
     failed_message_ids = []
@@ -35,13 +32,21 @@ def process_offline_events(result: Dict[str, Any], event_class: Type[BaseBitrixE
             event = event_class.from_bitrix_data(data)
             if not isinstance(event, BaseBitrixEventModel):
                 event.process()
-                ilogger.info('bitrix_event_processed_without_saving',
-                             f'process_id={process_id}, event_id={data["ID"]}, event_name={data["EVENT_NAME"]}', tag=LOG_TAG)
+                event_id = data['ID']
+                event_name = data['EVENT_NAME']
+                ilogger.debug(
+                    'bitrix_event_processed',
+                    f'{process_id=}, {event_id=}, {event_name=}',
+                    tag=log_tag,
+                )
         except Exception:
             failed_message_ids.append(message_id)
-            ilogger.error('bitrix_event_processing_failed',
-                          f'process_id={process_id}, event_id={data.get("ID")}, message_id={message_id}\n{format_exc()}',
-                          tag=LOG_TAG)
+            event_id = data.get('ID')
+            ilogger.error(
+                'bitrix_event_processing_failed',
+                f'{process_id=}, {event_id=}, {message_id=}\n{format_exc()}',
+                tag=log_tag,
+            )
         else:
             processed_message_ids.append(message_id)
 
