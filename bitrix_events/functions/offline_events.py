@@ -104,8 +104,6 @@ def collect_offline_events(
     :param clear_error: очищать события при ошибке обработки (event.offline.error).
     :param recover: дополучать события, зарезервированные через event.offline.get, но не очищенные.
     """
-    from integration_utils.bitrix24.models.bitrix_user_token import BitrixUserToken
-
     token = BitrixUserToken.get_admin_token()
     summary = ""
 
