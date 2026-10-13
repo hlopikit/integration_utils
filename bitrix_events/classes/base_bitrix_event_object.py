@@ -10,7 +10,12 @@ class BaseBitrixEventObject:
     Для обработки события через process нужно добавить handler-метод.
     """
 
-    PROCESS_ON_COLLECT = True
+    PROCESS_WHEN_RECEIVED = True
+    '''
+    Обрабатывать ли событие в момент получения.
+    Для объектного события нет смысла ставить False.
+    Иначе событие не сохранится и не обработается.
+    '''
 
     def __init__(self, event_name: str, datetime: dt, data: Optional[Dict[str, Any]] = None):
         self.event_name = event_name

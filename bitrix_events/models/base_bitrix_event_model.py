@@ -13,7 +13,13 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
     Абстрактная Django-модель для события Битрикс24.
     """
 
-    PROCESS_ON_COLLECT = False
+    PROCESS_WHEN_RECEIVED = False
+    '''
+    Обрабатывать ли событие в момент получения.
+    Для модельного события можно ставить и True, и False.
+    True - для обработки внутри collect_offline_events.
+    False - для обработки в отдельном process_offline_events.
+    '''
 
     bitrix_id = models.CharField(max_length=255, unique=True)
     event_name = models.CharField(max_length=127, default='', db_index=True)

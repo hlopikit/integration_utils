@@ -34,7 +34,7 @@ def handle_offline_events(
         log_message = f"{process_id=}, {event_id=}, {event_name=}, {message_id=}"
         try:
             event = event_class.from_bitrix_data(event)
-            if event_class.PROCESS_ON_COLLECT:
+            if event_class.PROCESS_WHEN_RECEIVED:
                 event.process()
         except Exception as e:
             failed_message_ids.append(message_id)
