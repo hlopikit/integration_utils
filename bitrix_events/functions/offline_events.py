@@ -1,8 +1,9 @@
 from collections import Counter
-from typing import Type, Dict, Any, Tuple
+from typing import Any, Dict, Tuple, Type
 
 from integration_utils.bitrix24.models import BitrixUserToken
 from integration_utils.bitrix_events.classes import BaseBitrixEventObject
+from integration_utils.bitrix_events.models import BaseBitrixEventModel
 from settings import ilogger
 
 
@@ -141,3 +142,32 @@ def collect_offline_events(
     )
     summary = f"{collected_successful=}, {collected_failed=}{summary}"
     return summary
+
+
+def process_offline_events(event_model: Type[BaseBitrixEventModel], limit: int = 50) -> str:
+    """Обработать пачку сохранённых оффлайн-событий, которые ещё не запускались."""
+    log_tag = 'integration_utils.bitrix_events.functions.offline_events.process_offline_events'
+
+    pending_events_qs = event_model.objects.filter(
+        process_started_at__isnull=True,
+    ).order_by('created_at', 'pk')[:limit]
+    processed_successful = processed_failed = processed_skipped = 0
+
+    for event in pending_events_qs:
+        event_pk = event.pk
+        bitrix_id = event.bitrix_id
+        event_name = event.event_name
+        log_message = f'{event_pk=}, {bitrix_id=}, {event_name=}'
+        try:
+            event.process_from_queue()
+        except Exception as e:
+            processed_failed += 1
+            ilogger.error('bitrix_event_process_fail', f'({e}): {log_message}', tag=log_tag)
+        else:
+            if event.process_started_at is None:
+                processed_skipped += 1
+                continue
+            processed_successful += 1
+            ilogger.debug('bitrix_event_process_success', log_message, tag=log_tag)
+
+    return f'{processed_successful=}, {processed_failed=}, {processed_skipped=}'

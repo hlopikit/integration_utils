@@ -25,13 +25,20 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
     event_name = models.CharField(max_length=127, default='', db_index=True)
     data = models.JSONField(default=dict)
     datetime = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    process_started_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    process_ended_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         abstract = True
 
     class Admin(admin.ModelAdmin):
-        list_display = ['bitrix_id', 'event_name', 'data', 'datetime']
+        list_display = [
+            'bitrix_id', 'event_name', 'data', 'datetime', 'created_at',
+            'process_started_at', 'process_ended_at',
+        ]
         list_display_links = list_display
+        readonly_fields = ['created_at', 'process_started_at', 'process_ended_at']
 
     def __init__(self, *args, **kwargs):
         """Инициализирует Django-модель без конструктора BaseBitrixEventObject"""
@@ -39,6 +46,37 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
 
     def __str__(self) -> str:
         return f'[{self.pk}] {self.event_name}'
+
+    def process(self) -> Any:
+        """Обработать событие из очереди один раз."""
+        return self.process_from_queue()
+
+    def process_from_queue(self, force: bool = False) -> Any:
+        """Обработать событие, при force=True повторить обработку независимо от её статуса."""
+        if not force and (self.process_started_at or self.process_ended_at):
+            return None
+
+        process_started_at = timezone.now()
+        event_qs = type(self).objects.filter(pk=self.pk)
+        if force:
+            updated = event_qs.update(process_started_at=process_started_at, process_ended_at=None)
+        else:
+            updated = event_qs.filter(
+                process_started_at__isnull=True,
+                process_ended_at__isnull=True,
+            ).update(process_started_at=process_started_at)
+
+        if not updated:
+            return None
+
+        self.process_started_at = process_started_at
+        self.process_ended_at = None
+        try:
+            return super().process()
+        finally:
+            process_ended_at = timezone.now()
+            event_qs.update(process_ended_at=process_ended_at)
+            self.process_ended_at = process_ended_at
 
     @classmethod
     def from_bitrix_data(cls, data: Dict[str, Any]) -> "BaseBitrixEventModel":
