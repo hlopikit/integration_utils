@@ -33,18 +33,3 @@ class BaseBitrixEventObject:
             datetime=isoparse(data['TIMESTAMP_X']),
         )
 
-    @classmethod
-    def collect_offline_events(
-        cls,
-        clear_on_get: bool = False,
-        clear_with_error: bool = True,
-        recover: bool = False,
-    ) -> str:
-        """Собрать оффлайн-события"""
-        from ..crons.cron_collect_offline_events import collect_offline_events
-        return collect_offline_events(
-            cls,
-            clear_on_get=clear_on_get,
-            clear_with_error=clear_with_error,
-            recover=recover,
-        )
