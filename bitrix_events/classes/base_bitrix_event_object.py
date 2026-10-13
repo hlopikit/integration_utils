@@ -11,6 +11,8 @@ class BaseBitrixEventObject:
     """
 
     PROCESS_ON_COLLECT = True
+    RECOVER_AFTER_SECONDS = 5 * 60
+    """Минимальный возраст события в секундах перед восстановлением"""
 
     def __init__(self, event_name: str, datetime: dt, data: Optional[Dict[str, Any]] = None):
         self.event_name = event_name

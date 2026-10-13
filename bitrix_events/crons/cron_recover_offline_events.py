@@ -1,6 +1,8 @@
 from collections import Counter
+from datetime import timedelta
 from typing import Type
 
+from django.utils import timezone
 from django.utils.module_loading import import_string
 
 from ..classes import BaseBitrixEventObject
@@ -10,25 +12,32 @@ from .cron_collect_offline_events import BitrixEventCollectionError, handle_offl
 def recover_offline_events(event_class: Type[BaseBitrixEventObject]) -> str:
     """
     Дополучить потерянную пачку оффлайн-событий для event_class.
-    Если collect_offline_events остановится на полпути - часть событий будет потеряна.
-    Такие события нельзя получить снова через event.offline.get.
-    Но их можно дополучить через event.offline.list.
+    Если collect_offline_events остановится на полпути, события останутся зарезервированы за PROCESS_ID.
+    PROCESS_ID находится через event.offline.list и передаётся в event.offline.get для повторного получения.
 
-    ВАЖНО: Нужно ждать, пока collect закончит обработку своих событий.
-    Иначе recover может подобрать события, обрабатываемые в collect, и запустить обработку по ним второй раз.
-    Для этого есть константа RECOVER_AFTER_SECONDS - через сколько секунд считать событие потерянным.
+    RECOVER_AFTER_SECONDS задаёт минимальный возраст восстанавливаемого события.
+    TIMESTAMP_X отражает время изменения объекта, а не резервирования события, поэтому collect и recover
+    всё равно не следует запускать параллельно.
     """
     validate_event_class(event_class)
     from integration_utils.bitrix24.models.bitrix_user_token import BitrixUserToken
 
     token = BitrixUserToken.get_admin_token()
-    events = token.call_list_method('event.offline.list', fields={'filter': {'ERROR': 0}})
+    recover_before = timezone.now() - timedelta(seconds=event_class.RECOVER_AFTER_SECONDS)
+    event_filter = {'<TIMESTAMP_X': recover_before.isoformat()}
+    events = token.call_list_method(
+        'event.offline.list',
+        fields={'filter': {'ERROR': 0, **event_filter}},
+    )
     recovered_processes = Counter(event['PROCESS_ID'] for event in events if event['PROCESS_ID'])
 
     successful_total = failed_total = 0
     for process_id, remaining in recovered_processes.items():
         while remaining > 0:
-            result = token.call_api_method('event.offline.get', {'clear': 0, 'process_id': process_id})['result']
+            result = token.call_api_method(
+                'event.offline.get',
+                {'clear': 0, 'process_id': process_id, 'filter': event_filter},
+            )['result']
             successful, failed = handle_offline_events(result, event_class, token)
             if not successful and not failed:
                 break
