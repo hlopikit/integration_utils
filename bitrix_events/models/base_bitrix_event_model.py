@@ -48,23 +48,31 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         return f'[{self.pk}] {self.event_name}'
 
     def process(self) -> Any:
-        """Обработать событие из очереди один раз."""
-        return self.process_from_queue()
+        """Обработать событие"""
+        return self.process_with_lock()
 
-    def process_from_queue(self, force: bool = False) -> Any:
-        """Обработать событие, при force=True повторить обработку независимо от её статуса."""
+    def process_with_lock(self, force: bool = False) -> Any:
+        """
+        Обработать событие с блокировкой.
+        :param force: запустить обработку независимо от блокировки.
+        """
         if not force and (self.process_started_at or self.process_ended_at):
             return None
 
         process_started_at = timezone.now()
         event_qs = type(self).objects.filter(pk=self.pk)
         if force:
-            updated = event_qs.update(process_started_at=process_started_at, process_ended_at=None)
+            updated = event_qs.update(
+                process_started_at=process_started_at,
+                process_ended_at=None,
+            )
         else:
             updated = event_qs.filter(
                 process_started_at__isnull=True,
                 process_ended_at__isnull=True,
-            ).update(process_started_at=process_started_at)
+            ).update(
+                process_started_at=process_started_at,
+            )
 
         if not updated:
             return None

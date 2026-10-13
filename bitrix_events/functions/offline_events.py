@@ -39,10 +39,10 @@ def handle_offline_events(
                 event.process()
         except Exception as e:
             failed_message_ids.append(message_id)
-            ilogger.error('bitrix_event_process_fail', f"({e}): {log_message}", tag=log_tag)
+            ilogger.error('bitrix_event_handle_fail', f"({e}): {log_message}", tag=log_tag)
         else:
             successful_message_ids.append(message_id)
-            ilogger.debug('bitrix_event_process_success', log_message, tag=log_tag)
+            ilogger.debug('bitrix_event_handle_success', log_message, tag=log_tag)
 
     if clear_on_get:
         return len(successful_message_ids), len(failed_message_ids)
@@ -145,27 +145,30 @@ def collect_offline_events(
 
 
 def process_offline_events(event_model: Type[BaseBitrixEventModel], limit: int = 50) -> str:
-    """Обработать пачку сохранённых оффлайн-событий, которые ещё не запускались."""
+    """
+    Обработать пачку модельных оффлайн-событий.
+    :param event_model: модель события.
+    :param limit: максимальное число событий в пачке.
+    """
     log_tag = 'integration_utils.bitrix_events.functions.offline_events.process_offline_events'
 
-    pending_events_qs = event_model.objects.filter(
-        process_started_at__isnull=True,
-    ).order_by('created_at', 'pk')[:limit]
+    events_qs = event_model.objects.filter(process_started_at__isnull=True).order_by('created_at', 'pk')[:limit]
     processed_successful = processed_failed = processed_skipped = 0
 
-    for event in pending_events_qs:
-        event_pk = event.pk
+    for event in events_qs:
+        pk = event.pk
         bitrix_id = event.bitrix_id
         event_name = event.event_name
-        log_message = f'{event_pk=}, {bitrix_id=}, {event_name=}'
+        log_message = f'{pk=}, {bitrix_id=}, {event_name=}'
         try:
-            event.process_from_queue()
+            event.process_with_lock()
         except Exception as e:
             processed_failed += 1
             ilogger.error('bitrix_event_process_fail', f'({e}): {log_message}', tag=log_tag)
         else:
             if event.process_started_at is None:
                 processed_skipped += 1
+                ilogger.warning('bitrix_event_process_skip', log_message, tag=log_tag)
                 continue
             processed_successful += 1
             ilogger.debug('bitrix_event_process_success', log_message, tag=log_tag)
