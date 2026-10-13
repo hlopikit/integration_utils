@@ -11,8 +11,6 @@ class BaseBitrixEventObject:
     """
 
     PROCESS_ON_COLLECT = True
-    RECOVER_AFTER_SECONDS = 5 * 60
-    """Минимальный возраст события в секундах перед восстановлением"""
 
     def __init__(self, event_name: str, datetime: dt, data: Optional[Dict[str, Any]] = None):
         self.event_name = event_name
@@ -36,7 +34,17 @@ class BaseBitrixEventObject:
         )
 
     @classmethod
-    def collect_offline_events(cls) -> str:
-        """Собрать новую пачку событий"""
+    def collect_offline_events(
+        cls,
+        clear_on_get: bool = False,
+        clear_with_error: bool = True,
+        recover: bool = False,
+    ) -> str:
+        """Собрать оффлайн-события"""
         from ..crons.cron_collect_offline_events import collect_offline_events
-        return collect_offline_events(cls)
+        return collect_offline_events(
+            cls,
+            clear_on_get=clear_on_get,
+            clear_with_error=clear_with_error,
+            recover=recover,
+        )
