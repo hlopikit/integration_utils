@@ -1,11 +1,13 @@
-from typing import Any, Dict, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Tuple, Type
 
 from integration_utils.bitrix24.models import BitrixUserToken
-from integration_utils.bitrix_events.classes import BaseBitrixEventObject
-from integration_utils.bitrix_events.models import BaseBitrixEventModel
 
 from settings import ilogger
 
+if TYPE_CHECKING:
+    from integration_utils.bitrix_events.classes import BaseBitrixEventObject
+    from integration_utils.bitrix_events.models import BaseBitrixEventModel
+    
 __all__ = [
     "collect_offline_events",
     "process_offline_events",
@@ -15,7 +17,7 @@ __all__ = [
 
 
 def receive_offline_events(
-    event_class: Type[BaseBitrixEventObject],
+    event_class: Type['BaseBitrixEventObject'],
     result: Dict[str, Any],
     token: 'BitrixUserToken',
     clear_on_get: bool = False,
@@ -66,7 +68,7 @@ def receive_offline_events(
 
 
 def recover_offline_events(
-    event_class: Type[BaseBitrixEventObject],
+    event_class: Type['BaseBitrixEventObject'],
     token: 'BitrixUserToken',
     clear_on_get: bool = False,
     clear_error: bool = True,
@@ -110,7 +112,7 @@ def recover_offline_events(
 
 
 def collect_offline_events(
-    event_class: Type[BaseBitrixEventObject],
+    event_class: Type['BaseBitrixEventObject'],
     *,
     clear_on_get: bool = False,
     clear_error: bool = True,
@@ -170,7 +172,7 @@ def collect_offline_events(
     return summary
 
 
-def process_offline_events(event_model: Type[BaseBitrixEventModel], limit: int = 50) -> str:
+def process_offline_events(event_model: Type['BaseBitrixEventModel'], limit: int = 50) -> str:
     """
     Обработать пачку модельных офлайн-событий.
     Для использования в приложении создайте крон-функцию без параметров (для cron_starter).

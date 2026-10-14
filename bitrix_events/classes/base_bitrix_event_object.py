@@ -1,6 +1,8 @@
 from datetime import datetime as dt
 from typing import Any, Callable, Dict, Literal, Optional, overload
 
+from integration_utils.bitrix_events.functions.offline_events import collect_offline_events
+
 
 class BaseBitrixEventObject:
     """
@@ -26,8 +28,11 @@ class BaseBitrixEventObject:
         """
         handler = getattr(self, f'{self.event_name.lower()}_handler', None)
         if handler is None:
-            raise NotImplementedError(f'Handler for {self.event_name} is not implemented')
+            return self.default_handler()
         return handler()
+
+    def default_handler(self):
+        raise NotImplementedError(f'Handler for {self.event_name} is not implemented')
 
     @classmethod
     def from_bitrix_data(cls, data: Dict[str, Any]) -> "BaseBitrixEventObject":
@@ -40,8 +45,8 @@ class BaseBitrixEventObject:
             datetime=dt.fromisoformat(data['TIMESTAMP_X']),
         )
 
-    @overload
     @classmethod
+    @overload
     def make_cron_collect_offline_events(
         cls,
         *,
@@ -54,8 +59,8 @@ class BaseBitrixEventObject:
         Параметр recover можно ставить любой.
         """
 
-    @overload
     @classmethod
+    @overload
     def make_cron_collect_offline_events(
         cls,
         *,
@@ -68,8 +73,8 @@ class BaseBitrixEventObject:
         Параметр recover нужно ставить True, чтобы дособрать ошибки из очереди.
         """
 
-    @overload
     @classmethod
+    @overload
     def make_cron_collect_offline_events(
         cls,
         *,
@@ -90,10 +95,6 @@ class BaseBitrixEventObject:
         clear_error: bool = True,
         recover: bool = False,
     ) -> Callable[[], str]:
-        # Локальный импорт исключает цикл между классами событий и функциями обработки
-        from ..functions.offline_events import collect_offline_events
-
         def cron_collect_offline_events() -> str:
             return collect_offline_events(cls, clear_on_get=clear_on_get, clear_error=clear_error, recover=recover)
-
         return cron_collect_offline_events

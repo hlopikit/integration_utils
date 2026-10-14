@@ -6,6 +6,7 @@ from django.db import models
 from django.utils import timezone
 
 from ..classes import BaseBitrixEventObject
+from ..functions.offline_events import process_offline_events
 
 
 class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
@@ -138,10 +139,6 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
 
     @classmethod
     def make_cron_process_offline_events(cls, limit: int = 50) -> Callable[[], str]:
-        # Локальный импорт исключает цикл между классами событий и функциями обработки
-        from ..functions.offline_events import process_offline_events
-
         def cron_process_offline_events() -> str:
             return process_offline_events(cls, limit=limit)
-
         return cron_process_offline_events
