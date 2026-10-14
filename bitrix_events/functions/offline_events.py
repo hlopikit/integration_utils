@@ -7,7 +7,7 @@ from settings import ilogger
 if TYPE_CHECKING:
     from integration_utils.bitrix_events.classes import BaseBitrixEventObject
     from integration_utils.bitrix_events.models import BaseBitrixEventModel
-    
+
 __all__ = [
     "collect_offline_events",
     "process_offline_events",

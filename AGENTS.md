@@ -434,7 +434,7 @@ class BitrixEvent(BaseBitrixEventModel):
 
 `BaseBitrixEventModel` является абстрактной Django-моделью. Создавай миграцию в приложении, где объявлен конкретный наследник; миграция внутри `integration_utils` для него не нужна.
 
-Обработчик определяется по `EVENT_NAME`: имя события приводится к нижнему регистру и к нему добавляется `_handler`. Например, для `ONCRMDEALUPDATE` нужен метод `oncrmdealupdate_handler`. Отсутствующий обработчик приводит к `NotImplementedError`.
+Обработчик определяется по `EVENT_NAME`: имя события приводится к нижнему регистру и к нему добавляется `_handler`. Например, для `ONCRMDEALUPDATE` нужен метод `oncrmdealupdate_handler`. Если такого метода нет, вызывается `default_handler`; его базовая реализация выбрасывает `NotImplementedError`, но наследник может переопределить общее поведение.
 
 ### Создание кронов
 
