@@ -99,7 +99,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         try:
             process_result = super().process()
         except Exception as e:
-            error = f'{type(e).__name__}: {e}'
+            error = f'{type(e).__name__}({e})'
             raise
         else:
             success = True
