@@ -27,13 +27,13 @@ def receive_offline_events(
     successful_message_ids = []
     failed_message_ids = []
 
-    for event in result['events']:
-        event_id = event['ID']
-        event_name = event['EVENT_NAME']
-        message_id = event['MESSAGE_ID']
+    for result_event in result['events']:
+        event_id = result_event['ID']
+        event_name = result_event['EVENT_NAME']
+        message_id = result_event['MESSAGE_ID']
         log_message = f"{process_id=}, {event_id=}, {event_name=}, {message_id=}"
         try:
-            event = event_class.from_bitrix_data(event)
+            event = event_class.from_bitrix_data(result_event)
             if event_class.PROCESS_WHEN_RECEIVED:
                 event.process()
         except Exception as e:
