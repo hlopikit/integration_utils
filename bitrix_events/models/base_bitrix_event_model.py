@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Literal, overload
 
 from django.contrib import admin
 from django.db import models
 from django.utils import timezone
 
 from ..classes import BaseBitrixEventObject
+from ..functions.offline_events import collect_offline_events, process_offline_events
 
 
 class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
@@ -135,3 +136,57 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         )
 
         return event
+
+    @classmethod
+    @overload
+    def make_cron_collect_offline_events(
+        cls,
+        *,
+        clear_on_get: Literal[False] = False,
+        clear_error: Literal[True] = True,
+        recover: bool = False,
+    ) -> str:
+        """
+        Собираем события без очистки при сборе, с пометкой ошибок в очереди.
+        Параметр recover можно ставить любой.
+        """
+
+    @classmethod
+    @overload
+    def make_cron_collect_offline_events(
+        cls,
+        *,
+        clear_on_get: Literal[False] = False,
+        clear_error: Literal[False],
+        recover: Literal[True],
+    ) -> str:
+        """
+        Собираем события без очистки при сборе, без пометки ошибок в очереди.
+        Параметр recover нужно ставить True, чтобы дособрать ошибки из очереди.
+        """
+
+    @classmethod
+    @overload
+    def make_cron_collect_offline_events(
+        cls,
+        *,
+        clear_on_get: Literal[True],
+        clear_error: Literal[False] = False,
+        recover: Literal[False] = False,
+    ) -> str:
+        """
+        Собираем события с очисткой при сборе.
+        Параметры recover и clear_error использоваться не будут, поэтому False.
+        """
+
+    @classmethod
+    def make_cron_collect_offline_events(cls, clear_on_get: bool = False, clear_error: bool = True, recover: bool = False):
+        def cron_collect_offline_events():
+            return collect_offline_events(cls, clear_on_get=clear_on_get, clear_error=clear_error, recover=recover)
+        return cron_collect_offline_events
+
+    @classmethod
+    def make_cron_process_offline_events(cls, limit: int = 50):
+        def cron_process_offline_events():
+            return process_offline_events(cls, limit=limit)
+        return cron_process_offline_events
