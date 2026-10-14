@@ -402,6 +402,96 @@ Bitrix24 ограничивает REST по времени выполнения 
 
 Не заменяй ошибочный ответ API пустым списком, пустым словарем или `None` без явного бизнес-правила. Если такой сценарий допустим, в коде должно быть понятно, почему именно эту ошибку можно обработать как пустой результат.
 
+## Офлайн-события Bitrix24
+
+Код для подписки, получения и обработки офлайн-событий находится в `integration_utils.bitrix_events`.
+
+### Выбор базового класса
+
+Используй `BaseBitrixEventObject`, если событие не нужно сохранять в БД и оно должно обрабатываться сразу после получения:
+
+```python
+from integration_utils.bitrix_events.classes import BaseBitrixEventObject
+
+
+class BitrixEvent(BaseBitrixEventObject):
+    def oncrmdealupdate_handler(self):
+        ...
+```
+
+Для объектного события оставляй `PROCESS_WHEN_RECEIVED=True`. При `False` такое событие не сохранится и не будет обработано позднее.
+
+Используй `BaseBitrixEventModel`, если событие нужно сначала сохранить, а затем обработать отдельным кроном:
+
+```python
+from integration_utils.bitrix_events.models import BaseBitrixEventModel
+
+
+class BitrixEvent(BaseBitrixEventModel):
+    def oncrmdealupdate_handler(self):
+        ...
+```
+
+`BaseBitrixEventModel` является абстрактной Django-моделью. Создавай миграцию в приложении, где объявлен конкретный наследник; миграция внутри `integration_utils` для него не нужна.
+
+Обработчик определяется по `EVENT_NAME`: имя события приводится к нижнему регистру и к нему добавляется `_handler`. Например, для `ONCRMDEALUPDATE` нужен метод `oncrmdealupdate_handler`. Отсутствующий обработчик приводит к `NotImplementedError`.
+
+### Создание кронов
+
+Фабрики `make_cron_*` возвращают функции без аргументов, которые можно объявить на уровне модуля и передать в `cron_starter`:
+
+```python
+cron_collect_bitrix_events = BitrixEvent.make_cron_collect_offline_events()
+cron_process_bitrix_events = BitrixEvent.make_cron_process_offline_events(limit=50)
+```
+
+`make_cron_collect_offline_events` доступен для объектных и модельных событий. `make_cron_process_offline_events` доступен только наследникам `BaseBitrixEventModel`.
+
+Сбор использует `BitrixUserToken.get_admin_token()`. У приложения должен быть доступ к админскому токену и нужные права Bitrix24.
+
+### Режимы сбора
+
+Рекомендуемые сочетания параметров `make_cron_collect_offline_events`:
+
+- По умолчанию `clear_on_get=False`, `clear_error=True`, `recover=False`. `event.offline.get` резервирует пачку с `clear=0`; успешно принятые события очищаются через `event.offline.clear`, а ошибки помечаются через `event.offline.error`. Резервирование требует возможности `rest_offline_extended`, иначе Bitrix24 вернёт `WRONG_LICENSE`.
+- `recover=True` перед обычным сбором пытается получить ранее зарезервированные, но не очищенные пачки. `recover` рассматривает первую страницу `event.offline.list`, то есть не более 50 событий за запуск, и сохраняет порядок встретившихся `PROCESS_ID`.
+- `clear_error=False` используй вместе с `recover=True`, если ошибочное событие нужно оставить для следующей попытки. Учитывай, что постоянно падающее событие будет снова попадать в `recover` и может создать очередь повторных ошибок.
+- `clear_on_get=True` очищает пачку непосредственно в `event.offline.get` и не делает отдельных вызовов `clear` или `error`. Это быстрее, но событие может быть потеряно, если сохранение или обработка завершатся ошибкой. В этом режиме `recover` должен оставаться `False`, а `clear_error` не влияет на выполнение.
+
+Запуски с `recover=True` не должны пересекаться для одного портала. `event.offline.list` может вернуть пачку, которую ещё обрабатывает другой запуск; при возможном параллельном запуске используй внешнюю блокировку на портал.
+
+Отдельный крон восстановления не нужен: восстановление является первой стадией `collect_offline_events` при `recover=True`.
+
+### Очередь модельных событий
+
+При стандартном `PROCESS_WHEN_RECEIVED=False` сбор сохраняет модельное событие и очищает его из очереди Bitrix24, а бизнес-обработку выполняет отдельный крон `process_offline_events`.
+
+Очередь выбирается по пустому `process_started_at`, в порядке `created_at`, `pk`. По умолчанию за запуск берётся не более 50 записей. Конкурирующие кроны могут выбрать одинаковые строки, но условный `UPDATE` позволяет обработать событие только одному из них; остальные учитывают его как пропущенное.
+
+`process_with_lock` записывает:
+
+- `process_started_at` при захвате события;
+- `process_ended_at` после успешного выполнения или исключения;
+- `success=True` при успехе;
+- `success=False` и строку вида `TypeError(текст ошибки)` при исключении.
+
+Событие, обработчик которого завершился исключением, автоматически повторно не запускается: заполненный `process_started_at` исключает его из очереди. Для осознанного ручного повтора вызови `event.process_with_lock(force=True)`. Не запускай параллельно несколько ручных обработок одного события с `force=True`.
+
+Если у модельного события установлен `PROCESS_WHEN_RECEIVED=True`, его `process()` также проходит через `process_with_lock`, поэтому блокировка и статусы применяются при обработке внутри сборщика.
+
+### Управление подписками
+
+Для подписки и отписки используй:
+
+```python
+from integration_utils.bitrix_events.functions.subscriptions import bind_events, unbind_events
+
+bind_result = bind_events(['ONCRMDEALADD', 'ONCRMDEALUPDATE'])
+unbind_result = unbind_events(['ONCRMDEALADD'])
+```
+
+Имена событий очищаются от пробелов, приводятся к верхнему регистру и дедублируются с сохранением порядка. Результат является `BatchResultDict`; проверяй `all_ok`, `errors` или `iter_errors()` так же, как для остальных batch-вызовов.
+
 ## Что не делать
 
 - Не писать ручную пагинацию, если подходит `call_list_method`.
