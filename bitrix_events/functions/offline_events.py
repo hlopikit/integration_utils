@@ -78,7 +78,6 @@ def recover_offline_events(
     :param clear_on_get: очищать события через event.offline.get с clear=1.
     :param clear_error: очищать событие из очереди при ошибке обработки (event.offline.error).
     """
-
     list_result = token.call_api_method('event.offline.list', {'filter': {'ERROR': 0}})['result']
 
     recovered_process_ids = set(
@@ -116,8 +115,11 @@ def collect_offline_events(
     clear_on_get: Literal[False] = False,
     clear_error: Literal[True] = True,
     recover: bool = False,
-) -> str: ...
-
+) -> str:
+    """
+    Собираем события без очистки при сборе, с пометкой ошибок в очереди.
+    Параметр recover можно ставить любой.
+    """
 
 @overload
 def collect_offline_events(
@@ -126,7 +128,11 @@ def collect_offline_events(
     clear_on_get: Literal[False] = False,
     clear_error: Literal[False],
     recover: Literal[True],
-) -> str: ...
+) -> str:
+    """
+    Собираем события без очистки при сборе, без пометки ошибок в очереди.
+    Параметр recover нужно ставить True, чтобы дособрать ошибки из очереди.
+    """
 
 
 @overload
@@ -136,7 +142,11 @@ def collect_offline_events(
     clear_on_get: Literal[True],
     clear_error: Literal[False],
     recover: Literal[False] = False,
-) -> str: ...
+) -> str:
+    """
+    Собираем события с очисткой при сборе.
+    Параметры recover и clear_error использоваться не будут, поэтому False.
+    """
 
 
 def collect_offline_events(
