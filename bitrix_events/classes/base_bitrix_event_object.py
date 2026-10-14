@@ -1,5 +1,7 @@
 from datetime import datetime as dt
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Literal, overload
+
+from integration_utils.bitrix_events.functions.offline_events import collect_offline_events
 
 
 class BaseBitrixEventObject:
@@ -39,3 +41,51 @@ class BaseBitrixEventObject:
             data=data,
             datetime=dt.fromisoformat(data['TIMESTAMP_X']),
         )
+
+    @classmethod
+    @overload
+    def make_cron_collect_offline_events(
+        cls,
+        *,
+        clear_on_get: Literal[False] = False,
+        clear_error: Literal[True] = True,
+        recover: bool = False,
+    ) -> str:
+        """
+        Собираем события без очистки при сборе, с пометкой ошибок в очереди.
+        Параметр recover можно ставить любой.
+        """
+
+    @classmethod
+    @overload
+    def make_cron_collect_offline_events(
+        cls,
+        *,
+        clear_on_get: Literal[False] = False,
+        clear_error: Literal[False],
+        recover: Literal[True],
+    ) -> str:
+        """
+        Собираем события без очистки при сборе, без пометки ошибок в очереди.
+        Параметр recover нужно ставить True, чтобы дособрать ошибки из очереди.
+        """
+
+    @classmethod
+    @overload
+    def make_cron_collect_offline_events(
+        cls,
+        *,
+        clear_on_get: Literal[True],
+        clear_error: Literal[False] = False,
+        recover: Literal[False] = False,
+    ) -> str:
+        """
+        Собираем события с очисткой при сборе.
+        Параметры recover и clear_error использоваться не будут, поэтому False.
+        """
+
+    @classmethod
+    def make_cron_collect_offline_events(cls, clear_on_get: bool = False, clear_error: bool = True, recover: bool = False):
+        def cron_collect_offline_events():
+            return collect_offline_events(cls, clear_on_get=clear_on_get, clear_error=clear_error, recover=recover)
+        return cron_collect_offline_events
