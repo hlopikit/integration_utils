@@ -1,6 +1,6 @@
+from datetime import datetime
 from typing import Any, Dict
 
-from dateutil.parser import isoparse
 from django.contrib import admin
 from django.db import models
 from django.utils import timezone
@@ -35,12 +35,9 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         abstract = True
 
     class Admin(admin.ModelAdmin):
-        list_display = [
-            'bitrix_id', 'event_name', 'data', 'datetime', 'created_at',
-            'process_started_at', 'process_ended_at', 'success', 'error',
-        ]
+        list_display = 'bitrix_id', 'event_name', 'data', 'datetime', 'created_at', 'process_started_at', 'process_ended_at', 'success', 'error'
         list_display_links = list_display
-        readonly_fields = ['created_at', 'process_started_at', 'process_ended_at', 'success', 'error']
+        readonly_fields = 'created_at', 'process_started_at', 'process_ended_at', 'success', 'error'
 
     def __init__(self, *args, **kwargs):
         """
@@ -63,6 +60,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         При успехе записать success=True, при исключении - success=False и текст ошибки.
         :param force: запустить обработку независимо от блокировки.
         """
+
         if not force and (self.process_started_at or self.process_ended_at):
             return None
 
@@ -96,6 +94,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
 
         success = False
         error = None
+
         try:
             process_result = super().process()
         except Exception as e:
@@ -106,6 +105,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
             return process_result
         finally:
             process_ended_at = timezone.now()
+
             ended = event_qs.filter(
                 process_started_at=process_started_at
             ).update(
@@ -113,6 +113,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
                 success=success,
                 error=error,
             )
+
             if ended:
                 self.process_ended_at = process_ended_at
                 self.success = success
@@ -123,12 +124,14 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         """
         Создать или получить объект события в БД из словаря с Битрикс-данными.
         """
+
         event, _ = cls.objects.get_or_create(
             bitrix_id=data['ID'],
             defaults={
                 'event_name': data['EVENT_NAME'],
                 'data': data,
-                'datetime': isoparse(data['TIMESTAMP_X']),
+                'datetime': datetime.fromisoformat(data['TIMESTAMP_X']),
             },
         )
+
         return event

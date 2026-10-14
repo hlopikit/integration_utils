@@ -1,8 +1,6 @@
 from datetime import datetime as dt
 from typing import Any, Dict, Optional
 
-from dateutil.parser import isoparse
-
 
 class BaseBitrixEventObject:
     """
@@ -10,7 +8,7 @@ class BaseBitrixEventObject:
     Для обработки события через process нужно добавить handler-метод.
     """
 
-    PROCESS_WHEN_RECEIVED = True
+    PROCESS_WHEN_RECEIVED: bool = True
     '''
     Обрабатывать ли событие в момент получения.
     Для объектного события нет смысла ставить False.
@@ -39,5 +37,5 @@ class BaseBitrixEventObject:
         return cls(
             event_name=data['EVENT_NAME'],
             data=data,
-            datetime=isoparse(data['TIMESTAMP_X']),
+            datetime=dt.fromisoformat(data['TIMESTAMP_X']),
         )

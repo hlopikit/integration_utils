@@ -1,9 +1,17 @@
-from typing import Any, Dict, Tuple, Type
+from typing import Any, Dict, Literal, Tuple, Type, overload
 
 from integration_utils.bitrix24.models import BitrixUserToken
 from integration_utils.bitrix_events.classes import BaseBitrixEventObject
 from integration_utils.bitrix_events.models import BaseBitrixEventModel
+
 from settings import ilogger
+
+__all__ = [
+    "collect_offline_events",
+    "process_offline_events",
+    "receive_offline_events",
+    "recover_offline_events",
+]
 
 
 def receive_offline_events(
@@ -32,8 +40,10 @@ def receive_offline_events(
         event_name = result_event['EVENT_NAME']
         message_id = result_event['MESSAGE_ID']
         log_message = f"{process_id=}, {event_id=}, {event_name=}, {message_id=}"
+
         try:
             event = event_class.from_bitrix_data(result_event)
+
             if event_class.PROCESS_WHEN_RECEIVED:
                 event.process()
         except Exception as e:
@@ -48,6 +58,7 @@ def receive_offline_events(
 
     if successful_message_ids:
         token.call_api_method('event.offline.clear', {'process_id': process_id, 'message_id': successful_message_ids})
+
     if failed_message_ids and clear_error:
         token.call_api_method('event.offline.error', {'process_id': process_id, 'message_id': failed_message_ids})
 
@@ -67,19 +78,23 @@ def recover_offline_events(
     :param clear_on_get: очищать события через event.offline.get с clear=1.
     :param clear_error: очищать событие из очереди при ошибке обработки (event.offline.error).
     """
+
     list_result = token.call_api_method('event.offline.list', {'filter': {'ERROR': 0}})['result']
-    recovered_process_ids = dict.fromkeys(
+
+    recovered_process_ids = set(
         event['PROCESS_ID']
         for event in list_result
         if event['PROCESS_ID']
     )
 
     successful_total = failed_total = 0
+
     for process_id in recovered_process_ids:
-        clear = int(clear_on_get)
         result = token.call_api_method('event.offline.get', {
-            'clear': clear, 'process_id': process_id
+            'clear': int(clear_on_get),
+            'process_id': process_id,
         })['result']
+
         successful, failed = receive_offline_events(
             event_class=event_class,
             result=result,
@@ -87,14 +102,46 @@ def recover_offline_events(
             clear_on_get=clear_on_get,
             clear_error=clear_error,
         )
+
         successful_total += successful
         failed_total += failed
 
     return successful_total, failed_total
 
 
+@overload
 def collect_offline_events(
     event_class: Type[BaseBitrixEventObject],
+    *,
+    clear_on_get: Literal[False] = False,
+    clear_error: Literal[True] = True,
+    recover: bool = False,
+) -> str: ...
+
+
+@overload
+def collect_offline_events(
+    event_class: Type[BaseBitrixEventObject],
+    *,
+    clear_on_get: Literal[False] = False,
+    clear_error: Literal[False],
+    recover: Literal[True],
+) -> str: ...
+
+
+@overload
+def collect_offline_events(
+    event_class: Type[BaseBitrixEventObject],
+    *,
+    clear_on_get: Literal[True],
+    clear_error: Literal[False],
+    recover: Literal[False] = False,
+) -> str: ...
+
+
+def collect_offline_events(
+    event_class: Type[BaseBitrixEventObject],
+    *,
     clear_on_get: bool = False,
     clear_error: bool = True,
     recover: bool = False,
@@ -115,11 +162,11 @@ def collect_offline_events(
       зарезервированные прошлым запуском, но не очищенные по какой-либо причине.
       Запуски с recover не должны пересекаться: recover может повторно получить пакет,
       который ещё обрабатывает другой запуск. При возможном пересечении используйте внешнюю блокировку.
-    - Используйте clear_error=False вместе с recover=True, чтобы не помечать ошибочные
-      события в очереди и дополучать их через recover в следующих запусках.
     - Используйте clear_on_get=True для очистки события из очереди через event.offline.get.
       Это позволяет не делать отдельные запросы clear и error, ускоряя выполнение функции.
       При этом возможна потеря события при ошибке и дополучить через recover их не получится.
+    - Используйте clear_error=False вместе с recover=True, чтобы не помечать ошибочные
+      события в очереди и дополучать их через recover в следующих запусках.
 
     :param event_class: класс события.
     :param clear_on_get: очищать события через event.offline.get с clear=1.
@@ -138,8 +185,8 @@ def collect_offline_events(
         )
         summary = f"{summary}, {recovered_successful=}, {recovered_failed=}"
 
-    clear = int(clear_on_get)
-    result = token.call_api_method('event.offline.get', {'clear': clear})['result']
+    result = token.call_api_method('event.offline.get', {'clear': int(clear_on_get)})['result']
+
     collected_successful, collected_failed = receive_offline_events(
         event_class=event_class,
         result=result,
@@ -147,7 +194,9 @@ def collect_offline_events(
         clear_on_get=clear_on_get,
         clear_error=clear_error,
     )
+
     summary = f"{collected_successful=}, {collected_failed=}{summary}"
+
     return summary
 
 
@@ -169,6 +218,7 @@ def process_offline_events(event_model: Type[BaseBitrixEventModel], limit: int =
         bitrix_id = event.bitrix_id
         event_name = event.event_name
         log_message = f'{pk=}, {bitrix_id=}, {event_name=}'
+
         try:
             event.process_with_lock()
         except Exception as e:
@@ -179,6 +229,7 @@ def process_offline_events(event_model: Type[BaseBitrixEventModel], limit: int =
                 processed_skipped += 1
                 ilogger.warning('bitrix_event_process_skip', log_message, tag=log_tag)
                 continue
+
             processed_successful += 1
             ilogger.debug('bitrix_event_process_success', log_message, tag=log_tag)
 
