@@ -21,7 +21,7 @@ def receive_offline_events(
     :param clear_on_get: очищались ли события через event.offline.get с clear=1.
     :param clear_error: очищать событие из очереди при ошибке обработки (event.offline.error).
     """
-    log_tag = 'integration_utils.bitrix_events.functions.offline_events.handle_offline_events'
+    log_tag = 'integration_utils.bitrix_events.functions.offline_events.receive_offline_events'
 
     process_id = result['process_id']
     successful_message_ids = []
