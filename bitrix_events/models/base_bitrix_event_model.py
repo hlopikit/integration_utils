@@ -29,7 +29,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
     process_started_at = models.DateTimeField(null=True, blank=True, db_index=True)
     process_ended_at = models.DateTimeField(null=True, blank=True, db_index=True)
     success = models.BooleanField(null=True, blank=True, default=None, db_index=True)
-    error = models.TextField(blank=True, default='')
+    error = models.TextField(null=True, blank=True, default=None)
 
     class Meta:
         abstract = True
@@ -74,7 +74,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
                 process_started_at=process_started_at,
                 process_ended_at=None,
                 success=None,
-                error='',
+                error=None,
             )
         else:
             started = event_qs.filter(
@@ -83,7 +83,7 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
             ).update(
                 process_started_at=process_started_at,
                 success=None,
-                error='',
+                error=None,
             )
 
         if not started:
@@ -92,14 +92,14 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         self.process_started_at = process_started_at
         self.process_ended_at = None
         self.success = None
-        self.error = ''
+        self.error = None
 
         success = False
-        error = ''
+        error = None
         try:
             process_result = super().process()
         except Exception as e:
-            error = str(e)
+            error = f'{type(e).__name__}: {e}'
             raise
         else:
             success = True
