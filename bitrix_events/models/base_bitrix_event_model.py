@@ -41,14 +41,18 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
         readonly_fields = ['created_at', 'process_started_at', 'process_ended_at']
 
     def __init__(self, *args, **kwargs):
-        """Инициализирует Django-модель без конструктора BaseBitrixEventObject"""
+        """
+        Инициализирует Django-модель без конструктора BaseBitrixEventObject.
+        """
         models.Model.__init__(self, *args, **kwargs)
 
     def __str__(self) -> str:
         return f'[{self.pk}] {self.event_name}'
 
     def process(self) -> Any:
-        """Обработать событие"""
+        """
+        Обработать событие.
+        """
         return self.process_with_lock()
 
     def process_with_lock(self, force: bool = False) -> Any:
@@ -61,20 +65,21 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
 
         process_started_at = timezone.now()
         event_qs = type(self).objects.filter(pk=self.pk)
+
         if force:
-            updated = event_qs.update(
+            started = event_qs.update(
                 process_started_at=process_started_at,
                 process_ended_at=None,
             )
         else:
-            updated = event_qs.filter(
+            started = event_qs.filter(
                 process_started_at__isnull=True,
                 process_ended_at__isnull=True,
             ).update(
                 process_started_at=process_started_at,
             )
 
-        if not updated:
+        if not started:
             return None
 
         self.process_started_at = process_started_at
@@ -83,12 +88,19 @@ class BaseBitrixEventModel(BaseBitrixEventObject, models.Model):
             return super().process()
         finally:
             process_ended_at = timezone.now()
-            event_qs.update(process_ended_at=process_ended_at)
-            self.process_ended_at = process_ended_at
+            ended = event_qs.filter(
+                process_started_at=process_started_at
+            ).update(
+                process_ended_at=process_ended_at
+            )
+            if ended:
+                self.process_ended_at = process_ended_at
 
     @classmethod
     def from_bitrix_data(cls, data: Dict[str, Any]) -> "BaseBitrixEventModel":
-        """Создать или получить объект события в БД из словаря с Битрикс-данными"""
+        """
+        Создать или получить объект события в БД из словаря с Битрикс-данными.
+        """
         event, _ = cls.objects.get_or_create(
             bitrix_id=data['ID'],
             defaults={

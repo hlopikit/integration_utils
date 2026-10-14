@@ -23,7 +23,9 @@ class BaseBitrixEventObject:
         self.datetime = datetime
 
     def process(self) -> Any:
-        """Вызывает метод-обработчик по имени события"""
+        """
+        Вызвать метод-обработчик по имени события.
+        """
         handler = getattr(self, f'{self.event_name.lower()}_handler', None)
         if handler is None:
             raise NotImplementedError(f'Handler for {self.event_name} is not implemented')
@@ -31,10 +33,11 @@ class BaseBitrixEventObject:
 
     @classmethod
     def from_bitrix_data(cls, data: Dict[str, Any]) -> "BaseBitrixEventObject":
-        """Создать объект события из словаря с Битрикс-данными"""
+        """
+        Создать объект события из словаря с Битрикс-данными.
+        """
         return cls(
             event_name=data['EVENT_NAME'],
             data=data,
             datetime=isoparse(data['TIMESTAMP_X']),
         )
-

@@ -1,4 +1,3 @@
-from collections import Counter
 from typing import Any, Dict, Tuple, Type
 
 from integration_utils.bitrix24.models import BitrixUserToken
@@ -69,10 +68,14 @@ def recover_offline_events(
     :param clear_error: очищать событие из очереди при ошибке обработки (event.offline.error).
     """
     list_result = token.call_api_method('event.offline.list', {'filter': {'ERROR': 0}})['result']
-    recovered_processes = Counter(event['PROCESS_ID'] for event in list_result if event['PROCESS_ID'])
+    recovered_process_ids = dict.fromkeys(
+        event['PROCESS_ID']
+        for event in list_result
+        if event['PROCESS_ID']
+    )
 
     successful_total = failed_total = 0
-    for process_id, _ in recovered_processes.items():
+    for process_id in recovered_process_ids:
         clear = int(clear_on_get)
         result = token.call_api_method('event.offline.get', {
             'clear': clear, 'process_id': process_id
@@ -106,13 +109,17 @@ def collect_offline_events(
     - Запуск по умолчанию собирает и резервирует события через event.offline.get,
       успешно обработанные очищаются из очереди через event.offline.clear,
       а ошибочные помечаются в очереди через event.offline.error.
+      Резервирование через clear=0 требует возможности rest_offline_extended,
+      иначе Битрикс вернёт ошибку WRONG_LICENSE.
     - Используйте recover=True, чтобы перед основным сбором дополучить события,
       зарезервированные прошлым запуском, но не очищенные по какой-либо причине.
+      Запуски с recover не должны пересекаться: recover может повторно получить пакет,
+      который ещё обрабатывает другой запуск. При возможном пересечении используйте внешнюю блокировку.
     - Используйте clear_error=False вместе с recover=True, чтобы не помечать ошибочные
       события в очереди и дополучать их через recover в следующих запусках.
     - Используйте clear_on_get=True для очистки события из очереди через event.offline.get.
       Это позволяет не делать отдельные запросы clear и error, ускоряя выполнение функции.
-      При этом возможна потеря события при ошибке и дополучить через recover их не получиться.
+      При этом возможна потеря события при ошибке и дополучить через recover их не получится.
 
     :param event_class: класс события.
     :param clear_on_get: очищать события через event.offline.get с clear=1.
