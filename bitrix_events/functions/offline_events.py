@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Tuple, Type, overload
+from typing import Any, Dict, Tuple, Type
 
 from integration_utils.bitrix24.models import BitrixUserToken
 from integration_utils.bitrix_events.classes import BaseBitrixEventObject
@@ -22,7 +22,7 @@ def receive_offline_events(
     clear_error: bool = True
 ) -> Tuple[int, int]:
     """
-    Получить оффлайн-события, собранные через event.offline.get, и при необходимости их обработать.
+    Получить офлайн-события, собранные через event.offline.get, и при необходимости их обработать.
     :param event_class: класс события.
     :param result: результат метода event.offline.get.
     :param token: токен для обращения в Битрикс.
@@ -72,7 +72,7 @@ def recover_offline_events(
     clear_error: bool = True,
 ) -> Tuple[int, int]:
     """
-    Дособрать оффлайн-события, зарезервированные через event.offline.get, но не очищенные.
+    Дособрать офлайн-события, зарезервированные через event.offline.get, но не очищенные.
     :param event_class: класс события.
     :param token: токен для обращения в Битрикс.
     :param clear_on_get: очищать события через event.offline.get с clear=1.
@@ -117,7 +117,7 @@ def collect_offline_events(
     recover: bool = False,
 ) -> str:
     """
-    Собрать оффлайн-события.
+    Собрать офлайн-события.
     Для использования в приложении создайте крон-функцию без параметров (для cron_starter).
     В крон-функции вызовите collect_offline_events со своим классом события и нужными параметрами.
 
@@ -172,7 +172,7 @@ def collect_offline_events(
 
 def process_offline_events(event_model: Type[BaseBitrixEventModel], limit: int = 50) -> str:
     """
-    Обработать пачку модельных оффлайн-событий.
+    Обработать пачку модельных офлайн-событий.
     Для использования в приложении создайте крон-функцию без параметров (для cron_starter).
     В крон-функции вызовите process_offline_events со своей моделью события и нужным лимитом.
     :param event_model: модель события.

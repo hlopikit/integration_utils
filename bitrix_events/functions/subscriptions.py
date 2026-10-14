@@ -1,12 +1,18 @@
 from typing import Iterable, List
 
+from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
 
-from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
+__all__ = [
+    "change_subscriptions",
+    "bind_events",
+    "unbind_events",
+]
 
 
-def _change_subscriptions(method: str, events: Iterable[str]) -> BatchResultDict:
-    log_tag = 'integration_utils.bitrix_events.functions.subscriptions._change_subscriptions'
+def change_subscriptions(method: str, events: Iterable[str]) -> BatchResultDict:
+    """Изменить подписки на офлайн-события"""
+    log_tag = 'integration_utils.bitrix_events.functions.subscriptions.change_subscriptions'
 
     if isinstance(events, str):
         raise TypeError('events must be an iterable of event names, not a string')
@@ -38,9 +44,9 @@ def _change_subscriptions(method: str, events: Iterable[str]) -> BatchResultDict
 
 def bind_events(events: Iterable[str]) -> BatchResultDict:
     """Подписать приложение на список офлайн-событий"""
-    return _change_subscriptions('event.bind', events)
+    return change_subscriptions('event.bind', events)
 
 
 def unbind_events(events: Iterable[str]) -> BatchResultDict:
     """Отписать приложение от списка офлайн-событий"""
-    return _change_subscriptions('event.unbind', events)
+    return change_subscriptions('event.unbind', events)
