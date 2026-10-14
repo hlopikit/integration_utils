@@ -6,7 +6,7 @@ from integration_utils.bitrix_events.models import BaseBitrixEventModel
 from settings import ilogger
 
 
-def handle_offline_events(
+def receive_offline_events(
     event_class: Type[BaseBitrixEventObject],
     result: Dict[str, Any],
     token: 'BitrixUserToken',
@@ -14,7 +14,7 @@ def handle_offline_events(
     clear_error: bool = True
 ) -> Tuple[int, int]:
     """
-    Обработать оффлайн-события, полученные из event.offline.get.
+    Получить оффлайн-события, собранные через event.offline.get, и при необходимости их обработать.
     :param event_class: класс события.
     :param result: результат метода event.offline.get.
     :param token: токен для обращения в Битрикс.
@@ -61,7 +61,7 @@ def recover_offline_events(
     clear_error: bool = True,
 ) -> Tuple[int, int]:
     """
-    Дополучить оффлайн-события, зарезервированные через event.offline.get, но не очищенные.
+    Дособрать оффлайн-события, зарезервированные через event.offline.get, но не очищенные.
     :param event_class: класс события.
     :param token: токен для обращения в Битрикс.
     :param clear_on_get: очищать события через event.offline.get с clear=1.
@@ -80,7 +80,7 @@ def recover_offline_events(
         result = token.call_api_method('event.offline.get', {
             'clear': clear, 'process_id': process_id
         })['result']
-        successful, failed = handle_offline_events(
+        successful, failed = receive_offline_events(
             event_class=event_class,
             result=result,
             token=token,
@@ -140,7 +140,7 @@ def collect_offline_events(
 
     clear = int(clear_on_get)
     result = token.call_api_method('event.offline.get', {'clear': clear})['result']
-    collected_successful, collected_failed = handle_offline_events(
+    collected_successful, collected_failed = receive_offline_events(
         event_class=event_class,
         result=result,
         token=token,
@@ -154,6 +154,8 @@ def collect_offline_events(
 def process_offline_events(event_model: Type[BaseBitrixEventModel], limit: int = 50) -> str:
     """
     Обработать пачку модельных оффлайн-событий.
+    Для использования в приложении создайте крон-функцию без параметров (для cron_starter).
+    В крон-функции вызовите process_offline_events со своей моделью события и нужным лимитом.
     :param event_model: модель события.
     :param limit: максимальное число событий в пачке.
     """
