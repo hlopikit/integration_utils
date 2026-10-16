@@ -3,7 +3,7 @@ from __future__ import annotations, division
 
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, TYPE_CHECKING, TypeAlias
+from typing import Any, Optional, TYPE_CHECKING, Union
 
 from django.http import JsonResponse
 from django.utils import timezone
@@ -27,10 +27,10 @@ WEIRD_PAGINATION_METHODS = {
 ALLOWED_PARAMS_FOR_OPTIMIZATION_BY_ID = ('filter', 'select')
 FILTER_ID_KEYS = ('id', '@id')
 
-CallListFields: TypeAlias = dict[str, Any] | list[Any] | tuple[Any, ...] | None
-CallListResult: TypeAlias = list[Any] | dict[str, Any]
-CallListResultWithTotal: TypeAlias = tuple[CallListResult, dict[str, int]]
-CallListTimeout: TypeAlias = int | float | tuple[float, float] | None
+CallListFields = Optional[Union[dict[str, Any], list[Any], tuple[Any, ...]]]
+CallListResult = Union[list[Any], dict[str, Any]]
+CallListResultWithTotal = tuple[CallListResult, dict[str, int]]
+CallListTimeout = Optional[Union[int, float, tuple[float, float]]]
 
 # Подавляющее большинство списочных методов возвращает просто список,
 # но некоторые оборачивают результат, здесь перечислены такие случаи
@@ -80,8 +80,8 @@ class CallListException(Exception):
 
 def unwrap_batch_res(
         batch_res: BatchResultDict,
-        result: CallListResult | None = None,
-        wrapper: str | None = None,
+        result: Optional[CallListResult] = None,
+        wrapper: Optional[str] = None,
 ) -> CallListResult:
     """
     Собрать результаты batch_api_call в один список.
@@ -109,7 +109,7 @@ def unwrap_batch_res(
     return result
 
 
-def _check_filter_by_id_only(params: Any) -> tuple[str | None, str | None, list[Any] | None]:
+def _check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str], Optional[list[Any]]]:
     """
     Проверяет, можно ли разбить переданный список ID на batch-команды.
 
@@ -164,7 +164,7 @@ def _check_filter_by_id_only(params: Any) -> tuple[str | None, str | None, list[
 def _generate_filter_id_methods_for_batch(
         method: str,
         fields: dict[str, Any],
-        filter_key: str | None,
+        filter_key: Optional[str],
         filter_id_key: str,
         filter_ids: list[Any],
         batch_size: int,
@@ -340,17 +340,17 @@ def call_list_method(
         bx_token: BitrixUserToken,
         method: str,
         fields: CallListFields = None,
-        limit: int | None = None,
+        limit: Optional[int] = None,
         return_total: bool = False,
-        allowable_error: int | None = None,
+        allowable_error: Optional[int] = None,
         unwrap_batch_res_method: Callable[..., CallListResult] = unwrap_batch_res,
         timeout: CallListTimeout = DEFAULT_TIMEOUT,
-        force_total: int | None = None,
+        force_total: Optional[int] = None,
         log_prefix: str = '',
         batch_size: int = 50,
-        retry_settings: RetryDecorator | None = None,
+        retry_settings: Optional[RetryDecorator] = None,
         v: int = 0,
-) -> CallListResult | CallListResultWithTotal:
+) -> Union[CallListResult, CallListResultWithTotal]:
     """
     Выполнить списочный метод битрикс 24
 
