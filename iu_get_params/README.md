@@ -61,13 +61,15 @@ def save_items(request, items: list[dict[str, int]], page: int = 0):
 | `float` | Конечные числа `int`/`float` и числовые строки, например `"12.5"` |
 | `str` | Строки и числа `int`/`float`: `123` становится `"123"` |
 | `bool` | `True`, `False`, `1`, `0`, `1.0`, `0.0` и строки `"true"`, `"false"`, `"1"`, `"0"` |
-| `list[T]` | Последовательности, например list, tuple или range; элементы преобразуются в `T` |
+| `list[T]` | `list`, `tuple`, `range` и другие спископодобные `Sequence` |
 | `dict[str, T]` | Словари и другие `Mapping`; ключи и значения преобразуются по аннотациям |
 | `Optional[T]` / `T \| None` | Значение типа `T` либо `None` |
 | `Literal[...]` | Значение из перечисленных с совпадающим типом, например `'asc'` для `Literal['asc', 'desc']` |
 
 Преобразование работает рекурсивно: `list[dict[str, int]]`,
 `list[str | None]`, `dict[str, list[int]]`.
+Текстовые и бинарные последовательности `str`, `bytes`, `bytearray` и
+`memoryview` не принимаются как `list[T]`.
 
 Список в GET/POST передаётся JSON-массивом, например `?ids=[1,2,3]`.
 Для буквальных строк `true` или `null` используются JSON-кавычки:

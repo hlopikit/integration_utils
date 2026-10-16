@@ -114,8 +114,12 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
             )
 
             def structure_list_strict(value, target_type):
-                if not isinstance(value, Sequence) or isinstance(value, str):
-                    raise TypeError('expected a sequence, not a string')
+                value_is_list_like = (
+                    isinstance(value, Sequence)
+                    and not isinstance(value, (str, bytes, bytearray, memoryview))
+                )
+                if not value_is_list_like:
+                    raise TypeError('expected a list-like sequence')
                 return structure_list_items(value, target_type)
 
             return structure_list_strict
