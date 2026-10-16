@@ -220,7 +220,7 @@ class BitrixApiError(BitrixApiException):
     def is_authorization_error(self):
         """
         Ошибка авторизации. Может быть из-за увольнения/блокировки, может быть и по другим причинам.
-        TODO: Разобраться с REST_OAUTH_ERROR_LOGOUT_BEFORE в \Bitrix\Rest\OAuth\Auth::onRestCheckAuth.
+        TODO: Разобраться с REST_OAUTH_ERROR_LOGOUT_BEFORE в \\Bitrix\\Rest\\OAuth\\Auth::onRestCheckAuth.
         Пример: error='authorization_error', error_description='Unable to authorize user'
         """
         return self.error == AUTHORIZATION_ERROR
@@ -239,7 +239,7 @@ class BitrixApiError(BitrixApiException):
         """
         Сотрудник удалён с коробки, не подтвердил регистрацию или с пустым LAST_ACTIVITY_DATE или LAST_LOGIN_DATE.
         При упрощённом протоколе OAuth (через iframe) - может не упасть, если не удалён пользователь.
-        Код ядра: \Bitrix\Rest\OAuth\Auth::check -> !$accessChecker->canAuthorize()
+        Код ядра: \\Bitrix\\Rest\\OAuth\\Auth::check -> !$accessChecker->canAuthorize()
         Желательно перепроверять через user.get - возможно Битрикс что-то поменяет.
         Пример: error='ACCESS_DENIED', error_description='Current user can't be authorized in this context'
         """
@@ -563,12 +563,13 @@ class BitrixApiError(BitrixApiException):
         """Битрикс не смог добавить сообщение в чат."""
         return self.is_wrong_request and self.error_description == "Message isn't added"
 
-    def dict(self):
+    def dict(self, include_message=True):
         if isinstance(self.json_response, dict):
-            error = self.json_response
+            error = dict(self.json_response)
         else:
             error = dict(error=self.json_response)
-        error.setdefault('error_message', self.message)
+        if include_message:
+            error.setdefault('error_message', self.message)
         return error
 
     # def __str__(self):

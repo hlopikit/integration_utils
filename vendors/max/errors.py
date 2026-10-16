@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 
 def _lstrip_str(value: str, prefix: str) -> str:
@@ -22,7 +22,7 @@ class MaxError(Exception):
     def __str__(self) -> str:
         return self.message
 
-    def __reduce__(self) -> Tuple[type, Tuple[str, int | None, str | None, dict | None]]:
+    def __reduce__(self) -> Tuple[type, Tuple[str, Optional[int], Optional[str], Optional[dict]]]:
         return self.__class__, (self.message, self.status_code, self.error_code, self.response_data)
 
     @property
