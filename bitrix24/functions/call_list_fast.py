@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from operator import itemgetter
-from typing import Any, TYPE_CHECKING, TypeAlias
+from typing import Any, Optional, TYPE_CHECKING, Union
 
 from django.conf import settings
 
@@ -16,12 +16,12 @@ if TYPE_CHECKING:
     from ..models import BitrixUserToken
 
 
-ApiParams: TypeAlias = dict[str, Any]
-ApiEntity: TypeAlias = dict[str, Any]
-OrderFunction: TypeAlias = Callable[[bool], ApiParams]
-FilterFunction: TypeAlias = Callable[[int, int | None, str | None, bool], ApiParams]
-EntityIdGetter: TypeAlias = Callable[[ApiEntity], int | str]
-CallListFastTimeout: TypeAlias = int | float | tuple[float, float] | None
+ApiParams = dict[str, Any]
+ApiEntity = dict[str, Any]
+OrderFunction = Callable[[bool], ApiParams]
+FilterFunction = Callable[[int, Optional[int], Optional[str], bool], ApiParams]
+EntityIdGetter = Callable[[ApiEntity], Union[int, str]]
+CallListFastTimeout = Optional[Union[int, float, tuple[float, float]]]
 
 
 def _deep_merge(*dicts: ApiParams) -> ApiParams:
@@ -98,8 +98,8 @@ METHOD_TO_ORDER: dict[str, OrderFunction] = {
 
 def filter_id_upper(
     index: int,
-    last_id: int | None = None,
-    wrapper: str | None = None,
+    last_id: Optional[int] = None,
+    wrapper: Optional[str] = None,
     descending: bool = False,
 ) -> ApiParams:
     cmp = '<' if descending else '>'
@@ -116,8 +116,8 @@ def filter_id_upper(
 
 def filter_id_lower(
     index: int,
-    last_id: int | None = None,
-    wrapper: str | None = None,
+    last_id: Optional[int] = None,
+    wrapper: Optional[str] = None,
     descending: bool = False,
 ) -> ApiParams:
     cmp = '<' if descending else '>'
@@ -134,8 +134,8 @@ def filter_id_lower(
 
 def filter_id_mixed(
     index: int,
-    last_id: int | None = None,
-    wrapper: str | None = None,
+    last_id: Optional[int] = None,
+    wrapper: Optional[str] = None,
     descending: bool = False,
 ) -> ApiParams:  # У задач в результате `id`, а в запросе `ID`
     cmp = '<' if descending else '>'
@@ -247,23 +247,25 @@ def iter_result_by_filter_ids(
         tok: BitrixUserToken,
         method: str,
         params: ApiParams,
-        filter_key: str | None,
+        filter_key: Optional[str],
         filter_id_key: str,
         filter_ids: list[Any],
         order_by: ApiParams,
         id_fn: EntityIdGetter,
         descending: bool = False,
-        wrapper: str | None = None,
+        wrapper: Optional[str] = None,
         timeout: CallListFastTimeout = DEFAULT_TIMEOUT,
-        limit: int | None = None,
+        limit: Optional[int] = None,
         batch_size: int = 50,
         log_prefix: str = '',
-        retry_settings: RetryDecorator | None = None,
+        retry_settings: Optional[RetryDecorator] = None,
 ) -> Iterator[ApiEntity]:
     if limit is not None and limit <= 0:
         raise ValueError('limit must be greater than 0')
 
-    # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата
+    # Битрикс не принимает большие списки ID целиком, поэтому режем их на чанки.
+    # Функция вызывается только без других фильтров, которые помешали бы такому чанкованию.
+    # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата.
     filter_ids = sorted(filter_ids, key=int, reverse=descending)
     fields = _deep_merge(params, order_by)
     methods = _generate_filter_id_methods_for_batch(
@@ -309,13 +311,13 @@ def iter_result_by_filter_ids(
 def call_list_fast(
     tok: BitrixUserToken,
     method: str,
-    params: ApiParams | None = None,
+    params: Optional[ApiParams] = None,
     descending: bool = False,
     log_prefix: str = '',
     timeout: CallListFastTimeout = DEFAULT_TIMEOUT,
-    limit: int | None = None,
+    limit: Optional[int] = None,
     batch_size: int = 50,
-    retry_settings: RetryDecorator | None = None,
+    retry_settings: Optional[RetryDecorator] = None,
 ) -> Iterator[ApiEntity]:
     """Быстрое получение списочных записей
     с помощью batch method?start=-1
@@ -354,7 +356,7 @@ def call_list_fast(
     wrapper = METHOD_TO_WRAPPER.get(method)
     assert 1 <= batch_size <= 50
 
-    last_entity_id: int | None = None
+    last_entity_id: Optional[int] = None
     seen_entity_ids: set[int] = set()
 
     order_by = order_fn(descending)
@@ -365,7 +367,7 @@ def call_list_fast(
     if params is not None:
         params = _deep_merge(params)
 
-    # Фильтр только по ID разбиваем на batch-команды
+    # Фильтр только по ID разбиваем на batch-команды.
     filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(params)
 
     if filter_ids is not None:
@@ -373,6 +375,8 @@ def call_list_fast(
             return
 
         assert filter_id_key is not None
+        # Большой список ID, не принимаемый Битриксом целиком, можно чанковать только
+        # без других фильтров, которые помешали бы независимому выполнению чанков.
         yield from iter_result_by_filter_ids(
             tok=tok,
             method=method,

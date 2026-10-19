@@ -2,7 +2,7 @@
 import mimetypes
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Text, TypeAlias, TypedDict
+from typing import Any, Dict, List, Optional, Text, TypedDict, Union
 
 from .apihelper import Api
 from .util import is_pil_image, pil_image_to_bytes
@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 
-Update: TypeAlias = Dict[Text, Any]
+Update = Dict[Text, Any]
 
 
 class UpdatesResponse(TypedDict):
@@ -275,7 +275,10 @@ class Attachment(JsonDeserializable):
         raise ValueError(f"Unknown attachment type: {attachment_type}")
 
     @classmethod
-    def normalize_attachments(cls, attachments: List[Dict[str, Any]]) -> Optional[Dict[str, Any] | List[Dict[str, Any]]]:
+    def normalize_attachments(
+            cls,
+            attachments: List[Dict[str, Any]],
+    ) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
         normalized_attachments = [cls.from_dict(attachment).to_normalized_dict() for attachment in attachments]
         if not normalized_attachments:
             return None
