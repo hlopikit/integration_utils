@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from inspect import Parameter, signature
-from typing import Any, Callable, Literal, Optional, Type, TypeVar, Tuple, Union, get_args, get_origin, get_type_hints
+from typing import Any, Callable, Literal, Optional, Type, TypeVar, Tuple, Union, cast, get_args, get_origin, get_type_hints
 
 from django.http import JsonResponse, HttpRequest, HttpResponse, HttpResponseBadRequest
 
@@ -356,9 +356,18 @@ def expect_param_api(
         default=MISSING,  # type: Optional[ParamType]
         as_=None,  # type: Optional[str]
 ):  # type: (...) -> Callable[[ApiView], ApiView]
-    """Аналог @expect_param, но при ошибке отдает JsonResponse вместо HttpResponse
-    """
-    return expect_param(param, from_=from_, coerce=coerce, default=default, as_=as_, err=json_error_response)
+    """Аналог @expect_param, но при ошибке отдает JsonResponse вместо HttpResponse"""
+    return cast(
+        Any,
+        expect_param(
+            param,
+            from_=from_,
+            coerce=coerce,
+            default=default,
+            as_=as_,
+            err=json_error_response,
+        ),
+    )
 
 
 def expect_flag(
