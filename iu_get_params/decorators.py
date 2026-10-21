@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from inspect import Parameter, signature
-from typing import Any, Callable, Literal, Optional, Type, TypeVar, Tuple, Union, cast, get_args, get_origin, get_type_hints
+from typing import Any, Callable, Literal, Optional, Type, TypeVar, Tuple, Union, cast, get_args, get_origin, get_type_hints, overload
 
 from django.http import JsonResponse, HttpRequest, HttpResponse, HttpResponseBadRequest
 
@@ -41,8 +41,13 @@ class _MissingType:
 
 MISSING = _MissingType()
 
+@overload
+def expect_typed_params(*, source: str = 'its_params', api: Literal[False] = False) -> Callable[[View], View]: ...
 
-def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Callable[[View], View]:
+@overload
+def expect_typed_params(*, source: str = 'its_params', api: Literal[True]) -> Callable[[ApiView], ApiView]: ...
+
+def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Callable[[...], Union[ApiView, View]]:
     """Привести аннотированные аргументы view через cattrs.
 
     Аргументы, переданные Django позиционно или по имени, тоже преобразуются.
