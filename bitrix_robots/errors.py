@@ -18,5 +18,9 @@ class VerificationError(RobotException):
         super().__init__(message, 401)
 
 
+class VerificationWarning(VerificationError):
+    pass
+
+
 class DelayProcess(RobotException):
     pass
