@@ -6,30 +6,43 @@ import re
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from inspect import Parameter, signature
-from typing import Literal, get_args, get_origin, get_type_hints
+from typing import Any, Callable, Literal, Optional, Type, TypeVar, Tuple, Union, get_args, get_origin, get_type_hints
 
-from django.http import HttpResponse
-from django.http import HttpResponseBadRequest
-import six
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest, HttpResponse, HttpResponseBadRequest
 
 from .functions import bool_param, nullable_bool_param, json_error_response
 
 
-if not six.PY2:  # typing
-    from typing import Optional, Any, Callable, Union, TypeVar, Type, Tuple
-
-    ParamType = TypeVar('ParamType')
-    View = Callable[..., HttpResponse]
-    ApiView = Callable[..., JsonResponse]
-    CoerceFn = Union[Type[ParamType], Callable[[Any], ParamType]]
-    CoercePair = Tuple[CoerceFn, str]
-
-
-missing = object()
+__all__ = [
+    "expect_flag",
+    "expect_flag_api",
+    "expect_param",
+    "expect_param_api",
+    "expect_typed_params",
+]
 
 
-def expect_typed_params(*, source: str = 'its_params', api: bool = False):
+ParamType = TypeVar('ParamType')
+View = Callable[..., HttpResponse]
+ApiView = Callable[..., JsonResponse]
+CoerceFn = Union[Type[ParamType], Callable[[Any], ParamType]]
+CoercePair = Tuple[CoerceFn, str]
+StructureHook = Callable[[Any, Any], Any]
+
+
+class _MissingType:
+    """Sentinel type for values that are intentionally not provided."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "MISSING"
+
+
+MISSING = _MissingType()
+
+
+def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Callable[[View], View]:
     """Привести аннотированные аргументы view через cattrs.
 
     Аргументы, переданные Django позиционно или по имени, тоже преобразуются.
@@ -56,83 +69,84 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
             'expect_typed_params requires cattrs>=24.1.0'
         ) from import_error
 
-    def decorator(view):
-        converter = Converter(detailed_validation=True)
+    def decorator(view: View) -> View:
+        converter = Converter()
         view_signature = signature(view)
 
-        def structure_str(value, _):
+        def structure_str(value: Any, _: Type[str]) -> str:
             if type(value) not in (str, int, float):
                 raise TypeError('expected str or number')
             return str(value)
 
-        def structure_int(value, _):
+        def structure_int(value: Any, _: Type[int]) -> int:
             if type(value) is int:
                 return value
+
             if type(value) is float and value.is_integer():
                 return int(value)
+
             if isinstance(value, str) and re.fullmatch(r'[+-]?[0-9]+(?:\.0+)?', value):
                 return int(value.partition('.')[0])
+
             raise ValueError('expected int without a fractional part')
 
-        def structure_float(value, _):
+        def structure_float(value: Any, _: Type[float]) -> float:
             if type(value) not in (int, float, str):
                 raise TypeError('expected float')
-            invalid_float_format = (
-                isinstance(value, str)
-                and (value != value.strip() or '_' in value)
-            )
+
+            invalid_float_format = isinstance(value, str) and (value != value.strip() or '_' in value)
+
             if invalid_float_format:
                 raise TypeError('expected float')
+
             structured_value = float(value)
+
             if not math.isfinite(structured_value):
                 raise ValueError('expected finite float')
+
             return structured_value
 
-        def structure_bool(value, _):
+        def structure_bool(value: Any, _: Type[bool]) -> bool:
             if type(value) not in (bool, int, float, str):
                 raise TypeError('expected bool')
             return bool_param(value)
 
-        def strict_literal_structure_factory(literal_type):
+        def strict_literal_structure_factory(literal_type: Any) -> StructureHook:
             literal_values = get_args(literal_type)
 
-            def structure_literal(value, _):
+            def structure_literal(value: Any, _: Any) -> Any:
                 value_matches_literal = any(
                     type(value) is type(literal_value) and value == literal_value
                     for literal_value in literal_values
                 )
+
                 if not value_matches_literal:
                     raise ValueError(f'{value!r} is not a valid {literal_type}')
+
                 return value
 
             return structure_literal
 
-        def strict_list_structure_factory(list_type, current_converter):
-            structure_list_items = list_structure_factory(
-                list_type,
-                current_converter,
-            )
+        def strict_list_structure_factory(list_type: Any, current_converter: Converter) -> StructureHook:
+            structure_list_items = list_structure_factory(list_type, current_converter)
 
-            def structure_list_strict(value, target_type):
-                value_is_list_like = (
-                    isinstance(value, Sequence)
-                    and not isinstance(value, (str, bytes, bytearray, memoryview))
-                )
+            def structure_list_strict(value: Any, target_type: Any) -> list[Any]:
+                value_is_list_like = isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray, memoryview))
+
                 if not value_is_list_like:
                     raise TypeError('expected a list-like sequence')
+
                 return structure_list_items(value, target_type)
 
             return structure_list_strict
 
-        def strict_dict_structure_factory(dict_type, current_converter):
-            structure_dict_items = mapping_structure_factory(
-                dict_type,
-                current_converter,
-            )
+        def strict_dict_structure_factory(dict_type: Any, current_converter: Converter) -> StructureHook:
+            structure_dict_items = mapping_structure_factory(dict_type, current_converter)
 
-            def structure_dict_strict(value, target_type):
+            def structure_dict_strict(value: Any, target_type: Any) -> dict[Any, Any]:
                 if not isinstance(value, Mapping):
                     raise TypeError('expected mapping')
+
                 return structure_dict_items(value, target_type)
 
             return structure_dict_strict
@@ -161,6 +175,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
         for signature_param_name, signature_param in view_signature.parameters.items():
             param_is_request = signature_param_name == 'request'
             param_is_untyped = signature_param_name not in type_hints
+
             if param_is_request or param_is_untyped:
                 continue
 
@@ -174,6 +189,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
                 Parameter.VAR_POSITIONAL,
                 Parameter.VAR_KEYWORD,
             )
+
             if param_is_variadic:
                 continue
 
@@ -182,7 +198,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
 
             if signature_param.default is Parameter.empty:
                 # Не указан default в параметрах view.
-                signature_param_default = missing
+                signature_param_default = MISSING
             else:
                 # Указан default в параметрах view.
                 # Проверяем через structure_hook, что default подходит под type.
@@ -198,14 +214,15 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
         error_response = json_error_response if api else HttpResponseBadRequest
 
         @functools.wraps(view)
-        def decorated_view(request, *args, **kwargs):
+        def decorated_view(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
             source_params = getattr(request, source)
             bound_arguments = view_signature.bind_partial(request, *args, **kwargs)
+
             for param_name, param_type, param_structure_hook, param_default in typed_params:
                 if param_name in bound_arguments.arguments:
                     raw_value = bound_arguments.arguments[param_name]
                 elif param_name not in source_params:
-                    if param_default is missing:
+                    if param_default is MISSING:
                         return error_response(f'missing required {param_name} param')
                     bound_arguments.arguments[param_name] = deepcopy(param_default)
                     continue
@@ -222,12 +239,15 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False):
                     param_value = param_structure_hook(raw_value, param_type)
                 except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
                     error_messages = []
+
                     for error_message in transform_error(structure_error):
                         description, path_separator, path = error_message.rpartition(' @ $')
+
                         if path_separator:
                             error_messages.append(f'{param_name}{path}: {description}')
                         else:
                             error_messages.append(f'{param_name}: {error_message}')
+
                     return error_response('; '.join(error_messages))
 
                 bound_arguments.arguments[param_name] = param_value
@@ -243,7 +263,7 @@ def expect_param(
         param,  # type: str
         from_='its_params',  # type: str
         coerce=None,  # type: Union[CoerceFn, CoercePair, None]
-        default=missing,  # type: Optional[ParamType]
+        default=MISSING,  # type: Optional[ParamType]
         as_=None,  # type: Optional[str]
         err=HttpResponseBadRequest,  # type: Callable[[str], HttpResponse]
 ):  # type: (...) -> Callable[[View], View]
@@ -305,7 +325,7 @@ def expect_param(
         def decorated_view(request, *args, **kwargs):
             data = getattr(request, from_)
             if param not in data:
-                if default is not missing:
+                if default is not MISSING:
                     value = default
                 else:
                     msg = 'missing required {} param'.format(param)
@@ -333,19 +353,18 @@ def expect_param_api(
         param,  # type: str
         from_=u'its_params',  # type: str
         coerce=None,  # type: Union[CoerceFn, CoercePair, None]
-        default=missing,  # type: Optional[ParamType]
+        default=MISSING,  # type: Optional[ParamType]
         as_=None,  # type: Optional[str]
 ):  # type: (...) -> Callable[[ApiView], ApiView]
     """Аналог @expect_param, но при ошибке отдает JsonResponse вместо HttpResponse
     """
-    return expect_param(param, from_=from_, coerce=coerce, default=default,
-                        as_=as_, err=json_error_response)
+    return expect_param(param, from_=from_, coerce=coerce, default=default, as_=as_, err=json_error_response)
 
 
 def expect_flag(
         param,  # type: str
         from_='its_params',  # type: str
-        default=missing,  # type: Optional[ParamType]
+        default=MISSING,  # type: Optional[ParamType]
         null=False,  # type: bool
         as_=None,  # type: Optional[str]
 ):  # type: (...) -> Callable[[View], View]
@@ -356,14 +375,13 @@ def expect_flag(
         -> @expect_flag('my_flag', null=True, default=None)
     """
     coerce = nullable_bool_param if null else bool_param
-    return expect_param(param, coerce=coerce, from_=from_,
-                        default=default, as_=as_)
+    return expect_param(param, coerce=coerce, from_=from_, default=default, as_=as_)
 
 
 def expect_flag_api(
         param,  # type: str
         from_='its_params',  # type: str
-        default=missing,  # type: Optional[ParamType]
+        default=MISSING,  # type: Optional[ParamType]
         null=False,  # type: bool
         as_=None,  # type: Optional[str]
 ):  # type: (...) -> Callable[[ApiView], ApiView]
@@ -374,5 +392,4 @@ def expect_flag_api(
         -> @expect_flag_api('my_flag', null=True, default=None)
     """
     coerce = nullable_bool_param if null else bool_param
-    return expect_param_api(param, coerce=coerce, from_=from_,
-                            default=default, as_=as_)
+    return expect_param_api(param, coerce=coerce, from_=from_, default=default, as_=as_)
