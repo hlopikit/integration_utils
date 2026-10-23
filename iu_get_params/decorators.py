@@ -238,6 +238,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                         for member_type, member_structure_hook in member_hooks
                     ),
                     key=lambda member_hook: member_hook[0],
+                    reverse=True,
                 )
 
                 matching_structure_error = None
