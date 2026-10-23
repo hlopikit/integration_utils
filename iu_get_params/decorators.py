@@ -3,6 +3,7 @@ import functools
 import json
 import math
 import re
+import types
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from inspect import Parameter, signature
@@ -116,6 +117,11 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                 raise TypeError('expected bool')
             return bool_param(value)
 
+        def structure_none(value: Any, _: Type[None]) -> None:
+            if value is not None:
+                raise TypeError('expected null')
+            return None
+
         def strict_literal_structure_factory(literal_type: Any) -> StructureHook:
             literal_values = get_args(literal_type)
 
@@ -156,10 +162,79 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return structure_dict_strict
 
+        native_union_type = getattr(types, 'UnionType', None)
+
+        def is_union_type(candidate_type: Any) -> bool:
+            candidate_origin = get_origin(candidate_type)
+            return candidate_origin is Union or (
+                native_union_type is not None
+                and candidate_origin is native_union_type
+            )
+
+        def union_member_match_priority(value: Any, member_type: Any) -> int:
+            member_origin = get_origin(member_type)
+
+            if member_type is Any:
+                return 2
+
+            if member_origin is Literal:
+                value_matches_literal = any(
+                    type(value) is type(literal_value) and value == literal_value
+                    for literal_value in get_args(member_type)
+                )
+                return 0 if value_matches_literal else 2
+
+            runtime_type = member_origin or member_type
+
+            try:
+                if type(value) is runtime_type:
+                    return 0
+                if isinstance(value, runtime_type):
+                    return 1
+            except TypeError:
+                pass
+
+            return 2
+
+        def union_structure_factory(union_type: Any, current_converter: Converter) -> StructureHook:
+            member_structure_hooks = [
+                (member_type, current_converter.get_structure_hook(member_type))
+                for member_type in get_args(union_type)
+            ]
+
+            def structure_union(value: Any, _: Any) -> Any:
+                prioritized_member_hooks = sorted(
+                    (
+                        (
+                            union_member_match_priority(value, member_type),
+                            member_type,
+                            member_structure_hook,
+                        )
+                        for member_type, member_structure_hook in member_structure_hooks
+                    ),
+                    key=lambda member_hook: member_hook[0],
+                )
+                matching_structure_error = None
+
+                for match_priority, member_type, member_structure_hook in prioritized_member_hooks:
+                    try:
+                        return member_structure_hook(value, member_type)
+                    except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
+                        if match_priority < 2 and matching_structure_error is None:
+                            matching_structure_error = structure_error
+
+                if matching_structure_error is not None:
+                    raise matching_structure_error
+
+                raise ValueError(f'{value!r} does not match any type in {union_type}')
+
+            return structure_union
+
         converter.register_structure_hook(str, structure_str)
         converter.register_structure_hook(int, structure_int)
         converter.register_structure_hook(float, structure_float)
         converter.register_structure_hook(bool, structure_bool)
+        converter.register_structure_hook(type(None), structure_none)
         converter.register_structure_hook_factory(
             lambda candidate_type: get_origin(candidate_type) is Literal,
             strict_literal_structure_factory,
@@ -171,6 +246,10 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
         converter.register_structure_hook_factory(
             lambda candidate_type: get_origin(candidate_type) is dict,
             strict_dict_structure_factory,
+        )
+        converter.register_structure_hook_factory(
+            is_union_type,
+            union_structure_factory,
         )
 
         typed_params = []
