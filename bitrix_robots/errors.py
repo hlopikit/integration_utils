@@ -15,8 +15,8 @@ class RobotException(Exception):
 
 class VerificationError(RobotException):
     def __init__(self, message='Verification failed', is_not_logic_error=False):
-        """Ошибка проверки запроса робота.
-
+        """
+        Ошибка проверки запроса робота.
         :param message: Текст ошибки.
         :param is_not_logic_error: Считать причину внешней и логировать её как warning.
         """
