@@ -175,9 +175,11 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
         def union_member_match_priority(value: Any, member_type: Any) -> int:
             member_origin = get_origin(member_type)
 
+            # Any не описывает конкретный тип, поэтому проверяем его после явных совпадений.
             if member_type is Any:
                 return 2
 
+            # Для Literal должны одновременно совпасть значение и его тип: True не равен Literal[1].
             if member_origin is Literal:
                 value_matches_literal = any(
                     type(value) is type(literal_value) and value == literal_value
@@ -188,22 +190,28 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
             runtime_type = member_origin or member_type
 
             try:
+                # Точное совпадение сохраняет исходный тип, например str в Union[int, str].
                 if type(value) is runtime_type:
                     return 0
+                # Наследники и реализации базового типа идут перед преобразуемыми значениями.
                 if isinstance(value, runtime_type):
                     return 1
             except TypeError:
+                # Не у каждой typing-аннотации есть runtime-тип для проверки через isinstance.
                 pass
 
+            # Прямого совпадения нет: остаётся попытаться преобразовать значение этим hook.
             return 2
 
         def union_structure_factory(union_type: Any, current_converter: Converter) -> StructureHook:
+            # Получаем hooks один раз при создании декоратора, а не на каждом запросе.
             member_structure_hooks = [
                 (member_type, current_converter.get_structure_hook(member_type))
                 for member_type in get_args(union_type)
             ]
 
             def structure_union(value: Any, _: Any) -> Any:
+                # Стабильная сортировка сохраняет порядок аннотации внутри одного приоритета.
                 prioritized_member_hooks = sorted(
                     (
                         (
@@ -215,8 +223,10 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                     ),
                     key=lambda member_hook: member_hook[0],
                 )
+                # Если все варианты откажут, ошибка подходящей по типу ветки будет полезнее общей.
                 matching_structure_error = None
 
+                # Ошибка одной ветки не завершает проверку: значение может подойти другой ветке Union.
                 for match_priority, member_type, member_structure_hook in prioritized_member_hooks:
                     try:
                         return member_structure_hook(value, member_type)
@@ -227,6 +237,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                 if matching_structure_error is not None:
                     raise matching_structure_error
 
+                # Ни одна ветка не соответствовала исходному типу и не смогла преобразовать значение.
                 raise ValueError(f'{value!r} does not match any type in {union_type}')
 
             return structure_union
