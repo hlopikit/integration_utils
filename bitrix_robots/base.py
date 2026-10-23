@@ -15,7 +15,7 @@ from django.core.exceptions import ValidationError
 
 from integration_utils.bitrix24.types import ItsRequest
 from integration_utils.bitrix_parse import parse_flattened_keys
-from integration_utils.bitrix_robots.errors import VerificationError, VerificationWarning, DelayProcess
+from integration_utils.bitrix_robots.errors import VerificationError, DelayProcess
 from integration_utils.bitrix_robots.helpers import get_php_style_list
 from settings import ilogger
 
@@ -522,12 +522,9 @@ class BaseBitrixRobotModel(BaseBitrixRobotObject, models.Model):
 
                 try:
                     robot.verify_event()
-                except VerificationWarning as e:
-                    ilogger.warning(f'robot_verification_err_{cls_name}', f"({e}): {post_repr=}", tag=log_tag, exc_in_type=False)
-                    request.its_error_response = True
-                    return HttpResponse("Robot verification error", status=401)
                 except VerificationError as e:
-                    ilogger.error(f'robot_verification_err_{cls_name}', f"({e}): {post_repr=}", tag=log_tag, exc_in_type=False)
+                    log_method = ilogger.warning if e.is_not_logic_error else ilogger.error
+                    log_method(f'robot_verification_err_{cls_name}', f"({e}): {post_repr=}", tag=log_tag, exc_in_type=False)
                     request.its_error_response = True
                     return HttpResponse("Robot verification error", status=401)
 
