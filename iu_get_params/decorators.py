@@ -122,7 +122,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                 raise TypeError('expected null')
             return None
 
-        def strict_literal_structure_factory(literal_type: Any) -> StructureHook:
+        def literal_structure_factory(literal_type: Any) -> StructureHook:
             literal_values = get_args(literal_type)
 
             def structure_literal(value: Any, _: Any) -> Any:
@@ -138,7 +138,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return structure_literal
 
-        def strict_list_structure_factory(list_type: Any, current_converter: Converter) -> StructureHook:
+        def list_structure_factory(list_type: Any, current_converter: Converter) -> StructureHook:
             structure_list_items = list_structure_factory(list_type, current_converter)
 
             def structure_list_strict(value: Any, target_type: Any) -> list[Any]:
@@ -151,7 +151,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return structure_list_strict
 
-        def strict_dict_structure_factory(dict_type: Any, current_converter: Converter) -> StructureHook:
+        def dict_structure_factory(dict_type: Any, current_converter: Converter) -> StructureHook:
             structure_dict_items = mapping_structure_factory(dict_type, current_converter)
 
             def structure_dict_strict(value: Any, target_type: Any) -> dict[Any, Any]:
@@ -161,6 +161,18 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                 return structure_dict_items(value, target_type)
 
             return structure_dict_strict
+
+        def is_literal_type(candidate_type: Any) -> bool:
+            candidate_origin =  get_origin(candidate_type)
+            return candidate_origin is Literal
+
+        def is_list_type(candidate_type: Any) -> bool:
+            candidate_origin =  get_origin(candidate_type)
+            return candidate_origin is list
+
+        def is_dict_type(candidate_type: Any) -> bool:
+            candidate_origin =  get_origin(candidate_type)
+            return candidate_origin is dict
 
         # Вычисляем один раз, чтобы не вычислять при каждом использовании is_union_type
         native_union_type = getattr(types, 'UnionType', None)
@@ -247,22 +259,10 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
         converter.register_structure_hook(float, structure_float)
         converter.register_structure_hook(bool, structure_bool)
         converter.register_structure_hook(type(None), structure_none)
-        converter.register_structure_hook_factory(
-            lambda candidate_type: get_origin(candidate_type) is Literal,
-            strict_literal_structure_factory,
-        )
-        converter.register_structure_hook_factory(
-            lambda candidate_type: get_origin(candidate_type) is list,
-            strict_list_structure_factory,
-        )
-        converter.register_structure_hook_factory(
-            lambda candidate_type: get_origin(candidate_type) is dict,
-            strict_dict_structure_factory,
-        )
-        converter.register_structure_hook_factory(
-            is_union_type,
-            union_structure_factory,
-        )
+        converter.register_structure_hook_factory(is_literal_type, literal_structure_factory)
+        converter.register_structure_hook_factory(is_list_type, list_structure_factory)
+        converter.register_structure_hook_factory(is_dict_type, dict_structure_factory)
+        converter.register_structure_hook_factory(is_union_type, union_structure_factory)
 
         typed_params = []
         type_hints = get_type_hints(view, include_extras=True)
