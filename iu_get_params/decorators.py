@@ -162,6 +162,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return structure_dict_strict
 
+        # Вычисляем один раз, чтобы не вычислять при каждом использовании is_union_type
         native_union_type = getattr(types, 'UnionType', None)
 
         def is_union_type(candidate_type: Any) -> bool:
