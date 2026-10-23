@@ -138,7 +138,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return structure_literal
 
-        def list_structure_factory(list_type: Any, current_converter: Converter) -> StructureHook:
+        def strict_list_structure_factory(list_type: Any, current_converter: Converter) -> StructureHook:
             structure_list_items = list_structure_factory(list_type, current_converter)
 
             def structure_list_strict(value: Any, target_type: Any) -> list[Any]:
@@ -151,7 +151,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return structure_list_strict
 
-        def dict_structure_factory(dict_type: Any, current_converter: Converter) -> StructureHook:
+        def strict_dict_structure_factory(dict_type: Any, current_converter: Converter) -> StructureHook:
             structure_dict_items = mapping_structure_factory(dict_type, current_converter)
 
             def structure_dict_strict(value: Any, target_type: Any) -> dict[Any, Any]:
@@ -265,8 +265,8 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
         converter.register_structure_hook(bool, structure_bool)
         converter.register_structure_hook(type(None), structure_none)
         converter.register_structure_hook_factory(is_literal_type, literal_structure_factory)
-        converter.register_structure_hook_factory(is_list_type, list_structure_factory)
-        converter.register_structure_hook_factory(is_dict_type, dict_structure_factory)
+        converter.register_structure_hook_factory(is_list_type, strict_list_structure_factory)
+        converter.register_structure_hook_factory(is_dict_type, strict_dict_structure_factory)
         converter.register_structure_hook_factory(is_union_type, union_structure_factory)
 
         typed_params = []
