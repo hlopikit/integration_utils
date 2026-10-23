@@ -189,7 +189,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
             Вычисляем приоритет типа, входящего в Union.
             От этого зависит, в какой тип будем структурировать value.
             0 - тип value не соответствует member_type.
-            1 - тип value базируется на member_type.
+            1 - тип value является экземпляром member_type или его наследника.
             2 - тип value равен member_type.
             """
             if member_type is Any:
