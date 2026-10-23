@@ -6,11 +6,11 @@ from json.decoder import JSONDecodeError
 from django.http import JsonResponse
 
 
-# Декоратор который помогает собрать типовые входящие параметры
-# Приоритет такой GET -> POST -> request.body
-# какие бонусы это дает
-# Меньше кода, можно тестирвовать из гет строки в браузере
-# получить параметры можно из request.its_params.get(НАЗВАНИЕПАРАМЕТРА)
+# Декоратор, который помогает собрать типовые входящие параметры.
+# Приоритет такой GET -> POST -> request.body.
+# Какие бонусы это дает:
+# Меньше кода, можно тестировать из GET-строки в браузере.
+# Получить параметры можно из request.its_params.get(НАЗВАНИЕПАРАМЕТРА).
 
 def get_params_from_sources(function):
     @functools.wraps(function)
