@@ -57,6 +57,8 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
     умолчанию используется только при отсутствии ключа; явный null допустим
     лишь для Optional/Union с None (или Any). Ошибки возвращаются с HTTP 400;
     при ``api=True`` тело ответа имеет вид ``{"error": "..."}``.
+    Исходный текст GET/POST сохраняется для ``str``, а JSON разбирается только
+    тогда, когда он нужен аннотации контейнера, Literal или Union.
 
     Декоратор ставится под ``@get_params_from_sources`` для ``its_params``::
 
@@ -218,6 +220,42 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return 0
 
+        def structure_union_members(
+            value: Any,
+            union_type: Any,
+            member_hooks: list[tuple[Any, StructureHook]],
+        ) -> Any:
+            # Сортируем member_hooks по их приоритету (близости value к member_type).
+            prioritized_member_hooks = sorted(
+                (
+                    (
+                        union_member_match_priority(value, member_type),
+                        member_type,
+                        member_structure_hook,
+                    )
+                    for member_type, member_structure_hook in member_hooks
+                ),
+                key=lambda member_hook: member_hook[0],
+                reverse=True,
+            )
+
+            matching_structure_error = None
+
+            # Пытаемся структурировать value через member_hooks в порядке их приоритета.
+            for match_priority, member_type, member_structure_hook in prioritized_member_hooks:
+                try:
+                    return member_structure_hook(value, member_type)
+                except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
+                    if match_priority > 0 and matching_structure_error is None:
+                        # Сохраняем ошибку приоритетного member_hook.
+                        matching_structure_error = structure_error
+
+            if matching_structure_error is not None:
+                raise matching_structure_error
+
+            # Ни один member_type не совпал с value (приоритет у всех был 0).
+            raise ValueError(f'{value!r} does not match any type in {union_type}')
+
         def union_structure_factory(union_type: Any, current_converter: Converter) -> StructureHook:
             # Получаем member_hooks один раз при создании декоратора, а не на каждом запросе.
             # В данном случае под member имеются в виду типы внутри Union[].
@@ -227,36 +265,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
             ]
 
             def structure_union(value: Any, _: Any) -> Any:
-                # Сортируем member_hooks по их приоритету (близости value к member_type).
-                prioritized_member_hooks = sorted(
-                    (
-                        (
-                            union_member_match_priority(value, member_type),
-                            member_type,
-                            member_structure_hook,
-                        )
-                        for member_type, member_structure_hook in member_hooks
-                    ),
-                    key=lambda member_hook: member_hook[0],
-                    reverse=True,
-                )
-
-                matching_structure_error = None
-
-                # Пытаемся структурировать value через member_hooks в порядке их приоритета.
-                for match_priority, member_type, member_structure_hook in prioritized_member_hooks:
-                    try:
-                        return member_structure_hook(value, member_type)
-                    except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
-                        if match_priority > 0 and matching_structure_error is None:
-                            # Сохраняем ошибку приоритетного member_hook.
-                            matching_structure_error = structure_error
-
-                if matching_structure_error is not None:
-                    raise matching_structure_error
-
-                # Ни один member_type не совпал с value (приоритет у всех был 0).
-                raise ValueError(f'{value!r} does not match any type in {union_type}')
+                return structure_union_members(value, union_type, member_hooks)
 
             return structure_union
 
@@ -269,6 +278,87 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
         converter.register_structure_hook_factory(is_list_type, strict_list_structure_factory)
         converter.register_structure_hook_factory(is_dict_type, strict_dict_structure_factory)
         converter.register_structure_hook_factory(is_union_type, union_structure_factory)
+
+        def text_param_structure_factory(param_type: Any, structure_param: StructureHook) -> StructureHook:
+            param_origin = get_origin(param_type)
+
+            if param_type in (str, Any):
+                return structure_param
+
+            if param_origin in (list, dict):
+                def structure_json_container(value: str, target_type: Any) -> Any:
+                    try:
+                        json_value = json.loads(value)
+                    except json.JSONDecodeError:
+                        return structure_param(value, target_type)
+
+                    return structure_param(json_value, target_type)
+
+                return structure_json_container
+
+            if param_origin is Literal:
+                def structure_text_literal(value: str, target_type: Any) -> Any:
+                    try:
+                        json_value = json.loads(value)
+                    except json.JSONDecodeError:
+                        return structure_param(value, target_type)
+
+                    try:
+                        return structure_param(json_value, target_type)
+                    except (BaseValidationError, TypeError, ValueError, OverflowError) as json_structure_error:
+                        try:
+                            return structure_param(value, target_type)
+                        except (BaseValidationError, TypeError, ValueError, OverflowError):
+                            raise json_structure_error
+
+                return structure_text_literal
+
+            if is_union_type(param_type):
+                # Строковая ветка не должна принимать число или другой JSON-тип
+                # после разбора: при несовпадении ей передаётся исходный текст.
+                member_hooks = [
+                    (member_type, converter.get_structure_hook(member_type))
+                    for member_type in get_args(param_type)
+                ]
+                non_text_member_hooks = [
+                    (member_type, member_structure_hook)
+                    for member_type, member_structure_hook in member_hooks
+                    if member_type not in (str, Any)
+                ]
+
+                def structure_text_union(value: str, target_type: Any) -> Any:
+                    try:
+                        json_value = json.loads(value)
+                    except json.JSONDecodeError:
+                        return structure_param(value, target_type)
+
+                    if type(json_value) is str:
+                        json_member_hooks = member_hooks
+                    else:
+                        json_member_hooks = non_text_member_hooks
+
+                    try:
+                        return structure_union_members(json_value, param_type, json_member_hooks)
+                    except (BaseValidationError, TypeError, ValueError, OverflowError) as json_structure_error:
+                        try:
+                            return structure_param(value, target_type)
+                        except (BaseValidationError, TypeError, ValueError, OverflowError):
+                            raise json_structure_error
+
+                return structure_text_union
+
+            if param_type is type(None):
+                def structure_text_none(value: str, target_type: Any) -> Any:
+                    try:
+                        json_value = json.loads(value)
+                    except json.JSONDecodeError:
+                        return structure_param(value, target_type)
+
+                    return structure_param(json_value, target_type)
+
+                return structure_text_none
+
+            return structure_param
 
         typed_params = []
         type_hints = get_type_hints(view, include_extras=True)
@@ -297,6 +387,10 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             signature_param_type = type_hints[signature_param_name]
             signature_param_structure_hook = converter.get_structure_hook(signature_param_type)
+            signature_param_text_structure_hook = text_param_structure_factory(
+                signature_param_type,
+                signature_param_structure_hook,
+            )
 
             if signature_param.default is Parameter.empty:
                 # Не указан default в параметрах view.
@@ -310,6 +404,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                 signature_param_name,
                 signature_param_type,
                 signature_param_structure_hook,
+                signature_param_text_structure_hook,
                 signature_param_default,
             ))
 
@@ -317,12 +412,21 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
         @functools.wraps(view)
         def decorated_view(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-            source_params = getattr(request, source)
+            raw_source_params = getattr(request, 'its_raw_params', None)
+            source_uses_raw_params = source == 'its_params' and raw_source_params is not None
+            source_params = raw_source_params if source_uses_raw_params else getattr(request, source)
             bound_arguments = view_signature.bind_partial(request, *args, **kwargs)
 
-            for param_name, param_type, param_structure_hook, param_default in typed_params:
+            for (
+                param_name,
+                param_type,
+                param_structure_hook,
+                param_text_structure_hook,
+                param_default,
+            ) in typed_params:
                 if param_name in bound_arguments.arguments:
                     raw_value = bound_arguments.arguments[param_name]
+                    value_from_text_source = False
                 elif param_name not in source_params:
                     if param_default is MISSING:
                         return error_response(f'missing required {param_name} param')
@@ -330,15 +434,19 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                     continue
                 else:
                     raw_value = source_params[param_name]
-                    if source in ('GET', 'POST') and isinstance(raw_value, str):
-                        try:
-                            # Проверяем raw_value на наличие JSON-строки
-                            raw_value = json.loads(raw_value)
-                        except json.JSONDecodeError:
-                            pass
+                    value_from_text_source = isinstance(raw_value, str) and (
+                        source in ('GET', 'POST')
+                        or source_uses_raw_params and (
+                            param_name in request.GET
+                            or param_name in request.POST
+                        )
+                    )
                 try:
                     # Преобразуем и входные параметры, и аргументы самого вызова view
-                    param_value = param_structure_hook(raw_value, param_type)
+                    if value_from_text_source:
+                        param_value = param_text_structure_hook(raw_value, param_type)
+                    else:
+                        param_value = param_structure_hook(raw_value, param_type)
                 except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
                     error_messages = []
 

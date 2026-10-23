@@ -11,6 +11,7 @@ from django.http import JsonResponse
 # Какие бонусы это дает:
 # Меньше кода, можно тестировать из GET-строки в браузере.
 # Получить параметры можно из request.its_params.get(НАЗВАНИЕПАРАМЕТРА).
+# Исходные строки GET/POST сохраняются отдельно для типизированного декоратора.
 
 def get_params_from_sources(function):
     @functools.wraps(function)
@@ -34,19 +35,24 @@ def get_params_from_sources(function):
                     error='bad request, expected json object got %s' % t,
                 ), status=400)
 
+        raw_params = params.copy()
+
         for key, value in request.POST.items():
+            raw_params[key] = value
             try:
                 params[key] = json.loads(value)
             except JSONDecodeError:
                 params[key] = value
 
         for key, value in request.GET.items():
+            raw_params[key] = value
             try:
                 params[key] = json.loads(value)
             except JSONDecodeError:
                 params[key] = value
 
         request.its_params = params
+        request.its_raw_params = raw_params
         return function(request, *args, **kwargs)
 
     return _f
