@@ -220,7 +220,7 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
         def union_structure_factory(union_type: Any, current_converter: Converter) -> StructureHook:
             # Получаем member_hooks один раз при создании декоратора, а не на каждом запросе.
-            # В данном случае под member имеются ввиду типы внутри Union[].
+            # В данном случае под member имеются в виду типы внутри Union[].
             member_hooks = [
                 (member_type, current_converter.get_structure_hook(member_type))
                 for member_type in get_args(union_type)
