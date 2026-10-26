@@ -13,13 +13,17 @@ from django.http import JsonResponse, HttpRequest, HttpResponse, HttpResponseBad
 
 from .functions import bool_param, nullable_bool_param, json_error_response
 
-
 __all__ = [
     "expect_flag",
     "expect_flag_api",
     "expect_param",
     "expect_param_api",
     "expect_typed_params",
+    "CoerceFn",
+    "CoercePair",
+    "ParamType",
+    "MISSING",
+    "missing",
 ]
 
 
@@ -31,16 +35,17 @@ CoercePair = Tuple[CoerceFn, str]
 StructureHook = Callable[[Any, Any], Any]
 
 
-class _MissingType:
-    """Sentinel type for values that are intentionally not provided."""
-
-    __slots__ = ()
-
+class MissingType:
+    """
+    Специальный тип для нарочно не указанных параметров (Sentinel Object).
+    """
     def __repr__(self) -> str:
         return "MISSING"
 
 
-MISSING = _MissingType()
+# Используйте MISSING вместо missing.
+# Константа missing остаётся для обратной совместимости.
+missing = MISSING = MissingType()
 
 @overload
 def expect_typed_params(*, source: str = 'its_params', api: Literal[False] = False) -> Callable[[View], View]: ...
