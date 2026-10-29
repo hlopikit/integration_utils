@@ -3,6 +3,7 @@ import functools
 import json
 import math
 import re
+import types
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from inspect import Parameter, signature
@@ -12,13 +13,17 @@ from django.http import JsonResponse, HttpRequest, HttpResponse, HttpResponseBad
 
 from .functions import bool_param, nullable_bool_param, json_error_response
 
-
 __all__ = [
     "expect_flag",
     "expect_flag_api",
     "expect_param",
     "expect_param_api",
     "expect_typed_params",
+    "CoerceFn",
+    "CoercePair",
+    "ParamType",
+    "MISSING",
+    "missing",
 ]
 
 
@@ -30,16 +35,17 @@ CoercePair = Tuple[CoerceFn, str]
 StructureHook = Callable[[Any, Any], Any]
 
 
-class _MissingType:
-    """Sentinel type for values that are intentionally not provided."""
-
-    __slots__ = ()
-
+class MissingType:
+    """
+    Специальный тип для нарочно не указанных параметров (Sentinel Object).
+    """
     def __repr__(self) -> str:
         return "MISSING"
 
 
-MISSING = _MissingType()
+# Используйте MISSING вместо missing.
+# Константа missing остаётся для обратной совместимости.
+missing = MISSING = MissingType()
 
 @overload
 def expect_typed_params(*, source: str = 'its_params', api: Literal[False] = False) -> Callable[[View], View]: ...
@@ -116,7 +122,12 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
                 raise TypeError('expected bool')
             return bool_param(value)
 
-        def strict_literal_structure_factory(literal_type: Any) -> StructureHook:
+        def structure_none(value: Any, _: Type[None]) -> None:
+            if value is not None:
+                raise TypeError('expected null')
+            return None
+
+        def literal_structure_factory(literal_type: Any) -> StructureHook:
             literal_values = get_args(literal_type)
 
             def structure_literal(value: Any, _: Any) -> Any:
@@ -156,22 +167,113 @@ def expect_typed_params(*, source: str = 'its_params', api: bool = False) -> Cal
 
             return structure_dict_strict
 
+        def is_literal_type(candidate_type: Any) -> bool:
+            candidate_origin =  get_origin(candidate_type)
+            return candidate_origin is Literal
+
+        def is_list_type(candidate_type: Any) -> bool:
+            candidate_origin =  get_origin(candidate_type)
+            return candidate_origin is list
+
+        def is_dict_type(candidate_type: Any) -> bool:
+            candidate_origin =  get_origin(candidate_type)
+            return candidate_origin is dict
+
+        # Вычисляем один раз, чтобы не вычислять при каждом использовании is_union_type
+        native_union_type = getattr(types, 'UnionType', None)
+
+        def is_union_type(candidate_type: Any) -> bool:
+            candidate_origin = get_origin(candidate_type)
+            return candidate_origin is Union or (
+                native_union_type is not None
+                and candidate_origin is native_union_type
+            )
+
+        def union_member_match_priority(value: Any, member_type: Any) -> int:
+            """
+            Вычисляем приоритет типа, входящего в Union.
+            От этого зависит, в какой тип будем структурировать value.
+            0 - тип value не соответствует member_type.
+            1 - тип value является экземпляром member_type или его наследника.
+            2 - тип value равен member_type.
+            """
+            if member_type is Any:
+                return 0
+
+            member_origin = get_origin(member_type)
+
+            # Для Literal должны одновременно совпасть значение и его тип: True не равен Literal[1].
+            if member_origin is Literal:
+                value_matches_literal = any(
+                    type(value) is type(literal_value) and value == literal_value
+                    for literal_value in get_args(member_type)
+                )
+                return 2 if value_matches_literal else 0
+
+            runtime_type = member_origin or member_type
+
+            try:
+                if type(value) is runtime_type:
+                    return 2
+                if isinstance(value, runtime_type):
+                    return 1
+            except TypeError:
+                # Не у каждой typing-аннотации есть runtime-тип для проверки через isinstance.
+                pass
+
+            return 0
+
+        def union_structure_factory(union_type: Any, current_converter: Converter) -> StructureHook:
+            # Получаем member_hooks один раз при создании декоратора, а не на каждом запросе.
+            # В данном случае под member имеются в виду типы внутри Union[].
+            member_hooks = [
+                (member_type, current_converter.get_structure_hook(member_type))
+                for member_type in get_args(union_type)
+            ]
+
+            def structure_union(value: Any, _: Any) -> Any:
+                # Сортируем member_hooks по их приоритету (близости value к member_type).
+                prioritized_member_hooks = sorted(
+                    (
+                        (
+                            union_member_match_priority(value, member_type),
+                            member_type,
+                            member_structure_hook,
+                        )
+                        for member_type, member_structure_hook in member_hooks
+                    ),
+                    key=lambda member_hook: member_hook[0],
+                    reverse=True,
+                )
+
+                matching_structure_error = None
+
+                # Пытаемся структурировать value через member_hooks в порядке их приоритета.
+                for match_priority, member_type, member_structure_hook in prioritized_member_hooks:
+                    try:
+                        return member_structure_hook(value, member_type)
+                    except (BaseValidationError, TypeError, ValueError, OverflowError) as structure_error:
+                        if match_priority > 0 and matching_structure_error is None:
+                            # Сохраняем ошибку приоритетного member_hook.
+                            matching_structure_error = structure_error
+
+                if matching_structure_error is not None:
+                    raise matching_structure_error
+
+                # Ни один member_type не совпал с value (приоритет у всех был 0).
+                raise ValueError(f'{value!r} does not match any type in {union_type}')
+
+            return structure_union
+
         converter.register_structure_hook(str, structure_str)
         converter.register_structure_hook(int, structure_int)
         converter.register_structure_hook(float, structure_float)
         converter.register_structure_hook(bool, structure_bool)
-        converter.register_structure_hook_factory(
-            lambda candidate_type: get_origin(candidate_type) is Literal,
-            strict_literal_structure_factory,
-        )
-        converter.register_structure_hook_factory(
-            lambda candidate_type: get_origin(candidate_type) is list,
-            strict_list_structure_factory,
-        )
-        converter.register_structure_hook_factory(
-            lambda candidate_type: get_origin(candidate_type) is dict,
-            strict_dict_structure_factory,
-        )
+        converter.register_structure_hook(type(None), structure_none)
+        converter.register_structure_hook_factory(is_literal_type, literal_structure_factory)
+        converter.register_structure_hook_factory(is_list_type, strict_list_structure_factory)
+        converter.register_structure_hook_factory(is_dict_type, strict_dict_structure_factory)
+        converter.register_structure_hook_factory(is_union_type, union_structure_factory)
 
         typed_params = []
         type_hints = get_type_hints(view, include_extras=True)

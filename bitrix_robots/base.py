@@ -523,7 +523,8 @@ class BaseBitrixRobotModel(BaseBitrixRobotObject, models.Model):
                 try:
                     robot.verify_event()
                 except VerificationError as e:
-                    ilogger.error(f'robot_verification_err_{cls_name}', f"({e}): {post_repr=}", tag=log_tag, exc_in_type=False)
+                    log_method = ilogger.warning if e.is_not_logic_error else ilogger.error
+                    log_method(f'robot_verification_err_{cls_name}', f"({e}): {post_repr=}", tag=log_tag, exc_in_type=False)
                     request.its_error_response = True
                     return HttpResponse("Robot verification error", status=401)
 
