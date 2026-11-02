@@ -14,8 +14,18 @@ class RobotException(Exception):
 
 
 class VerificationError(RobotException):
-    def __init__(self, message='Verification failed'):
+    def __init__(self, message='Verification failed', is_not_logic_error=False):
+        """
+        Ошибка проверки запроса робота.
+        :param message: Текст ошибки.
+        :param is_not_logic_error: Считать причину внешней и логировать её как warning.
+        """
         super().__init__(message, 401)
+        self._is_not_logic_error = is_not_logic_error
+
+    @property
+    def is_not_logic_error(self):
+        return self._is_not_logic_error
 
 
 class DelayProcess(RobotException):

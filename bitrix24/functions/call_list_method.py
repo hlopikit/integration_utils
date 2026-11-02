@@ -134,6 +134,10 @@ def _check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str],
     excluded_iterable_types = (str, bytes, bytearray, Mapping)
 
     for filter_field, filter_value in filter_params.items():
+        if not isinstance(filter_field, str):
+            can_optimize_by_id = False
+            continue
+
         filter_field_lower = filter_field.lower()
         can_optimize_by_id = can_optimize_by_id and filter_field_lower in allowed_filter_fields
 
