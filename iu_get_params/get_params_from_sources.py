@@ -3,7 +3,7 @@ import json
 import functools
 from json.decoder import JSONDecodeError
 
-from django.http import JsonResponse
+from django.http import JsonResponse, RawPostDataException
 
 
 # Декоратор, который помогает собрать типовые входящие параметры.
@@ -17,7 +17,8 @@ def get_params_from_sources(function):
     def _f(request, *args, **kwargs):
         try:
             params = json.loads(request.body.decode('utf-8'))
-        except ValueError:
+        except (ValueError, RawPostDataException):
+            # CSRF-проверка может разобрать multipart-форму до вызова view.
             params = {}
         else:
             if params is None:
