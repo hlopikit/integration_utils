@@ -279,10 +279,12 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
         try:
             data = response.json()
         except JSONDecodeError as e:
-            ilogger.warning(
-                'response_json_decode_error', f"({e}): {domain=}, {response.text=}",
+            log_record = ilogger.warning(
+                'response_json_decode_error', f"({e}): {domain=}, {api_method=}, {response.status_code=}, {response.text=}",
                 exc_info=True, params=log_params, tag=log_tag,
             )
+            # Ответ возвращается вызывающему коду, который создаёт исключение API.
+            response.bitrix_error_log_record_id = getattr(log_record, 'id', None)
         except Exception as e:
             ilogger.error('response_json_exception', repr(e), params=log_params, tag=log_tag)
         else:
