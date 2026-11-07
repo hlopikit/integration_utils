@@ -2,6 +2,8 @@ import six
 from requests import Response
 from django.http import JsonResponse
 
+from typing import Optional
+
 STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
 
@@ -53,6 +55,19 @@ class BitrixApiException(Exception):
     @property
     def is_not_logic_error(self):
         return False
+
+    @property
+    def log_record_id(self) -> Optional[int]:
+        """
+        ID сохранённой записи лога этого исключения; None, если запись не создана.
+        Присваивать только после фактического сохранения лога. Если логгер вернул
+        None, оставлять поле пустым, чтобы следующий обработчик мог записать ошибку.
+        """
+        return getattr(self, '_log_record_id', None)
+
+    @log_record_id.setter
+    def log_record_id(self, value: Optional[int]) -> None:
+        self._log_record_id = value
 
 
 def get_bitrix_api_error(json_response, status_code, message=''):
