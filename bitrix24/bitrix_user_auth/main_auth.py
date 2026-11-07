@@ -2,18 +2,19 @@ from functools import wraps
 from urllib.parse import urlencode
 
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.core.signing import BadSignature
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 
 from integration_utils.bitrix24.bitrix_user_auth.authenticate_on_start_application import authenticate_on_start_application
 from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import get_bitrix_user_token_from_cookie, EmptyCookie
-from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_header import get_bitrix_user_token_from_header
+from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_header import get_bitrix_user_token_from_header, InvalidHeader
 from integration_utils.bitrix24.bitrix_user_auth.set_cookie import set_auth_cookie
-from integration_utils.bitrix24.exceptions import BitrixApiError
+from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiException
+from settings import ilogger
 
 
 _SAFE_REDIRECT_METHODS = {'GET', 'HEAD'}
@@ -46,9 +47,14 @@ def _cookie_auth_error_response(request):
 def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=False):
     # Для аутентификации пользователя портала
     # on_start - авторизация по первому входу из Битрикс24
-    # on_cookies - авторизация по кукам, для GET запросов
+    # on_cookies - авторизация по кукам для GET запросов; вместе с on_start данные запуска имеют приоритет, cookie используется без них
     # on_header - авторизация по токену, для POST запросов и других влияющих на данные
     # set_cookie - поставить куки в браузере для дальнейшей авторизации по on_cookies
+
+    def error_response(request, message, status, code, template='bitrix_auth_error.html'):
+        if on_header:
+            return JsonResponse({'error': code, 'error_description': message}, status=status)
+        return render(request, template, {'error_message': message}, status=status)
 
     def inner_main_auth(func):
         @csrf_exempt
@@ -56,20 +62,50 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
         @wraps(func)
         def wrapper(request, *args, **kwargs):
             # Основная процедура авторизации
-            if on_start:
-                try:
-                    authenticate_on_start_application(request=request)
-                except BitrixApiError as exc:
-                    if exc.is_invalid_token:
-                        return render(request, 'invalid_token_error.html', status=401)
-                    raise
-            if on_cookies:
-                try:
-                    get_bitrix_user_token_from_cookie(request)
-                except (BadSignature, EmptyCookie, ObjectDoesNotExist, ValueError):
-                    return _cookie_auth_error_response(request)
-            if on_header:
-                get_bitrix_user_token_from_header(request=request)
+            try:
+                if on_start and on_cookies:
+                    auth_cookie = f'b24app_auth_{settings.APP_SETTINGS.app_name}'
+                    has_launch_auth = request.POST.get('AUTH_ID') or request.POST.get('auth[access_token]')
+                    if has_launch_auth:
+                        authenticate_on_start_application(request=request)
+                    elif request.COOKIES.get(auth_cookie):
+                        try:
+                            get_bitrix_user_token_from_cookie(request)
+                        except (BadSignature, EmptyCookie, ObjectDoesNotExist, ValueError):
+                            response = error_response(
+                                request, 'Cookie авторизации недействителен или истёк.',
+                                401, 'invalid_cookie', 'invalid_cookie_error.html',
+                            )
+                            response.delete_cookie(auth_cookie, samesite='None')
+                            return response
+                    else:
+                        authenticate_on_start_application(request=request)
+                else:
+                    if on_start:
+                        authenticate_on_start_application(request=request)
+                    if on_cookies:
+                        try:
+                            get_bitrix_user_token_from_cookie(request)
+                        except (BadSignature, EmptyCookie, ObjectDoesNotExist, ValueError):
+                            if on_header:
+                                return error_response(request, 'Cookie авторизации отсутствует или недействителен.', 401, 'invalid_cookie')
+                            return _cookie_auth_error_response(request)
+                if on_header:
+                    try:
+                        get_bitrix_user_token_from_header(request=request)
+                    except (InvalidHeader, BadSignature, ObjectDoesNotExist, ValueError):
+                        return error_response(request, 'Токен в заголовке отсутствует или недействителен.', 401, 'invalid_token')
+            except PermissionDenied:
+                return error_response(request, 'Откройте приложение через портал Битрикс24.', 403, 'permission_denied')
+            except BitrixApiError as exc:
+                if exc.is_invalid_token:
+                    return error_response(request, exc.friendly_error, 401, 'invalid_token', 'invalid_token_error.html')
+                return error_response(request, exc.friendly_error, 502, 'bitrix_api_error')
+            except BitrixApiException as exc:
+                return error_response(request, exc.friendly_error, 502, 'bitrix_api_error')
+            except Exception as exc:
+                ilogger.error('bitrix_main_auth_error', str(exc))
+                return error_response(request, 'Внутренняя ошибка авторизации приложения.', 500, 'internal_auth_error')
 
             response = func(request, *args, **kwargs)
             if set_cookie:
