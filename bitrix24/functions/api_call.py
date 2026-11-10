@@ -100,6 +100,7 @@ def call_with_retries(url, converted_params,
                     converted_params=converted_params,
                     retries_on_503=retries_on_503 - 1,
                     sleep_on_503_time=sleep_on_503_time + 0.25,
+                    timeout=timeout,
                 )
             else:
                 ilogger.warn('retry_503_exceeded', '{}'.format(pformat(dict(
