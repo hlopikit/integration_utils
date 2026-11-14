@@ -2,6 +2,7 @@
 from typing import Optional, Any, Union, Dict, Generator, Tuple
 
 from django.conf import settings
+from django.views.decorators.debug import sensitive_variables
 
 from integration_utils.bitrix24.exceptions import ExpiredToken, get_bitrix_api_error, BitrixApiServerError
 from integration_utils.bitrix24.functions.api_call import api_call, api_call_v3
@@ -21,6 +22,7 @@ class BaseBitrixToken:
     def get_auth(self):
         return (self.web_hook_auth or self.auth_token), bool(self.web_hook_auth)
 
+    @sensitive_variables()
     def call_api_method(
             self,
             api_method: str,
@@ -28,6 +30,7 @@ class BaseBitrixToken:
             timeout: Optional[int] = DEFAULT_TIMEOUT,
             retry_settings: Optional[RetryDecorator] = None,
     ) -> dict:
+        @sensitive_variables()
         def _call_method() -> dict:
             auth, webhook = self.get_auth()
             response = api_call(
