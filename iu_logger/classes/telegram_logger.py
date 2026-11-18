@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from html import escape
 from threading import Condition
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from integration_utils.vendors.telegram import Bot
 from integration_utils.vendors.telegram.utils.request import Request
@@ -25,17 +25,15 @@ class TelegramLogger:
     level — минимальный уровень, по умолчанию DEBUG.
     timeout — таймаут запроса к Bot API, секунды.
     name — подпись в тексте. Если пусто, подставится модуль вызывающего кода.
-    telegram_api_base_url — адрес Bot API.
-        По умолчанию https://api.telegram.org/bot.
-    max_queue_size — сколько неотправленных сообщений держать.
-        Дальше новые пропускаются.
+    telegram_api_base_url — адрес Bot API. По умолчанию https://api.telegram.org/bot.
+    max_queue_size — сколько неотправленных сообщений держать. Дальше новые пропускаются.
     """
 
     def __init__(
         self,
         token: str,
         chat_id: Union[int, str],
-        usernames: Union[List[str], Tuple[str, ...]],
+        usernames: Iterable[str],
         topics: Optional[Dict[int, Optional[int]]] = None,
         level: int = logging.DEBUG,
         timeout: float = 10,
@@ -43,18 +41,24 @@ class TelegramLogger:
         telegram_api_base_url: str = 'https://api.telegram.org/bot',
         max_queue_size: int = 100,
     ):
-        if not isinstance(token, str) or not token.strip():
+        if not (isinstance(token, str) and token.strip()):
             raise ValueError('token is required')
+
         if not chat_id:
             raise ValueError('chat_id is required')
-        if not isinstance(usernames, (list, tuple)):
-            raise TypeError('usernames must be a list or tuple')
+
+        if not isinstance(usernames, Iterable):
+            raise TypeError('usernames must be a iterable')
+
         if not all(isinstance(user, str) and user.lstrip('@').strip() for user in usernames):
             raise ValueError('usernames must contain non-empty strings')
+
         if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
             raise ValueError('timeout must be a positive finite number')
+
         if not telegram_api_base_url:
             raise ValueError('telegram_api_base_url is required')
+
         if not isinstance(max_queue_size, int) or isinstance(max_queue_size, bool) or max_queue_size < 1:
             raise ValueError('max_queue_size must be a positive integer')
 
@@ -93,8 +97,10 @@ class TelegramLogger:
             return None
 
         frame = inspect.currentframe()
+
         try:
             frame = frame.f_back
+
             while frame and frame.f_code.co_filename == __file__:
                 frame = frame.f_back
 
@@ -127,6 +133,7 @@ class TelegramLogger:
         with self._lock:
             if self._closed:
                 return None
+
             if self._pending >= self.max_queue_size:
                 warnings.warn(
                     'TelegramLogger queue is full, message dropped',
@@ -142,17 +149,21 @@ class TelegramLogger:
                 )
 
             self._pending += 1
+
             try:
                 self._executor.submit(self._deliver, messages, self.topics.get(level))
             except RuntimeError as exc:
                 self._pending -= 1
+
                 if not self._pending:
                     self._lock.notify_all()
+
                 warnings.warn(
                     'TelegramLogger enqueue failed: ' + type(exc).__name__,
                     RuntimeWarning,
                     stacklevel=2,
                 )
+
                 return None
 
     def flush(self):
@@ -167,6 +178,7 @@ class TelegramLogger:
         wait=True дожидается очереди.
         wait=False отменяет ещё не начатые сообщения и возвращается сразу.
         """
+
         with self._lock:
             self._closed = True
             executor = self._executor
@@ -177,10 +189,11 @@ class TelegramLogger:
 
         if wait:
             self.flush()
-            executor.shutdown(wait=True)
+            executor.shutdown()
             return
 
         executor.shutdown(wait=False, cancel_futures=True)
+
         with self._lock:
             self._pending = 0
             self._lock.notify_all()
@@ -194,6 +207,7 @@ class TelegramLogger:
         exception: Optional[str],
     ) -> List[str]:
         module, path, function, line = caller
+
         sections = [
             ('Level', '#' + logging.getLevelName(level), '', ''),
             ('Logger', self.name or module, '<code>', '</code>'),
@@ -203,6 +217,7 @@ class TelegramLogger:
             ('Function', function, '<code>', '</code>'),
             ('Line', line, '', ''),
         ]
+
         if exception:
             sections.append((
                 'Exception',
@@ -210,6 +225,7 @@ class TelegramLogger:
                 '<pre><code class="language-python">',
                 '</code></pre>',
             ))
+
         if context is not None:
             # json.dumps падает на циклической ссылке. Тогда в лог уходит обычный текст
             try:
@@ -219,28 +235,35 @@ class TelegramLogger:
                     context_text = str(context)
                 except Exception:
                     context_text = '<unprintable context>'
+
             sections.append((
                 'Extra fields',
                 context_text,
                 '<pre><code class="language-json">',
                 '</code></pre>',
             ))
+
         if level in (logging.ERROR, logging.CRITICAL) and self.usernames:
             sections.append(('', ' '.join(self.usernames), '', ''))
 
-        messages, current = [], ''
+        messages = []
+        current = ''
         current_size = 0
+
         for label, text, opening, closing in sections:
             text = str(text)
+
             for start in range(0, len(text), 1800):
                 chunk = text[start:start + 1800]
+
                 if label:
-                    block = '<b>{}:</b>\n'.format(label) + opening + escape(chunk) + closing
+                    block = f'<b>{label}:</b>\n' + opening + escape(chunk) + closing
                 else:
                     block = opening + escape(chunk) + closing
 
                 # Длина для Bot API считается в UTF-16, лимит сообщения — 4096
                 block_size = len(chunk.encode('utf-16-le')) // 2
+
                 if label:
                     block_size += len(label) + 2
 
@@ -261,6 +284,7 @@ class TelegramLogger:
 
         if current:
             messages.append(current)
+
         return messages
 
     def _deliver(self, messages: List[str], topic: Optional[int]):
@@ -274,6 +298,7 @@ class TelegramLogger:
                         read_timeout=self.timeout,
                     ),
                 )
+
             for text in messages:
                 self._bot.send_message(
                     chat_id=self.chat_id,
@@ -282,12 +307,14 @@ class TelegramLogger:
                     message_thread_id=topic or None,
                     timeout=self.timeout,
                 )
+
         except Exception as exc:
             warnings.warn(
                 'TelegramLogger delivery failed: ' + type(exc).__name__,
                 RuntimeWarning,
                 stacklevel=2,
             )
+
         finally:
             with self._lock:
                 if self._pending:
