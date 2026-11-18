@@ -18,7 +18,7 @@ from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from integration_utils.retry_utils import RetryDecorator
 from settings import ilogger
-from integration_utils.bitrix24.functions._log_metadata import _response_log_metadata
+from integration_utils.bitrix24.functions._log_metadata import _error_code, _response_log_metadata
 
 if typing.TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUser
@@ -83,7 +83,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         (USER_CANT_BE_AUTHORIZED_IN_CONTEXT, 'Пользователь удалён или не подтверждён (USER_CANT_BE_AUTHORIZED_IN_CONTEXT)'),
     )
 
-    AUTH_COOKIE_MAX_AGE = None   # as long as the client’s browser session
+    AUTH_COOKIE_MAX_AGE = None   # До завершения сеанса браузера пользователя.
     # можно переопределить домен для REST методов для кластеров
     rest_domain = getattr(settings, 'REST_DOMAIN', None)
     domain = rest_domain or settings.APP_SETTINGS.portal_domain
@@ -251,7 +251,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         return result_token
 
-    @sensitive_variables()
+    @sensitive_variables('self', 'params', 'url', 'response_json', 'error')
     def refresh(self, timeout=60, check_api_call=True):
         """
         Если успешно обновился токен, то возвращаем True.
@@ -289,7 +289,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         except requests.RequestException as e:
             raise BitrixOauthRefreshRequestException(requests_exception=e) from None
 
-        log_message = f'token_id={self.pk}, {_response_log_metadata(response)}'
+        log_message = f"token_id={self.pk}, {_response_log_metadata(response)}"
 
         if response.status_code >= 500:
             ilogger.warning('refresh_token_error_gte500', log_message, tag=log_tag)
@@ -312,7 +312,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         if error:
             error_name = error if error in ('wrong_client', 'expired_token', 'invalid_grant', 'NOT_INSTALLED', 'PAYMENT_REQUIRED') else 'unknown'
-            ilogger.warning(f'refresh_token_error_{error_name}', log_message, tag=log_tag)
+            ilogger.warning(f'refresh_token_error_{error_name}', f"{log_message}, error={_error_code(error)}", tag=log_tag)
             if error == 'wrong_client':
                 self.refresh_error = self.WRONG_CLIENT
             elif error == 'expired_token':
@@ -365,7 +365,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
             except (BitrixConnectionError, BitrixTimeout) as e:
                 # Считаем, что одиночная проблема с соединением/таймаутом
-                ilogger.debug('refresh_token_profile_bitrix_unavailable', f"({e}): self={self}", exc_info=True, tag=log_tag)
+                ilogger.debug(f'refresh_token_profile_bitrix_unavailable_{type(e).__name__}', f"token_id={self.pk}, error_type={type(e).__name__}", exc_info=False, tag=log_tag)
 
         ilogger.debug('refresh_token', log_message, tag=log_tag)
 
@@ -402,7 +402,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         raise ExpiredToken()
 
-    @sensitive_variables()
+    @sensitive_variables('self', 'params')
     def call_api_method(
             self,
             api_method: str,
@@ -442,6 +442,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
             self.refresh_error = refresh_error
             self.save(force_update=True)
 
+    @sensitive_variables('self', 'methods')
     def batch_api_call(
             self,
             methods: typing.Union[list, dict],
