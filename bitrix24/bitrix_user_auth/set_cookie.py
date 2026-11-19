@@ -4,7 +4,7 @@ from six.moves.http_cookies import CookieError
 
 AUTH_COOKIE_MAX_AGE = 30 * 60
 
-def set_auth_cookie(response, user_token_sig=None):
+def set_auth_cookie(response, user_token_sig=None, max_age=AUTH_COOKIE_MAX_AGE):
     app_name = settings.APP_SETTINGS.app_name
     cookie_template = 'b24app_auth_{}'
 
@@ -27,7 +27,7 @@ def set_auth_cookie(response, user_token_sig=None):
     response.set_cookie(
         cookie_key,
         user_token_sig,
-        max_age=AUTH_COOKIE_MAX_AGE,
+        max_age=max_age,
 
         # required for chrome
         secure=True,
