@@ -2,9 +2,11 @@ import django
 from django.conf import settings
 from six.moves.http_cookies import CookieError
 
-AUTH_COOKIE_MAX_AGE = 30 * 60
 
-def set_auth_cookie(response, user_token_sig=None, max_age=AUTH_COOKIE_MAX_AGE):
+def set_auth_cookie(response, user_token_sig=None, max_age=None):
+    if max_age is None:
+        max_age = getattr(settings, 'AUTH_COOKIE_MAX_AGE', 30 * 60)
+
     app_name = settings.APP_SETTINGS.app_name
     cookie_template = 'b24app_auth_{}'
 

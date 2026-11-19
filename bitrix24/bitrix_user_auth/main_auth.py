@@ -1,5 +1,5 @@
 import time
-from functools import wraps
+from functools import partial, wraps
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from integration_utils.bitrix24.bitrix_user_auth.authenticate_on_start_application import authenticate_on_start_application
 from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import get_bitrix_user_token_from_cookie, EmptyCookie
 from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_header import get_bitrix_user_token_from_header, InvalidHeader
-from integration_utils.bitrix24.bitrix_user_auth.set_cookie import set_auth_cookie, AUTH_COOKIE_MAX_AGE
+from integration_utils.bitrix24.bitrix_user_auth.set_cookie import set_auth_cookie
 from integration_utils.bitrix24.exceptions import BitrixApiError, BitrixApiException
 from settings import ilogger
 
@@ -36,14 +36,14 @@ def _marketplace_auth_redirect(request):
     return HttpResponseRedirect(f'{marketplace_url}?{urlencode({"return_to": request.get_full_path()})}')
 
 
-def _try_recent_signature(request, signature, load_token):
-    """Проверяет, что подписи не больше 30 минут, и находит по ней пользователя."""
+def _try_recent_signature(request, signature, load_token, max_age):
+    """Проверяет, что подпись не старше max_age, и находит по ней пользователя."""
     if not signature:
         return False
 
     signer = TimestampSigner(key=settings.APP_SETTINGS.secret_key)
     try:
-        signer.unsign(signature, max_age=AUTH_COOKIE_MAX_AGE)
+        signer.unsign(signature, max_age=max_age)
         load_token(request)
     except (InvalidHeader, EmptyCookie, BadSignature, ObjectDoesNotExist, ValueError):
         return False
@@ -59,12 +59,15 @@ def _cookie_auth_error_response(request):
     return render(request, 'empty_cookie_error.html', status=401)
 
 
-def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=False):
+def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=False, cookie_max_age=None):
     # Для аутентификации пользователя портала
     # on_start - авторизация по первому входу из Битрикс24
     # on_cookies - авторизация по кукам для GET запросов; вместе с on_start данные запуска имеют приоритет, cookie используется без них
     # on_header - авторизация по токену, для POST запросов и других влияющих на данные
     # set_cookie - поставить куки в браузере для дальнейшей авторизации по on_cookies
+    # cookie_max_age - срок cookie в секундах. Если не передан: settings.AUTH_COOKIE_MAX_AGE, иначе 30 минут.
+    if cookie_max_age is None:
+        cookie_max_age = getattr(settings, 'AUTH_COOKIE_MAX_AGE', 30 * 60)
 
     def error_response(request, message, status, code, template='bitrix_auth_error.html'):
         if on_header:
@@ -84,9 +87,9 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
                     header_signature = request.headers.get('X-Bitrix-Signed-Token')
                     cookie_signature = request.COOKIES.get(cookie_name)
 
-                    if _try_recent_signature(request, header_signature, get_bitrix_user_token_from_header):
+                    if _try_recent_signature(request, header_signature, get_bitrix_user_token_from_header, cookie_max_age):
                         saved_signature = header_signature
-                    elif _try_recent_signature(request, cookie_signature, get_bitrix_user_token_from_cookie):
+                    elif _try_recent_signature(request, cookie_signature, partial(get_bitrix_user_token_from_cookie, max_age=cookie_max_age), cookie_max_age):
                         saved_signature = cookie_signature
                     else:
                         authenticate_on_start_application(request=request)
@@ -97,7 +100,7 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
                         authenticate_on_start_application(request=request)
                     elif request.COOKIES.get(auth_cookie):
                         try:
-                            get_bitrix_user_token_from_cookie(request)
+                            get_bitrix_user_token_from_cookie(request, max_age=cookie_max_age)
                         except (BadSignature, EmptyCookie, ObjectDoesNotExist, ValueError):
                             response = error_response(
                                 request, 'Cookie авторизации недействителен или истёк.',
@@ -112,7 +115,7 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
                         authenticate_on_start_application(request=request)
                     if on_cookies:
                         try:
-                            get_bitrix_user_token_from_cookie(request)
+                            get_bitrix_user_token_from_cookie(request, max_age=cookie_max_age)
                         except (BadSignature, EmptyCookie, ObjectDoesNotExist, ValueError):
                             if on_header:
                                 return error_response(request, 'Cookie авторизации отсутствует или недействителен.', 401, 'invalid_cookie')
@@ -139,10 +142,10 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
                 if saved_signature:
                     # Формат TimestampSigner: значение, время в base62, подпись.
                     signed_at = b62_decode(saved_signature.rsplit(':', 2)[1])
-                    seconds_left = max(1, int(AUTH_COOKIE_MAX_AGE - (time.time() - signed_at)))
+                    seconds_left = max(1, int(cookie_max_age - (time.time() - signed_at)))
                     response = set_auth_cookie(response, saved_signature, max_age=seconds_left)
                 else:
-                    response = set_auth_cookie(response, request.bitrix_user_token.signed_pk())
+                    response = set_auth_cookie(response, request.bitrix_user_token.signed_pk(), max_age=cookie_max_age)
             return response
         return wrapper
     return inner_main_auth
