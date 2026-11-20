@@ -3,7 +3,10 @@ from django.conf import settings
 from six.moves.http_cookies import CookieError
 
 
-def set_auth_cookie(response, user_token_sig=None):
+def set_auth_cookie(response, user_token_sig=None, max_age=None):
+    if max_age is None:
+        max_age = getattr(settings, 'AUTH_COOKIE_MAX_AGE', 30 * 60)
+
     app_name = settings.APP_SETTINGS.app_name
     cookie_template = 'b24app_auth_{}'
 
@@ -26,7 +29,7 @@ def set_auth_cookie(response, user_token_sig=None):
     response.set_cookie(
         cookie_key,
         user_token_sig,
-        max_age=7*24*3600,
+        max_age=max_age,
 
         # required for chrome
         secure=True,

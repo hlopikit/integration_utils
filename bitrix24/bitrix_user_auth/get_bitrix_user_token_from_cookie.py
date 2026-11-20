@@ -7,12 +7,15 @@ class EmptyCookie(Exception):
     pass
 
 
-def get_bitrix_user_token_from_cookie(request):
+def get_bitrix_user_token_from_cookie(request, max_age=None):
+    if max_age is None:
+        max_age = getattr(settings, 'AUTH_COOKIE_MAX_AGE', 30 * 60)
+
     auth_cookie = 'b24app_auth_{}'.format(settings.APP_SETTINGS.app_name)
     bitrix_user_token_signed_pk = request.COOKIES.get(auth_cookie)
 
     if bitrix_user_token_signed_pk:
-        request.bitrix_user_token = BitrixUserToken.get_by_signed_pk(bitrix_user_token_signed_pk)
+        request.bitrix_user_token = BitrixUserToken.get_by_signed_pk(bitrix_user_token_signed_pk, max_age=max_age)
         request.bitrix_user = request.bitrix_user_token.user
         request.bitrix_user_is_new = False
         return request.bitrix_user_token
