@@ -8,6 +8,8 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 from django.http import JsonResponse
 from django.utils import timezone
 
+from integration_utils.bitrix24.functions._log_metadata import _batch_error_codes
+
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
@@ -65,6 +67,14 @@ class CallListException(Exception):
         super(CallListException, self).__init__(*args)
         self.error = args[0] if args else None
 
+    def __str__(self):
+        if isinstance(self.error, Mapping):
+            return str(_batch_error_codes(self.error))
+        return super().__str__()
+
+    def __repr__(self):
+        return f'{type(self).__name__}({str(self)!r})'
+
     def dict(self) -> dict[str, Any]:
         if isinstance(self.error, dict):
             return self.error
@@ -73,7 +83,7 @@ class CallListException(Exception):
     def json_response(self, status: int = 500) -> JsonResponse:
         json_error_response = JsonResponse(self.dict(), status=status)
         if status >= 500:
-            # skip django reports for 5xx responses
+            # Не создаём отчёты Django для ответов с кодом 5xx.
             json_error_response._has_been_logged = True
         return json_error_response
 
@@ -397,11 +407,11 @@ def call_list_method(
         raise ValueError('limit must be greater than 0')
 
     if force_total:
-        ilogger.warning('deprecated_force_total', 'deprecated_force_total')
+        ilogger.warning('deprecated_force_total', "deprecated_force_total")
         limit = force_total
 
     if v == 0:
-        ilogger.warning('call_list_method_incorrect_using', 'use BitrixUserToken.call_list_method instead')
+        ilogger.warning('call_list_method_incorrect_using', "use BitrixUserToken.call_list_method instead")
 
     assert 1 <= batch_size <= 50, 'check: 1 <= batch_size <= 50'
     fields = check_params(method, fields)
@@ -523,14 +533,14 @@ def call_list_method(
 
     if batch_start and time_spent > ALLOWABLE_TIME:
         # записать время выполнения в лог, если batch_api_call был вызван и выполнялся дольше 2 секунд
-        ilogger.info('call_bx_list_method_time_log', '\n'.join(time_log))
+        ilogger.info('call_bx_list_method_time_log', "\n".join(time_log))
 
     if allowable_error is not None and not limit:
         result_length = len(result)
         length_error = abs(result_length - total_param)
         if length_error > allowable_error:
             ilogger.warning(u'%scall_bx_list_method_length_error' % log_prefix,
-                            u'total: %s, result length: %s, allowable_error: %s'
+                            u"total: %s, result length: %s, allowable_error: %s"
                             % (total_param, result_length, allowable_error))
 
             raise CallListException(u'Количество элементов изменилось за время выполнения запроса на %s (допустимо %s)' % (

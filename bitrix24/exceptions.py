@@ -2,6 +2,8 @@ import six
 from requests import Response
 from django.http import JsonResponse
 
+from integration_utils.bitrix24.functions._log_metadata import _batch_error_codes, _error_code
+
 STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
 
@@ -87,9 +89,10 @@ class BitrixApiError(BitrixApiException):
         self.token = token
 
     def __str__(self):
-        # Ответ, message и token могут содержать credentials. Данные остаются в атрибутах для обработки ошибки, но не в строках логов.
+        # Ответ, message и token могут содержать учётные данные и остаются в атрибутах для обработки ошибки.
+        # В строковое представление включаем только HTTP-статус и известный безопасный код ошибки.
         status = self.status_code if type(self.status_code) is int else 'unknown'
-        return f'{type(self).__name__}(HTTP {status})'
+        return f'{type(self).__name__}(HTTP {status}, error={_error_code(self.error)})'
 
     __repr__ = __str__
 
@@ -595,7 +598,7 @@ class BitrixApiError(BitrixApiException):
         status = status or 500
         json_error_response = JsonResponse(self.dict(), status=status)
         if status >= 500:
-            # skip django reports for 5xx responses
+            # Не создаём отчёты Django для ответов с кодом 5xx.
             json_error_response._has_been_logged = True
         return json_error_response
 
@@ -658,7 +661,11 @@ class BatchFailed(BitrixApiException):
         self.reason = reason
 
     def __str__(self):
-        return f'{type(self).__name__}(reason_type={type(self.reason).__name__})'
+        if isinstance(self.reason, Response):
+            return f'{type(self).__name__}(HTTP {self.reason.status_code})'
+        iter_errors = getattr(self.reason, 'iter_errors', None)
+        errors = dict(iter_errors()) if callable(iter_errors) else self.reason
+        return f'{type(self).__name__}({_batch_error_codes(errors)})'
 
     __repr__ = __str__
 
