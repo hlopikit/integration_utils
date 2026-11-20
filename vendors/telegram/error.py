@@ -63,12 +63,12 @@ class TelegramError(Exception):
     def __str__(self) -> str:
         return f'{self.message}'
 
+    def __reduce__(self) -> Tuple[type, Tuple[str]]:
+        return self.__class__, (self.message,)
+
     @property
     def is_not_logic_error(self) -> bool:
         return any(error_message in self.message for error_message in self.not_logic_error_messages)
-
-    def __reduce__(self) -> Tuple[type, Tuple[str]]:
-        return self.__class__, (self.message,)
 
 
 class Unauthorized(TelegramError):
@@ -78,7 +78,7 @@ class Unauthorized(TelegramError):
 
     @property
     def is_not_logic_error(self) -> bool:
-        return True
+        return False
 
 
 class InvalidToken(TelegramError):
@@ -180,9 +180,9 @@ class Conflict(TelegramError):
 
     __slots__ = ()
 
+    def __reduce__(self) -> Tuple[type, Tuple[str]]:
+        return self.__class__, (self.message,)
+
     @property
     def is_not_logic_error(self) -> bool:
         return False
-
-    def __reduce__(self) -> Tuple[type, Tuple[str]]:
-        return self.__class__, (self.message,)

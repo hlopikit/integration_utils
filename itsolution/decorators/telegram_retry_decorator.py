@@ -1,39 +1,41 @@
 import functools
 import time
 
-from integration_utils.vendors.telegram.error import NetworkError, RetryAfter, TimedOut
+from integration_utils.vendors.telegram.error import RetryAfter, TelegramError
 
 
-def telegram_retry_decorator(attempts: int = 3, timeout_delay: int = 1):
+def telegram_retry_decorator(attempts: int = 3, timeout_delay: float = 1):
     """
-    Декоратор для повторных попыток Telegram-методов с общим лимитом попыток.
+    Декоратор повторных попыток Telegram-методов.
 
-    Поведение:
-    - при `RetryAfter` ждём `exc.retry_after`;
-    - при `TimedOut` ждём `timeout_delay`;
-    - при сетевом `NetworkError` ждём `timeout_delay`;
-    - логические наследники `NetworkError`, например `BadRequest`, не ретраим;
-    - все повторные вызовы считаются в общий `attempts`.
+    - RetryAfter: задержка из retry_after.
+    - NetworkError: задержка timeout_delay.
+    - Логические ошибки не повторяются.
+    - Все вызовы учитываются в общем лимите attempts.
     """
+
     if attempts < 1:
         raise ValueError('telegram_retry_decorator attempts must be >= 1')
+
+    if timeout_delay < 0:
+        raise ValueError('telegram_retry_decorator timeout_delay must be >= 0')
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            for attempt in range(1, attempts + 1):
+            for attempt in range(1, attempts):
                 try:
                     return func(*args, **kwargs)
-                except (RetryAfter, TimedOut, NetworkError) as exc:
-                    if isinstance(exc, NetworkError) and not exc.is_not_logic_error:
+                except TelegramError as exc:
+                    if not exc.is_not_logic_error:
                         raise
 
-                    is_last_attempt = attempt == attempts
-                    if is_last_attempt:
-                        raise
-                    delay = getattr(exc, 'retry_after', timeout_delay)
+                    delay = exc.retry_after if isinstance(exc, RetryAfter) else timeout_delay
+
                     if delay > 0:
                         time.sleep(delay)
+
+            return func(*args, **kwargs)
 
         return wrapper
 
