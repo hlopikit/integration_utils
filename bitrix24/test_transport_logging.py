@@ -10,7 +10,9 @@ import requests
 from django.test import SimpleTestCase, override_settings
 from django.views.debug import ExceptionReporter
 
-from integration_utils.bitrix24.exceptions import BatchFailed, BitrixApiError, BitrixConnectionError, BitrixTimeout, JsonDecodeBatchFailed
+from integration_utils.bitrix24.bitrix_token import BitrixToken
+from integration_utils.bitrix24.exceptions import BatchFailed, BitrixApiError, BitrixApiServerError, BitrixConnectionError, BitrixTimeout, JsonDecodeBatchFailed
+from integration_utils.bitrix24.functions.call_list_method import CallListException
 from integration_utils.bitrix24.models import BitrixUserToken
 
 
@@ -132,15 +134,49 @@ class TransportLoggingTests(SimpleTestCase):
                     else:
                         self.fail('Expected network error')
 
-    def test_api_and_batch_exception_representations_keep_details_in_attributes_only(self):
-        payload = {'error': self.access, 'error_description': self.password}
+    def test_api_errors_preserve_new_codes_and_descriptions_without_exposing_other_fields(self):
+        payload = {
+            'error': 'NEW_API_ERROR_123', 'error_description': 'New diagnostic from Bitrix24',
+            'auth': self.access, 'result': self.password,
+        }
         error = BitrixApiError('deprecated', payload, 401, self.custom, token=self.refresh)
-        for value in (str(error), repr(error), str(BatchFailed(self.access)), repr(BatchFailed(self.access))):
+        for value in (str(error), repr(error)):
+            self.assertIn(payload['error'], value)
+            self.assertIn(payload['error_description'], value)
+            self.assertIn('401', value)
             for secret in (self.access, self.password, self.custom, self.refresh):
                 self.assertNotIn(secret, value)
         self.assertIs(error.json_response, payload)
-        self.assertEqual(error.error_description, self.password)
+        self.assertEqual(error.error_description, payload['error_description'])
         self.assertEqual(error.token, self.refresh)
+        for value in (str(BatchFailed(self.access)), repr(BatchFailed(self.access))):
+            self.assertNotIn(self.access, value)
+
+    def test_batch_and_list_errors_preserve_diagnostics_without_keys_or_results(self):
+        command_error = {'error': 'NEW_BATCH_ERROR_123', 'error_description': 'New batch diagnostic', 'result': self.custom}
+        batch_response = batch.BatchResultDict([
+            ('error', {'error': command_error, 'result': self.password}),
+            (self.access, {'error': command_error, 'result': None}),
+            ('success', {'error': None, 'result': self.refresh}),
+        ])
+        exceptions = (BatchFailed(batch_response), CallListException(batch_response.errors), CallListException(command_error))
+        for error in exceptions:
+            for value in (str(error), repr(error)):
+                self.assertIn(command_error['error'], value)
+                self.assertIn(command_error['error_description'], value)
+                for secret in (self.access, self.password, self.custom, self.refresh):
+                    self.assertNotIn(secret, value)
+
+    def test_batch_http_errors_show_json_diagnostics_without_logging_bodies(self):
+        payload = {'error': 'NEW_HTTP_ERROR_123', 'error_description': 'New HTTP diagnostic', 'result': self.custom}
+        response = self._response(payload, status=400)
+        for value in (str(BatchFailed(response)), repr(BatchFailed(response))):
+            self.assertIn('400', value)
+            self.assertIn(payload['error'], value)
+            self.assertIn(payload['error_description'], value)
+            self.assertNotIn(self.custom, value)
+        invalid_response = self._response(text=self.custom, status=502)
+        self.assertEqual(str(BatchFailed(invalid_response)), 'BatchFailed(HTTP 502)')
 
     @override_settings(DEBUG=False)
     def test_production_exception_reporter_hides_transport_locals(self):
@@ -157,6 +193,85 @@ class TransportLoggingTests(SimpleTestCase):
                         variables = repr(list(frame['vars']))
                         self.assertNotIn(self.access, variables)
                         self.assertNotIn(self.password, variables)
+
+    @override_settings(DEBUG=False)
+    def test_failed_batch_hides_command_parameters_and_customer_keys_in_reporter(self):
+        token = BitrixToken('portal.example.test', auth_token=self.access)
+        methods = [(self.custom, 'user.add', {'PASSWORD': self.password, 'unknown_field': self.refresh})]
+        with patch.object(api.requests, 'post', side_effect=requests.ConnectionError('offline')):
+            try:
+                token.batch_api_call(methods)
+            except BitrixConnectionError:
+                frames = ExceptionReporter(None, *sys.exc_info()).get_traceback_frames()
+                batch_frames = [frame for frame in frames if frame.get('function') == '_batch_api_call']
+                self.assertTrue(batch_frames)
+                for frame in batch_frames:
+                    variables = dict(frame['vars'])
+                    captured = repr(variables)
+                    for secret in (self.access, self.password, self.custom, self.refresh):
+                        self.assertNotIn(secret, captured)
+                    self.assertEqual(variables['timeout'], token.DEFAULT_TIMEOUT)
+                    self.assertEqual(variables['part_log_params']['method_counts'], {'user.add': 1})
+            else:
+                self.fail('Expected network error')
+
+    @override_settings(DEBUG=False)
+    def test_parameter_conversion_errors_hide_nested_secrets_in_reporter(self):
+        class InvalidParameter:
+            def __str__(self):
+                raise ValueError('Cannot encode parameter')
+
+        token = BitrixToken('portal.example.test', auth_token=self.access)
+        params = {'unknown_field': self.custom, 'invalid': InvalidParameter()}
+        calls = (lambda: token.call_api_method('profile', params),
+                 lambda: token.batch_api_call([('profile', params)]))
+        for call in calls:
+            try:
+                call()
+            except ValueError:
+                frames = ExceptionReporter(None, *sys.exc_info()).get_traceback_frames()
+                conversion_frames = [frame for frame in frames if frame.get('function') in ('convert_params', 'recursive_traverse', 'convert_methods')]
+                self.assertTrue(conversion_frames)
+                for frame in conversion_frames:
+                    self.assertNotIn(self.custom, repr(list(frame['vars'])))
+            else:
+                self.fail('Expected parameter conversion error')
+
+    @override_settings(DEBUG=False)
+    def test_malformed_batch_results_hide_response_fields_in_reporter(self):
+        token = BitrixToken('portal.example.test', auth_token=self.access)
+        response = self._response({'result': {'result': None, 'unknown_field': self.custom}})
+        with patch.object(api.requests, 'post', return_value=response):
+            try:
+                token.batch_api_call([('profile', {})])
+            except AttributeError:
+                frames = ExceptionReporter(None, *sys.exc_info()).get_traceback_frames()
+                response_frames = [frame for frame in frames if frame.get('function') == 'add_response']
+                self.assertTrue(response_frames)
+                for frame in response_frames:
+                    self.assertNotIn(self.custom, repr(list(frame['vars'])))
+            else:
+                self.fail('Expected malformed batch response error')
+
+    @override_settings(DEBUG=False)
+    def test_non_json_api_and_batch_errors_hide_body_in_all_reporter_frames(self):
+        token = BitrixToken('portal.example.test', auth_token=self.access)
+        calls = ((lambda: token.call_api_method('profile'), BitrixApiServerError),
+                 (lambda: token.call_api_method_v3('profile'), BitrixApiServerError),
+                 (lambda: token.batch_api_call([('profile', {})]), JsonDecodeBatchFailed))
+        for call, expected_error in calls:
+            response = self._response(text=f'<html>{self.custom}</html>', status=502)
+            with self.subTest(error=expected_error.__name__), patch.object(api.requests, 'post', return_value=response):
+                try:
+                    call()
+                except expected_error:
+                    frames = ExceptionReporter(None, *sys.exc_info()).get_traceback_frames()
+                    for frame in frames:
+                        if not frame.get('tb') or frame.get('function', '').startswith('test_'):
+                            continue
+                        self.assertNotIn(self.custom, repr(list(frame.get('vars', []))))
+                else:
+                    self.fail('Expected response parsing error')
 
     @override_settings(APP_SETTINGS=SimpleNamespace(application_bitrix_client_id='test-client', application_bitrix_client_secret=client_secret))
     def test_refresh_network_errors_hide_oauth_url_from_traceback(self):
@@ -184,10 +299,11 @@ class TransportLoggingTests(SimpleTestCase):
             self._assert_safe_logs()
 
     @override_settings(APP_SETTINGS=SimpleNamespace(application_bitrix_client_id='test-client', application_bitrix_client_secret=client_secret))
-    def test_refresh_success_error_and_unknown_error_code_log_no_credentials(self):
+    def test_refresh_logs_new_error_codes_and_descriptions_without_credentials(self):
         cases = [({'access_token': self.access, 'refresh_token': self.refresh}, 200, True),
-                 ({'error': 'invalid_grant', 'error_description': self.custom}, 400, False),
-                 ({'error': self.password}, 400, False), ({'message': self.custom}, 503, False)]
+                 ({'error': 'invalid_grant', 'error_description': 'Refresh token expired'}, 400, False),
+                 ({'error': 'NEW_OAUTH_ERROR_123', 'error_description': 'New OAuth diagnostic', 'result': self.custom}, 400, False),
+                 ({'message': self.custom}, 503, False)]
         for payload, status, expected in cases:
             token = BitrixUserToken(pk=123, user_id=20, is_active=True, auth_token=self.access, refresh_token=self.refresh)
             response = self._response(payload, status=status)
@@ -196,3 +312,6 @@ class TransportLoggingTests(SimpleTestCase):
                 self.assertIn(self.client_secret, get.call_args.args[0])
                 self.assertIn(self.refresh, get.call_args.args[0])
                 self._assert_safe_logs()
+                if payload.get('error'):
+                    self.assertIn(payload['error'], repr(self.logger.mock_calls))
+                    self.assertIn(payload['error_description'], repr(self.logger.mock_calls))

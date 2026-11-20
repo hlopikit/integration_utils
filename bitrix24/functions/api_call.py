@@ -134,6 +134,7 @@ def call_with_retries(url, converted_params,
 call_with_fall_to_http = call_with_retries
 
 
+@sensitive_variables()
 def convert_params(form_data):
     """
     Рекурсивно, с помощью функции recursive_traverse проходит словарь/кортеж/список,

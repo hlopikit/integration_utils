@@ -71,6 +71,7 @@ class BatchResultDict(OrderedDict):
         )
 
 
+@sensitive_variables()
 def convert_methods(methods):
     # type: (List[Tuple[str, str, ApiParams]]) -> List[Tuple[str, RawStringParam]]
     """
@@ -150,7 +151,8 @@ def to_chunks(lst, chunk_size=50):
 @sensitive_variables(
     'bitrix_user_token', 'domain', 'methods', 'auth_token', 'params',
     'normalized_methods', 'maybe_named_method', 'converted_requests',
-    'parts_methods', 'part', 'data', 'error', 'result_time', 'operating', 'responses',
+    'parts_methods', 'part', 'data', 'result_time', 'operating', 'responses',
+    'name', 'seen_keys', 'safe_methods', '_',
 )
 def _batch_api_call(
             methods,  # type: Methods
@@ -288,6 +290,7 @@ def _batch_api_call(
 
     responses = BatchResultDict()  # Список ответов и данных
 
+    @sensitive_variables()
     def add_response(part_request_names, part_resp):  # type: (List[str], dict) -> None
         # Добавляем запросы в словарь ответов
         res = part_resp['result']
@@ -358,7 +361,7 @@ def _batch_api_call(
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет ошибка в бизнес-логике
             # - либо будут ожидать словарь и будет TypeError
-            raise JsonDecodeBatchFailed(reason=response)
+            raise JsonDecodeBatchFailed(reason=response) from None
 
         else:  # response - json
             error = data.get('error')

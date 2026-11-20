@@ -2,7 +2,7 @@ import six
 from requests import Response
 from django.http import JsonResponse
 
-from integration_utils.bitrix24.functions._log_metadata import _batch_error_codes, _error_code
+from integration_utils.bitrix24.functions._log_metadata import _batch_error_details, _error_details
 
 STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
@@ -89,10 +89,9 @@ class BitrixApiError(BitrixApiException):
         self.token = token
 
     def __str__(self):
-        # Ответ, message и token могут содержать учётные данные и остаются в атрибутах для обработки ошибки.
-        # В строковое представление включаем только HTTP-статус и известный безопасный код ошибки.
+        # Полное тело, message и token остаются в атрибутах; поля ошибки нужны для диагностики.
         status = self.status_code if type(self.status_code) is int else 'unknown'
-        return f'{type(self).__name__}(HTTP {status}, error={_error_code(self.error)})'
+        return f'{type(self).__name__}(HTTP {status}, error={self.error!r}, error_description={self.error_description!r})'
 
     __repr__ = __str__
 
@@ -662,10 +661,14 @@ class BatchFailed(BitrixApiException):
 
     def __str__(self):
         if isinstance(self.reason, Response):
-            return f'{type(self).__name__}(HTTP {self.reason.status_code})'
+            try:
+                error_response = self.reason.json()
+            except (ValueError, TypeError):
+                return f'{type(self).__name__}(HTTP {self.reason.status_code})'
+            return f'{type(self).__name__}(HTTP {self.reason.status_code}, {_error_details(error_response)})'
         iter_errors = getattr(self.reason, 'iter_errors', None)
         errors = dict(iter_errors()) if callable(iter_errors) else self.reason
-        return f'{type(self).__name__}({_batch_error_codes(errors)})'
+        return f'{type(self).__name__}({_batch_error_details(errors)})'
 
     __repr__ = __str__
 

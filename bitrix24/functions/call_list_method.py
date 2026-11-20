@@ -8,7 +8,7 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 from django.http import JsonResponse
 from django.utils import timezone
 
-from integration_utils.bitrix24.functions._log_metadata import _batch_error_codes
+from integration_utils.bitrix24.functions._log_metadata import _batch_error_details
 
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
@@ -69,7 +69,7 @@ class CallListException(Exception):
 
     def __str__(self):
         if isinstance(self.error, Mapping):
-            return str(_batch_error_codes(self.error))
+            return str(_batch_error_details(self.error))
         return super().__str__()
 
     def __repr__(self):

@@ -5,34 +5,25 @@ from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 
-_KNOWN_ERROR_CODES = {
-    'ACCESS_DENIED', 'ACCESS_ERROR', 'ERROR_ARGUMENT', 'ERROR_CORE',
-    'ERROR_METHOD_NOT_FOUND', 'ERROR_NOT_FOUND', 'QUERY_LIMIT_EXCEEDED',
-    'OPERATION_TIME_LIMIT', 'INTERNAL_SERVER_ERROR', 'CONNECTION_ERROR',
-    'ConnectionToBitrixError', 'NO_AUTH_FOUND', 'APPLICATION_NOT_FOUND',
-    'PAYMENT_REQUIRED', 'PORTAL_DELETED', 'PORTAL_BLOCKED_BY_LICENSE_SCANNER',
-    'WRONG_ENCODING', 'WRONG_REQUEST', 'NOT_INSTALLED',
-    'invalid_token', 'expired_token', 'authorization_error', 'user_access_error',
-    'insufficient_scope', 'wrong_client', 'invalid_grant',
-    'Nginx 403 Forbidden', 'Bitrix 500 Internal Server Error',
-}
+def _error_details(error):
+    """
+    Выбирает error и error_description без остальных полей ответа.
+    """
+    if not isinstance(error, Mapping):
+        return {'reason_type': type(error).__name__}
+    return {field: error[field] for field in ('error', 'error_description') if field in error}
 
 
-def _error_code(value):
-    """Оставить известный код, исключив произвольный текст ответа сервера."""
-    return value if type(value) is str and value in _KNOWN_ERROR_CODES else 'unknown'
-
-
-def _batch_error_codes(errors):
-    """Выбрать коды ошибок без пользовательских ключей и содержимого результатов."""
+def _batch_error_details(errors):
+    """
+    Сохраняет ошибки команд без пользовательских ключей и успешных результатов.
+    """
     if not isinstance(errors, Mapping):
-        return {'reason_type': type(errors).__name__}
-    if type(errors.get('error')) is str:
-        return {'error': _error_code(errors['error'])}
-    return {'errors': [
-        _error_code(error.get('error')) if isinstance(error, Mapping) else 'unknown'
-        for error in errors.values()
-    ]}
+        return _error_details(errors)
+    is_single_error = isinstance(errors.get('error'), str) or isinstance(errors.get('error_description'), str)
+    if is_single_error:
+        return _error_details(errors)
+    return {'errors': [_error_details(error) for error in errors.values()]}
 
 
 def _log_context(domain, api_method=None):

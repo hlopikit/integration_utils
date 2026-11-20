@@ -18,7 +18,7 @@ from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from integration_utils.retry_utils import RetryDecorator
 from settings import ilogger
-from integration_utils.bitrix24.functions._log_metadata import _error_code, _response_log_metadata
+from integration_utils.bitrix24.functions._log_metadata import _error_details, _response_log_metadata
 
 if typing.TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUser
@@ -251,7 +251,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         return result_token
 
-    @sensitive_variables('self', 'params', 'url', 'response_json', 'error')
+    @sensitive_variables('self', 'params', 'url', 'response_json')
     def refresh(self, timeout=60, check_api_call=True):
         """
         Если успешно обновился токен, то возвращаем True.
@@ -311,8 +311,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         error = response_json.get('error')
 
         if error:
-            error_name = error if error in ('wrong_client', 'expired_token', 'invalid_grant', 'NOT_INSTALLED', 'PAYMENT_REQUIRED') else 'unknown'
-            ilogger.warning(f'refresh_token_error_{error_name}', f"{log_message}, error={_error_code(error)}", tag=log_tag)
+            ilogger.warning('refresh_token_error', f'{log_message}, {_error_details(response_json)}', tag=log_tag)
             if error == 'wrong_client':
                 self.refresh_error = self.WRONG_CLIENT
             elif error == 'expired_token':

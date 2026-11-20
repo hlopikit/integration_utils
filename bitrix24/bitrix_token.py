@@ -48,9 +48,9 @@ class BaseBitrixToken:
             # Пробуем раскодировать json
             try:
                 json_response = response.json()
-            except ValueError as e:
-                # Ранее здесь был BitrixApiError("error": "json ValueError", status_code=601)
-                raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from e
+            except ValueError:
+                # Кадры JSON-парсера содержат полное тело ответа.
+                raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from None
 
             if status_code in [200, 201] and not json_response.get('error'):
                 return json_response
