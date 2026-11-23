@@ -66,6 +66,8 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
     # on_header - авторизация по токену, для POST запросов и других влияющих на данные
     # set_cookie - поставить куки в браузере для дальнейшей авторизации по on_cookies
     # cookie_max_age - срок cookie в секундах. Если не передан: settings.AUTH_COOKIE_MAX_AGE, иначе 30 минут.
+    if on_cookies and on_header:
+        raise ValueError("main_auth: on_cookies и on_header нельзя включать одновременно")
     if cookie_max_age is None:
         cookie_max_age = getattr(settings, 'AUTH_COOKIE_MAX_AGE', 30 * 60)
 
@@ -82,32 +84,16 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
             # Основная процедура авторизации
             saved_signature = None
             try:
-                if on_start and on_cookies and on_header:
-                    cookie_name = f'b24app_auth_{settings.APP_SETTINGS.app_name}'
-                    header_signature = request.headers.get('X-Bitrix-Signed-Token')
-                    cookie_signature = request.COOKIES.get(cookie_name)
-
-                    if _try_recent_signature(request, header_signature, get_bitrix_user_token_from_header, cookie_max_age):
-                        saved_signature = header_signature
-                    elif _try_recent_signature(request, cookie_signature, partial(get_bitrix_user_token_from_cookie, max_age=cookie_max_age), cookie_max_age):
-                        saved_signature = cookie_signature
+                if on_start and (on_cookies or on_header):
+                    if on_header:
+                        signature = request.headers.get('X-Bitrix-Signed-Token')
+                        load_token = get_bitrix_user_token_from_header
                     else:
-                        authenticate_on_start_application(request=request)
-                elif on_start and on_cookies:
-                    auth_cookie = f'b24app_auth_{settings.APP_SETTINGS.app_name}'
-                    has_launch_auth = request.POST.get('AUTH_ID') or request.POST.get('auth[access_token]')
-                    if has_launch_auth:
-                        authenticate_on_start_application(request=request)
-                    elif request.COOKIES.get(auth_cookie):
-                        try:
-                            get_bitrix_user_token_from_cookie(request, max_age=cookie_max_age)
-                        except (BadSignature, EmptyCookie, ObjectDoesNotExist, ValueError):
-                            response = error_response(
-                                request, 'Cookie авторизации недействителен или истёк.',
-                                401, 'invalid_cookie', 'invalid_cookie_error.html',
-                            )
-                            response.delete_cookie(auth_cookie, samesite='None')
-                            return response
+                        cookie_name = f'b24app_auth_{settings.APP_SETTINGS.app_name}'
+                        signature = request.COOKIES.get(cookie_name)
+                        load_token = partial(get_bitrix_user_token_from_cookie, max_age=cookie_max_age)
+                    if _try_recent_signature(request, signature, load_token, cookie_max_age):
+                        saved_signature = signature
                     else:
                         authenticate_on_start_application(request=request)
                 else:
@@ -120,7 +106,7 @@ def main_auth(on_start=False, on_cookies=False, on_header=False, set_cookie=Fals
                             if on_header:
                                 return error_response(request, 'Cookie авторизации отсутствует или недействителен.', 401, 'invalid_cookie')
                             return _cookie_auth_error_response(request)
-                if on_header and not (on_start and on_cookies):
+                if on_header and not on_start:
                     try:
                         get_bitrix_user_token_from_header(request=request)
                     except (InvalidHeader, BadSignature, ObjectDoesNotExist, ValueError):
