@@ -7,7 +7,7 @@ import six
 from django.views.decorators.debug import sensitive_variables
 
 from settings import ilogger
-from integration_utils.bitrix24.functions._log_metadata import _log_context, _response_log_metadata
+from integration_utils.bitrix24.functions.log_metadata import log_context, response_log_metadata
 from .api_call import (
     api_call,
     convert_params,
@@ -154,7 +154,7 @@ def to_chunks(lst, chunk_size=50):
     'parts_methods', 'part', 'data', 'result_time', 'operating', 'responses',
     'name', 'seen_keys', 'safe_methods', '_',
 )
-def _batch_api_call(
+def batch_api_call(
             methods,  # type: Methods
             bitrix_user_token,  # type: BitrixUserToken
             halt=0,  # type: int
@@ -241,8 +241,8 @@ def _batch_api_call(
     if not domain:
         domain = bitrix_user_token.user.portal.domain
 
-    log_tag = 'integration_utils.bitrix24.functions.batch_api_call._batch_api_call'
-    log_params = _log_context(domain, 'batch')
+    log_tag = 'integration_utils.bitrix24.functions.batch_api_call.batch_api_call'
+    log_params = log_context(domain, 'batch')
 
     if bitrix_user_token.web_hook_auth:
         auth_token = bitrix_user_token.web_hook_auth
@@ -284,7 +284,7 @@ def _batch_api_call(
     # Получаем список срезов, по 50 штук
     parts_methods = to_chunks(converted_requests, chunk_size=chunk_size)
     safe_methods = {
-        name: _log_context(domain, method).get('method_name', '[invalid-method]')
+        name: log_context(domain, method).get('method_name', '[invalid-method]')
         for name, method, _ in normalized_methods
     }
 
@@ -356,7 +356,7 @@ def _batch_api_call(
                 ilogger.error(f'method_operating_exception_{type(e).__name__}', f"{part_log_params}, error_type={type(e).__name__}", exc_info=False, params=part_log_params, tag=log_tag)
 
         except ValueError:  # response - не json
-            ilogger.warning(f'{log_prefix}json_decode_batch_failed', f"{part_log_params}, {_response_log_metadata(response)}", params=part_log_params, tag=log_tag)
+            ilogger.warning(f'{log_prefix}json_decode_batch_failed', f"{part_log_params}, {response_log_metadata(response)}", params=part_log_params, tag=log_tag)
 
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет ошибка в бизнес-логике
@@ -371,7 +371,7 @@ def _batch_api_call(
 
                 if bitrix_user_token.refresh(timeout=timeout):
                     # Если обновление токена прошло успешно, повторить запрос
-                    return _batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout,
+                    return batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout,
                                            log_prefix=log_prefix, refresh=False)
             if error:
                 raise BatchApiCallError(reason=response)
@@ -380,6 +380,3 @@ def _batch_api_call(
                          part_resp=data)
 
     return responses
-
-
-batch_api_call = _batch_api_call

@@ -9,7 +9,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from integration_utils.bitrix24.bitrix_user_auth.main_auth import main_auth
 
 
-def _get_index_path(request, bx_referer_params=None):
+def get_index_path(request, bx_referer_params=None):
     """
     Возвращает безопасный адрес для iframe-view `start` после входа в Bitrix24.
 
@@ -51,7 +51,7 @@ def start(request):
     if bx_referer_params is None and http_referer:
         bx_referer_params = QueryDict(urlsplit(http_referer).query)
 
-    index_path = _get_index_path(request, bx_referer_params)
+    index_path = get_index_path(request, bx_referer_params)
 
     forwarded_params = request.GET.copy()
     forwarded_params.pop('return_to', None)

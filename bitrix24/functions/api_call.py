@@ -19,7 +19,7 @@ from integration_utils.bitrix24.exceptions import BitrixConnectionError, BitrixT
 
 ConnectionToBitrixError = BitrixConnectionError
 
-from integration_utils.bitrix24.functions._log_metadata import _log_context, _response_log_metadata
+from integration_utils.bitrix24.functions.log_metadata import log_context, response_log_metadata
 
 from settings import ilogger
 
@@ -56,7 +56,7 @@ def call_with_retries(url, converted_params,
     :raises BitrixApiServerError: Ошибка HTTP-сервера Битрикс или ошибка API без JSON-ответа
     """
     verify = getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True)
-    log_params = _log_context(url)
+    log_params = log_context(url)
 
     try:
         # В истории Git есть фикс бага от 2021 года для crm.item и crm.type.
@@ -114,7 +114,7 @@ def call_with_retries(url, converted_params,
                 new_domain = urlparse(location).netloc
 
                 if old_domain != new_domain:
-                    ilogger.debug('retry_on_301_302', f"old_domain={log_params['portal_domain']}, new_domain={_log_context(location)['portal_domain']}")
+                    ilogger.debug('retry_on_301_302', f"old_domain={log_params['portal_domain']}, new_domain={log_context(location)['portal_domain']}")
 
                     return call_with_retries(
                         url=location,
@@ -125,7 +125,7 @@ def call_with_retries(url, converted_params,
                         files=files,
                     )
 
-            ilogger.warn('retry_on_301_302_failed', f"{log_params}, redirect={_log_context(location)}", params=log_params)
+            ilogger.warn('retry_on_301_302_failed', f"{log_params}, redirect={log_context(location)}", params=log_params)
 
     return response
 
@@ -253,7 +253,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call'
-    log_params = _log_context(domain, api_method)
+    log_params = log_context(domain, api_method)
 
     # Работаем с копией, чтобы не подмешивать `auth` в исходный словарь вызывающего кода.
     params = dict(params or {})
@@ -275,7 +275,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
             data = response.json()
         except JSONDecodeError:
             ilogger.warning(
-                'response_json_decode_error', f"{log_params}, {_response_log_metadata(response)}", params=log_params, tag=log_tag,
+                'response_json_decode_error', f"{log_params}, {response_log_metadata(response)}", params=log_params, tag=log_tag,
             )
         except Exception as e:
             ilogger.error(f'response_json_exception_{type(e).__name__}', f"{log_params}, error_type={type(e).__name__}", exc_info=False, params=log_params, tag=log_tag)
@@ -292,7 +292,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     ilogger.info('bitrix_request', f"{t}\n{log_params}, parameter_count={len(params)}, webhook={bool(webhook)}", params=log_params, tag=log_tag)
 
     try:
-        ilogger.info('bitrix_response', f"{t}\n{log_params}, {_response_log_metadata(response)}", params=log_params, tag=log_tag)
+        ilogger.info('bitrix_response', f"{t}\n{log_params}, {response_log_metadata(response)}", params=log_params, tag=log_tag)
     except Exception as e:
         ilogger.error(f'bitrix_response_{type(e).__name__}', f"{t}\n{log_params}, error_type={type(e).__name__}", exc_info=False, params=log_params, tag=log_tag)
 
@@ -324,7 +324,7 @@ def api_call_v3(
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call.api_call_v3'
-    log_params = _log_context(domain, api_method)
+    log_params = log_context(domain, api_method)
 
     if not isinstance(domain, str) or not domain:
         raise ValueError("must provide domain as a non-empty string")
@@ -386,7 +386,7 @@ def api_call_v3(
     ilogger.info('bitrix_request', f"{t}\n{log_params}, parameter_count={len(payload)}, webhook={bool(web_hook_auth)}", params=log_params, tag=log_tag)
 
     try:
-        ilogger.info('bitrix_response', f"{t}\n{log_params}, {_response_log_metadata(response)}", params=log_params, tag=log_tag)
+        ilogger.info('bitrix_response', f"{t}\n{log_params}, {response_log_metadata(response)}", params=log_params, tag=log_tag)
     except Exception as e:
         ilogger.error(f'bitrix_response_{type(e).__name__}', f"{t}\n{log_params}, error_type={type(e).__name__}", exc_info=False, params=log_params, tag=log_tag)
 

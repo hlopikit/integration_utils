@@ -36,4 +36,4 @@
 
 `integration_utils.bitrix24.test_transport_logging.TransportLoggingTests` проверяет OAuth/webhook, REST 3.0, вложенные и неизвестные секретные поля, ответы и не-JSON, 503/redirect, сетевые traceback, batch и refresh с фиктивными credentials. Реальная сеть запрещена, рабочая БД не используется. Проверяется и отсутствие секретов во всех аргументах логгера, и сохранность фактического HTTP-payload/результата. Отдельная проверка Django reporter выполняется с `DEBUG=False`.
 
-Исходники: `bitrix24/functions/api_call.py`, `functions/_log_metadata.py`, `functions/batch_api_call.py`, `models/bitrix_user_token.py`, `bitrix_token.py`, `exceptions.py`. Приложение `b24webhook` дополнительно маскирует auth и credential-поля в собственном `B24WebhookRequestLog.response_preview`; это не транспортный лог `bitrix_response`.
+Исходники: `bitrix24/functions/api_call.py`, `functions/log_metadata.py`, `functions/batch_api_call.py`, `models/bitrix_user_token.py`, `bitrix_token.py`, `exceptions.py`. Приложение `b24webhook` дополнительно маскирует auth и credential-поля в собственном `B24WebhookRequestLog.response_preview`; это не транспортный лог `bitrix_response`.

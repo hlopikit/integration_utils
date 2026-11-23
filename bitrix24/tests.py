@@ -11,7 +11,7 @@ from django.test import RequestFactory, SimpleTestCase, override_settings
 from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import EmptyCookie
 from integration_utils.bitrix24.bitrix_user_auth.main_auth import main_auth
 from integration_utils.bitrix24.exceptions import BitrixApiError
-from integration_utils.bitrix24.views.start import _get_index_path, start
+from integration_utils.bitrix24.views.start import get_index_path, start
 
 
 class MainAuthTests(SimpleTestCase):
@@ -165,17 +165,17 @@ class StartViewTests(SimpleTestCase):
     def test_relative_return_to_is_used(self):
         request = RequestFactory().get('/?return_to=/hr/absense?date=2026-10-08')
 
-        self.assertEqual(_get_index_path(request), '/hr/absense?date=2026-10-08')
+        self.assertEqual(get_index_path(request), '/hr/absense?date=2026-10-08')
 
     def test_external_return_to_is_ignored(self):
         request = RequestFactory().get('/?return_to=https://example.com/')
 
-        self.assertNotEqual(_get_index_path(request), 'https://example.com/')
+        self.assertNotEqual(get_index_path(request), 'https://example.com/')
 
     def test_protocol_relative_return_to_is_ignored(self):
         request = RequestFactory().get('/?return_to=//example.com/')
 
-        self.assertNotEqual(_get_index_path(request), '//example.com/')
+        self.assertNotEqual(get_index_path(request), '//example.com/')
 
     def test_return_to_is_not_repeated_or_rendered_as_raw_javascript(self):
         request = RequestFactory().post('/?return_to=/hr/absense?users=1%26users=2', {'AUTH_ID': 'test-token'})

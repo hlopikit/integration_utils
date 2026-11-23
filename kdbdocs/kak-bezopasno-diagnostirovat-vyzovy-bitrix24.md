@@ -26,4 +26,4 @@
 
 Перед публикацией проверить `TransportLoggingTests`: OAuth и webhook, REST 3.0, вложенные/неизвестные секреты, не-JSON, повторы/redirect, batch, refresh, исключения и Django reporter. Все секреты в тестах фиктивные; сеть и рабочая БД не используются. Технические детали и границы защиты: `integration_utils/docs/bitrix24_transport_logging.md`.
 
-Источники: `bitrix24/functions/api_call.py`, `functions/_log_metadata.py`, `functions/batch_api_call.py`, `models/bitrix_user_token.py`, `bitrix_token.py`, `exceptions.py`, `test_transport_logging.py`. Прикладной журнал и намерения агента описаны в `b24webhook/docs/README.md` проекта `integration_server`.
+Источники: `bitrix24/functions/api_call.py`, `functions/log_metadata.py`, `functions/batch_api_call.py`, `models/bitrix_user_token.py`, `bitrix_token.py`, `exceptions.py`, `test_transport_logging.py`. Прикладной журнал и намерения агента описаны в `b24webhook/docs/README.md` проекта `integration_server`.

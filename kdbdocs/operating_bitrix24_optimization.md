@@ -15,12 +15,12 @@
 Общий механизм расположен в `integration_utils` и используется разными приложениями проекта.
 
 - Одиночные REST-вызовы: `integration_utils/bitrix24/functions/api_call.py`, функция `api_call()`.
-- Пакетные REST-вызовы: `integration_utils/bitrix24/functions/batch_api_call.py`, функция `_batch_api_call()`.
+- Пакетные REST-вызовы: `integration_utils/bitrix24/functions/batch_api_call.py`, функция `batch_api_call()`.
 - Публичные обертки токена: `integration_utils/bitrix24/bitrix_token.py` и `integration_utils/bitrix24/models/bitrix_user_token.py`.
 
 Для одиночного вызова `api_call()` читает `time.operating` из JSON-ответа. При значении больше `300` записывается `method_operating`; начиная с `400` запись имеет уровень warning, ниже — info.
 
-Для `batch` `_batch_api_call()` берет максимум из `result.result_time[*].operating` и верхнеуровневого `time.operating`. После записи события код делает паузу `operating - 300`; пауза снижает риск последующих ограничений, но не устраняет причину медленного сценария.
+Для `batch` `batch_api_call()` берет максимум из `result.result_time[*].operating` и верхнеуровневого `time.operating`. После записи события код делает паузу `operating - 300`; пауза снижает риск последующих ограничений, но не устраняет причину медленного сценария.
 
 ## Что делать при появлении OPERATING
 
@@ -63,5 +63,5 @@
 
 - Задача [#286462](https://b24.it-solution.ru/company/personal/user/1/tasks/task/view/286462/): договоренность — `OPERATING` требует изучения логики и оптимизации вызовов.
 - `integration_utils/bitrix24/functions/api_call.py`, функция `api_call()`.
-- `integration_utils/bitrix24/functions/batch_api_call.py`, функция `_batch_api_call()`.
+- `integration_utils/bitrix24/functions/batch_api_call.py`, функция `batch_api_call()`.
 - `integration_utils/docs/README.md`.

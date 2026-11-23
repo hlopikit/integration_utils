@@ -2,7 +2,7 @@ import six
 from requests import Response
 from django.http import JsonResponse
 
-from integration_utils.bitrix24.functions._log_metadata import _batch_error_details, _error_details
+from integration_utils.bitrix24.functions.log_metadata import batch_error_details, error_details
 
 STRING_TYPES = six.string_types
 INTEGER_TYPES = six.integer_types
@@ -665,10 +665,10 @@ class BatchFailed(BitrixApiException):
                 error_response = self.reason.json()
             except (ValueError, TypeError):
                 return f'{type(self).__name__}(HTTP {self.reason.status_code})'
-            return f'{type(self).__name__}(HTTP {self.reason.status_code}, {_error_details(error_response)})'
+            return f'{type(self).__name__}(HTTP {self.reason.status_code}, {error_details(error_response)})'
         iter_errors = getattr(self.reason, 'iter_errors', None)
         errors = dict(iter_errors()) if callable(iter_errors) else self.reason
-        return f'{type(self).__name__}({_batch_error_details(errors)})'
+        return f'{type(self).__name__}({batch_error_details(errors)})'
 
     __repr__ = __str__
 

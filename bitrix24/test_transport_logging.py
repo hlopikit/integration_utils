@@ -203,7 +203,11 @@ class TransportLoggingTests(SimpleTestCase):
                 token.batch_api_call(methods)
             except BitrixConnectionError:
                 frames = ExceptionReporter(None, *sys.exc_info()).get_traceback_frames()
-                batch_frames = [frame for frame in frames if frame.get('function') == '_batch_api_call']
+                batch_frames = [
+                    frame for frame in frames
+                    if frame.get('function') == 'batch_api_call'
+                    and str(frame.get('filename', '')).replace('\\', '/').endswith('/functions/batch_api_call.py')
+                ]
                 self.assertTrue(batch_frames)
                 for frame in batch_frames:
                     variables = dict(frame['vars'])

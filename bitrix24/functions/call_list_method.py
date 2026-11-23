@@ -8,7 +8,7 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 from django.http import JsonResponse
 from django.utils import timezone
 
-from integration_utils.bitrix24.functions._log_metadata import _batch_error_details
+from integration_utils.bitrix24.functions.log_metadata import batch_error_details
 
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
@@ -69,7 +69,7 @@ class CallListException(Exception):
 
     def __str__(self):
         if isinstance(self.error, Mapping):
-            return str(_batch_error_details(self.error))
+            return str(batch_error_details(self.error))
         return super().__str__()
 
     def __repr__(self):
@@ -119,7 +119,7 @@ def unwrap_batch_res(
     return result
 
 
-def _check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str], Optional[list[Any]]]:
+def check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str], Optional[list[Any]]]:
     """
     Проверяет, можно ли разбить переданный список ID на batch-команды.
 
@@ -175,7 +175,7 @@ def _check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str],
     return filter_key, filter_id_key, filter_ids
 
 
-def _generate_filter_id_methods_for_batch(
+def generate_filter_id_methods_for_batch(
         method: str,
         fields: dict[str, Any],
         filter_key: Optional[str],
@@ -423,7 +423,7 @@ def call_list_method(
         if filter_key and isinstance(fields[filter_key], dict):
             fields[filter_key] = fields[filter_key].copy()
 
-    filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(fields)
+    filter_key, filter_id_key, filter_ids = check_filter_by_id_only(fields)
 
     if filter_ids is not None:
         if not filter_ids:
@@ -434,7 +434,7 @@ def call_list_method(
 
         assert isinstance(fields, dict)
         assert filter_id_key is not None
-        methods = _generate_filter_id_methods_for_batch(
+        methods = generate_filter_id_methods_for_batch(
             method=method,
             fields=fields,
             filter_key=filter_key,
