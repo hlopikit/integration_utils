@@ -23,7 +23,7 @@ class TelegramLogger:
     usernames — кого упомянуть в error и critical. Список строк, @ можно не писать.
     topics — необязательно, словарь {уровень logging: id топика}.
     level — минимальный уровень, по умолчанию DEBUG.
-    timeout — таймаут запроса к Bot API, секунды.
+    timeout — (таймаут соединения, таймаут чтения), секунды: (3.5, 10). Одно число задаёт одинаковый таймаут для соединения и чтения.
     name — подпись в тексте. Если пусто, подставится модуль вызывающего кода.
     telegram_api_base_url — адрес Bot API. По умолчанию https://api.telegram.org/bot.
     max_queue_size — сколько неотправленных сообщений держать. Дальше новые пропускаются.
@@ -36,7 +36,7 @@ class TelegramLogger:
         usernames: Iterable[str],
         topics: Optional[Dict[int, Optional[int]]] = None,
         level: int = logging.DEBUG,
-        timeout: float = 10,
+        timeout: Union[float, Tuple[float, float]] = (3.5, 10),
         name: Optional[str] = None,
         telegram_api_base_url: str = 'https://api.telegram.org/bot',
         max_queue_size: int = 100,
@@ -53,8 +53,16 @@ class TelegramLogger:
         if not all(isinstance(user, str) and user.lstrip('@').strip() for user in usernames):
             raise ValueError('usernames must contain non-empty strings')
 
-        if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
-            raise ValueError('timeout must be a positive finite number')
+        if isinstance(timeout, (int, float)):
+            timeout = (timeout, timeout)
+        if not isinstance(timeout, tuple) or len(timeout) != 2:
+            raise ValueError('timeout must be a number or a (connect, read) tuple')
+        if any(
+            not isinstance(value, (int, float)) or isinstance(value, bool)
+            or not math.isfinite(value) or value <= 0
+            for value in timeout
+        ):
+            raise ValueError('timeout values must be positive finite numbers')
 
         if not telegram_api_base_url:
             raise ValueError('telegram_api_base_url is required')
@@ -93,6 +101,12 @@ class TelegramLogger:
         return self.log(logging.CRITICAL, message, context)
 
     def log(self, level: int, message: str, context: Optional[Dict[str, Any]] = None):
+        try:
+            self._log(level, message, context)
+        except Exception as exc:
+            self._warn('TelegramLogger failed: ' + type(exc).__name__)
+
+    def _log(self, level: int, message: str, context: Optional[Dict[str, Any]]):
         if level < self.level:
             return None
 
@@ -120,26 +134,14 @@ class TelegramLogger:
         exception = ''.join(traceback.format_exception(*exc_info)) if exc_info[0] else None
         del exc_info
 
-        try:
-            messages = self._format(level, message, context, caller, exception)
-        except Exception as exc:
-            warnings.warn(
-                'TelegramLogger format failed: ' + type(exc).__name__,
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return None
+        messages = self._format(level, message, context, caller, exception)
 
         with self._lock:
             if self._closed:
                 return None
 
             if self._pending >= self.max_queue_size:
-                warnings.warn(
-                    'TelegramLogger queue is full, message dropped',
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+                self._warn('TelegramLogger queue is full, message dropped')
                 return None
 
             if self._executor is None:
@@ -152,17 +154,13 @@ class TelegramLogger:
 
             try:
                 self._executor.submit(self._deliver, messages, self.topics.get(level))
-            except RuntimeError as exc:
+            except Exception as exc:
                 self._pending -= 1
 
                 if not self._pending:
                     self._lock.notify_all()
 
-                warnings.warn(
-                    'TelegramLogger enqueue failed: ' + type(exc).__name__,
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+                self._warn('TelegramLogger enqueue failed: ' + type(exc).__name__)
 
                 return None
 
@@ -244,7 +242,7 @@ class TelegramLogger:
             ))
 
         if level in (logging.ERROR, logging.CRITICAL) and self.usernames:
-            sections.append(('', ' '.join(self.usernames), '', ''))
+            sections.insert(1, ('', ' '.join(self.usernames), '', ''))
 
         messages = []
         current = ''
@@ -294,26 +292,25 @@ class TelegramLogger:
                     self._token,
                     base_url=self.telegram_api_base_url,
                     request=Request(
-                        connect_timeout=self.timeout,
-                        read_timeout=self.timeout,
+                        connect_timeout=self.timeout[0],
+                        read_timeout=self.timeout[1],
                     ),
                 )
 
             for text in messages:
-                self._bot.send_message(
-                    chat_id=self.chat_id,
-                    text=text,
-                    parse_mode='HTML',
-                    message_thread_id=topic or None,
-                    timeout=self.timeout,
-                )
+                try:
+                    self._bot.send_message(
+                        chat_id=self.chat_id,
+                        text=text,
+                        parse_mode='HTML',
+                        message_thread_id=topic or None,
+                        timeout=self.timeout[1],
+                    )
+                except Exception as exc:
+                    self._warn('TelegramLogger delivery failed: ' + type(exc).__name__)
 
         except Exception as exc:
-            warnings.warn(
-                'TelegramLogger delivery failed: ' + type(exc).__name__,
-                RuntimeWarning,
-                stacklevel=2,
-            )
+            self._warn('TelegramLogger delivery failed: ' + type(exc).__name__)
 
         finally:
             with self._lock:
@@ -321,3 +318,10 @@ class TelegramLogger:
                     self._pending -= 1
                 if not self._pending:
                     self._lock.notify_all()
+
+    @staticmethod
+    def _warn(message: str):
+        try:
+            warnings.warn(message, RuntimeWarning, stacklevel=2)
+        except Exception:
+            pass
