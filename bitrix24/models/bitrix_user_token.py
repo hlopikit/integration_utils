@@ -10,6 +10,7 @@ from django.conf import settings
 from django.db import models
 
 from django.utils import timezone
+from django.views.decorators.debug import sensitive_variables
 
 from integration_utils.bitrix24.exceptions import BitrixApiError, ExpiredToken, BaseConnectionError, BaseTimeout, BitrixApiException, \
     BitrixOauthRefreshConnectionError, BitrixOauthRefreshTimeout, BitrixOauthRefreshRequestException, BitrixConnectionError, BitrixTimeout
@@ -17,6 +18,7 @@ from integration_utils.bitrix24.bitrix_token import BaseBitrixToken
 from integration_utils.iu_retry_manager.retry_decorator import retry_decorator
 from integration_utils.retry_utils import RetryDecorator
 from settings import ilogger
+from integration_utils.bitrix24.functions._log_metadata import _response_log_metadata
 
 if typing.TYPE_CHECKING:
     from integration_utils.bitrix24.models import BitrixUser
@@ -249,6 +251,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         return result_token
 
+    @sensitive_variables()
     def refresh(self, timeout=60, check_api_call=True):
         """
         Если успешно обновился токен, то возвращаем True.
@@ -280,13 +283,13 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         try:
             response = requests.get(url, timeout=timeout)
         except requests.ConnectionError as e:
-            raise BitrixOauthRefreshConnectionError(requests_connection_error=e) from e
+            raise BitrixOauthRefreshConnectionError(requests_connection_error=e) from None
         except requests.Timeout as e:
-            raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout) from e
+            raise BitrixOauthRefreshTimeout(requests_timeout=e, timeout=timeout) from None
         except requests.RequestException as e:
-            raise BitrixOauthRefreshRequestException(requests_exception=e) from e
+            raise BitrixOauthRefreshRequestException(requests_exception=e) from None
 
-        log_message = f"self={self}, url={url}, response.text={response.text}"
+        log_message = f'token_id={self.pk}, {_response_log_metadata(response)}'
 
         if response.status_code >= 500:
             ilogger.warning('refresh_token_error_gte500', log_message, tag=log_tag)
@@ -308,7 +311,8 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
         error = response_json.get('error')
 
         if error:
-            ilogger.warning(f'refresh_token_error_{error}', log_message, tag=log_tag)
+            error_name = error if error in ('wrong_client', 'expired_token', 'invalid_grant', 'NOT_INSTALLED', 'PAYMENT_REQUIRED') else 'unknown'
+            ilogger.warning(f'refresh_token_error_{error_name}', log_message, tag=log_tag)
             if error == 'wrong_client':
                 self.refresh_error = self.WRONG_CLIENT
             elif error == 'expired_token':
@@ -398,6 +402,7 @@ class BitrixUserToken(models.Model, BaseBitrixToken):
 
         raise ExpiredToken()
 
+    @sensitive_variables()
     def call_api_method(
             self,
             api_method: str,

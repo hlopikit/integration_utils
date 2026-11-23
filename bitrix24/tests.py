@@ -1,6 +1,11 @@
+import json
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlsplit
 
+from django.conf import settings
 from django.http import HttpResponse
+from django.shortcuts import render
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from integration_utils.bitrix24.bitrix_user_auth.get_bitrix_user_token_from_cookie import EmptyCookie
@@ -70,6 +75,92 @@ class MainAuthTests(SimpleTestCase):
 
 class StartViewTests(SimpleTestCase):
     """Проверяет безопасный возврат на экран itsis после Marketplace-входа."""
+
+    def _start_response(self, request):
+        """Вызывает start в тестах без OAuth-запросов к порталу и возвращает сформированный адрес."""
+        request.bitrix_user_token = Mock()
+        request.bitrix_user_token.signed_pk.return_value = 'test-signed-token'
+        with patch('integration_utils.bitrix24.bitrix_user_auth.main_auth.authenticate_on_start_application'), \
+                patch('integration_utils.bitrix24.views.start.render', wraps=render) as render_start:
+            response = start(request)
+        return response, render_start.call_args.args[2]['index_path']
+
+    def test_marketplace_cookie_login_returns_to_original_page(self):
+        original_path = '/apps/test_integration_utils/cookie/?users=1&users=2'
+        view = main_auth(on_cookies=True)(lambda _: HttpResponse('ok'))
+        redirect_response = view(RequestFactory().get(original_path))
+        marketplace_params = parse_qs(urlsplit(redirect_response.url).query)
+        placement_options = {name: values[-1] for name, values in marketplace_params.items()}
+        request = RequestFactory().post('/?DOMAIN=b24.it-solution.ru&APP_SID=session', {
+            'AUTH_ID': 'test-token',
+            'PLACEMENT': 'DEFAULT',
+            'PLACEMENT_OPTIONS': json.dumps(placement_options),
+        })
+
+        response, index_path = self._start_response(request)
+
+        self.assertEqual(redirect_response.status_code, 302)
+        self.assertEqual(index_path, f'{original_path}&DOMAIN=b24.it-solution.ru&APP_SID=session')
+        self.assertEqual(response.cookies[f'b24app_auth_{settings.APP_SETTINGS.app_name}'].value, 'test-signed-token')
+        self.assertContains(response, 'location.href = ')
+
+    def test_placement_return_to_preserves_query_fragment_and_other_options(self):
+        request = RequestFactory().post('/?LANG=ru&filter=a&filter=b', {
+            'PLACEMENT_OPTIONS': json.dumps({'return_to': '/protected/?users=1&users=2#details', 'any': '328'}),
+        })
+
+        _, index_path = self._start_response(request)
+        index_url = urlsplit(index_path)
+        index_params = parse_qs(index_url.query)
+
+        self.assertEqual(index_url.path, '/protected/')
+        self.assertEqual(index_url.fragment, 'details')
+        self.assertEqual(index_params, {
+            'users': ['1', '2'],
+            'LANG': ['ru'],
+            'filter': ['a', 'b'],
+            'bx_referer_params': [json.dumps({'any': '328'})],
+        })
+
+    def test_get_return_to_takes_precedence_over_placement_options(self):
+        request = RequestFactory().post('/?return_to=/from-get/', {
+            'PLACEMENT_OPTIONS': json.dumps({'return_to': '/from-placement/'}),
+        })
+
+        _, index_path = self._start_response(request)
+
+        self.assertEqual(index_path, '/from-get/')
+
+    @override_settings(APP_SETTINGS=SimpleNamespace(application_index_path='/index/', app_name='test-app'))
+    def test_unsafe_or_non_string_placement_return_to_uses_application_index(self):
+        for return_to in ('https://example.com/', '//example.com/', '/\\example.com/', None, 42, True, [], {}):
+            with self.subTest(return_to=return_to):
+                request = RequestFactory().post('/', {'PLACEMENT_OPTIONS': json.dumps({'return_to': return_to})})
+
+                _, index_path = self._start_response(request)
+
+                self.assertEqual(index_path, '/index/')
+
+    def test_referer_return_to_is_used_when_placement_options_are_missing_or_invalid(self):
+        for placement_options in (None, '{broken', 'null', '42', 'true', '[]', '["return_to"]'):
+            with self.subTest(placement_options=placement_options):
+                post_params = {} if placement_options is None else {'PLACEMENT_OPTIONS': placement_options}
+                request = RequestFactory().post('/', post_params, HTTP_REFERER='https://b24.it-solution.ru/marketplace/app/80/?return_to=%2Ffrom-referer%2F')
+
+                _, index_path = self._start_response(request)
+
+                self.assertEqual(index_path, '/from-referer/')
+
+    @override_settings(APP_SETTINGS=SimpleNamespace(application_index_path='/index/?tab=main#details', app_name='test-app'))
+    def test_launch_without_return_to_preserves_application_index_and_placement_options(self):
+        request = RequestFactory().post('/?LANG=ru', {'PLACEMENT_OPTIONS': json.dumps({'ID': '42'})})
+
+        _, index_path = self._start_response(request)
+        index_url = urlsplit(index_path)
+
+        self.assertEqual(index_url.path, '/index/')
+        self.assertEqual(index_url.fragment, 'details')
+        self.assertEqual(parse_qs(index_url.query), {'tab': ['main'], 'bx_referer_params': [json.dumps({'ID': '42'})], 'LANG': ['ru']})
 
     def test_relative_return_to_is_used(self):
         request = RequestFactory().get('/?return_to=/hr/absense?date=2026-10-08')

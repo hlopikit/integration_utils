@@ -4,8 +4,10 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Union, Optional, List, Sequence, Tuple, Any, Iterable, Dict
 
 import six
+from django.views.decorators.debug import sensitive_variables
 
 from settings import ilogger
+from integration_utils.bitrix24.functions._log_metadata import _log_context, _response_log_metadata
 from .api_call import (
     api_call,
     convert_params,
@@ -36,7 +38,6 @@ if not six.PY2:
 
 
 # Лучше показать заменяющие символы, чем просто отбрасывать непонятные символы
-DECODE_ERRORS = 'replace' if six.PY2 else 'backslashreplace'
 
 
 class BatchResultDict(OrderedDict):
@@ -146,6 +147,7 @@ def to_chunks(lst, chunk_size=50):
     return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
+@sensitive_variables()
 def _batch_api_call(
             methods,  # type: Methods
             bitrix_user_token,  # type: BitrixUserToken
@@ -234,7 +236,7 @@ def _batch_api_call(
         domain = bitrix_user_token.user.portal.domain
 
     log_tag = 'integration_utils.bitrix24.functions.batch_api_call._batch_api_call'
-    log_params = {'portal_domain': domain}
+    log_params = _log_context(domain, 'batch')
 
     if bitrix_user_token.web_hook_auth:
         auth_token = bitrix_user_token.web_hook_auth
@@ -331,20 +333,14 @@ def _batch_api_call(
 
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
-                    log_method('method_operating', '{}, batch({}): {}'.format(
-                        domain, ', '.join({m for _, m, _ in normalized_methods}), operating,
-                    ), params=log_params, tag=log_tag)
+                    log_method('method_operating', f'operating={operating}', params=log_params, tag=log_tag)
                     time.sleep(operating - 300)
 
             except Exception as e:
-                ilogger.error('method_operating_exception', f"({e}): data={data}", params=log_params, tag=log_tag)
+                ilogger.error('method_operating_exception', type(e).__name__, params=log_params, tag=log_tag)
 
         except ValueError:  # response - не json
-            try:
-                response_text = response.text
-            except UnicodeError:
-                response_text = response.content.decode(response.apparent_encoding, errors=DECODE_ERRORS)
-            ilogger.warning(f'{log_prefix}json_decode_batch_failed', f"{response_text=}", params=log_params, tag=log_tag)
+            ilogger.warning(f'{log_prefix}json_decode_batch_failed', str(_response_log_metadata(response)), params=log_params, tag=log_tag)
 
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет ошибка в бизнес-логике

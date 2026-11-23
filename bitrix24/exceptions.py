@@ -87,7 +87,11 @@ class BitrixApiError(BitrixApiException):
         self.token = token
 
     def __str__(self):
-        return f"{self.json_response}, {self.status_code}, {self.message}, token={self.token}"
+        # Ответ, message и token могут содержать credentials. Данные остаются в атрибутах для обработки ошибки, но не в строках логов.
+        status = self.status_code if type(self.status_code) is int else 'unknown'
+        return f'{type(self).__name__}(HTTP {status})'
+
+    __repr__ = __str__
 
     @property
     def error(self) -> str:
@@ -654,7 +658,9 @@ class BatchFailed(BitrixApiException):
         self.reason = reason
 
     def __str__(self):
-        return f"{self.reason}"
+        return f'{type(self).__name__}(reason_type={type(self.reason).__name__})'
+
+    __repr__ = __str__
 
 
 class BatchApiCallError(BatchFailed):
@@ -746,7 +752,9 @@ class BaseRequestException(BitrixApiException):
         return 'Не удалось выполнить запрос к Битрикс24'
 
     def __str__(self):
-        return f"{self.requests_exception}"
+        return f'{type(self).__name__}({type(self.requests_exception).__name__})'
+
+    __repr__ = __str__
 
 
 class BitrixRequestException(BaseRequestException):

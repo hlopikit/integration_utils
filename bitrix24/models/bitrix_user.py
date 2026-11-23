@@ -21,6 +21,7 @@ class BitrixUser(models.Model):
     email = models.CharField(max_length=255)
     work_phone = models.CharField(max_length=100, blank=True, default='')  # WORK_PHONE
     personal_mobile = models.CharField(max_length=100, blank=True, default='')  # PERSONAL_MOBILE
+    xing = models.CharField(max_length=255, blank=True, default='')  # UF_XING
 
     extranet = models.BooleanField(default=None, null=True)
 
@@ -62,6 +63,7 @@ class BitrixUser(models.Model):
         self.facebook = _f('UF_FACEBOOK')
         self.twitter = _f('UF_TWITTER')
         self.skype = _f('UF_SKYPE')
+        self.xing = _f('UF_XING')
 
         if save:
             self.save()
