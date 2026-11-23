@@ -19,7 +19,7 @@ from integration_utils.bitrix24.exceptions import BitrixConnectionError, BitrixT
 
 ConnectionToBitrixError = BitrixConnectionError
 
-from integration_utils.bitrix24.functions._log_metadata import _log_context, _response_log_metadata
+from integration_utils.bitrix24.functions.log_metadata import log_context, response_log_metadata
 
 from settings import ilogger
 
@@ -40,7 +40,10 @@ class RawStringParam:
     __repr__ = lambda self: '<RawStringParam %r>' % self.value
 
 
-@sensitive_variables()
+@sensitive_variables(
+    'url', 'converted_params', 'files', 'location', 'json_response',
+    'old_domain', 'new_domain',
+)
 def call_with_retries(url, converted_params,
                       retries_on_503=20, sleep_on_503_time=0.5,
                       timeout=DEFAULT_TIMEOUT, files=None):
@@ -53,6 +56,7 @@ def call_with_retries(url, converted_params,
     :raises BitrixApiServerError: Ошибка HTTP-сервера Битрикс или ошибка API без JSON-ответа
     """
     verify = getattr(settings, 'B24API_IGNORE_SSL_VERIFICATION', True)
+    log_params = log_context(url)
 
     try:
         # В истории Git есть фикс бага от 2021 года для crm.item и crm.type.
@@ -90,7 +94,7 @@ def call_with_retries(url, converted_params,
             raise BitrixApiServerError(has_resp=False, json_response=json_response, status_code=response.status_code, message='Bitrix 500 Internal Server Error')
         if response.status_code == 503:
             if retries_on_503 > 0:
-                ilogger.debug('retry_on_503', f'retries_left={retries_on_503}, delay={sleep_on_503_time}', params=_log_context(url))
+                ilogger.debug('retry_on_503', f"{log_params}, retries_left={retries_on_503}, delay={sleep_on_503_time}", params=log_params)
                 if sleep_on_503_time:
                     time.sleep(sleep_on_503_time)
                 return call_with_retries(
@@ -101,7 +105,7 @@ def call_with_retries(url, converted_params,
                     timeout=timeout,
                 )
             else:
-                ilogger.warn('retry_503_exceeded', f'delay={sleep_on_503_time}', params=_log_context(url))
+                ilogger.warn('retry_503_exceeded', f"{log_params}, delay={sleep_on_503_time}", params=log_params)
 
         elif response.status_code in [301, 302]:
             location = response.headers.get('location')
@@ -110,7 +114,7 @@ def call_with_retries(url, converted_params,
                 new_domain = urlparse(location).netloc
 
                 if old_domain != new_domain:
-                    ilogger.debug('retry_on_301_302', f"old_domain={_log_context(url)['portal_domain']}, new_domain={_log_context(location)['portal_domain']}")
+                    ilogger.debug('retry_on_301_302', f"old_domain={log_params['portal_domain']}, new_domain={log_context(location)['portal_domain']}")
 
                     return call_with_retries(
                         url=location,
@@ -121,15 +125,16 @@ def call_with_retries(url, converted_params,
                         files=files,
                     )
 
-            ilogger.warn('retry_on_301_302_failed', 'Redirect was not followed', params=_log_context(url))
+            ilogger.warn('retry_on_301_302_failed', f"{log_params}, redirect={log_context(location)}", params=log_params)
 
     return response
 
 
-# compat
+# Для совместимости со старым именем функции.
 call_with_fall_to_http = call_with_retries
 
 
+@sensitive_variables()
 def convert_params(form_data):
     """
     Рекурсивно, с помощью функции recursive_traverse проходит словарь/кортеж/список,
@@ -178,7 +183,7 @@ def convert_params(form_data):
             values = '' if values is None else values
 
             if not isinstance(values, RawStringParam):
-                # convert int, float, lazy_str to str
+                # Приводим числа и ленивые строки к обычной строке.
                 values = urllib.parse.quote(force_str(values))
             else:
                 values = str(values)
@@ -225,7 +230,10 @@ def convert_params(form_data):
     return u'&'.join(recursive_traverse(form_data))
 
 
-@sensitive_variables()
+@sensitive_variables(
+    'domain', 'api_method', 'auth_token', 'params',
+    'converted_params', 'hook_key', 'url', 'data', 'data_time', 'operating',
+)
 def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout=DEFAULT_TIMEOUT):
     """POST-запрос к Bitrix24 api
 
@@ -245,7 +253,7 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call'
-    log_params = _log_context(domain, api_method)
+    log_params = log_context(domain, api_method)
 
     # Работаем с копией, чтобы не подмешивать `auth` в исходный словарь вызывающего кода.
     params = dict(params or {})
@@ -267,31 +275,34 @@ def api_call(domain, api_method, auth_token, params=None, webhook=False, timeout
             data = response.json()
         except JSONDecodeError:
             ilogger.warning(
-                'response_json_decode_error', str(_response_log_metadata(response)), params=log_params, tag=log_tag,
+                'response_json_decode_error', f"{log_params}, {response_log_metadata(response)}", params=log_params, tag=log_tag,
             )
         except Exception as e:
-            ilogger.error('response_json_exception', type(e).__name__, params=log_params, tag=log_tag)
+            ilogger.error(f'response_json_exception_{type(e).__name__}', f"{log_params}, error_type={type(e).__name__}", exc_info=False, params=log_params, tag=log_tag)
         else:
             data_time = data.get('time', None)
             if data_time and isinstance(data_time, dict):
                 operating = data_time.get('operating', 0)
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
-                    log_method('method_operating', f'operating={operating}', params=log_params, tag=log_tag)
+                    log_method('method_operating', f"{log_params}, operating={operating}", params=log_params, tag=log_tag)
 
     t = time.time()
 
-    ilogger.info('bitrix_request', f'{t}\nparameter_count={len(params)}, webhook={bool(webhook)}', params=log_params, tag=log_tag)
+    ilogger.info('bitrix_request', f"{t}\n{log_params}, parameter_count={len(params)}, webhook={bool(webhook)}", params=log_params, tag=log_tag)
 
     try:
-        ilogger.info('bitrix_response', f'{t}\n{_response_log_metadata(response)}', params=log_params, tag=log_tag)
+        ilogger.info('bitrix_response', f"{t}\n{log_params}, {response_log_metadata(response)}", params=log_params, tag=log_tag)
     except Exception as e:
-        ilogger.error('bitrix_response', f'{t}\nException: {type(e).__name__}', params=log_params, tag=log_tag)
+        ilogger.error(f'bitrix_response_{type(e).__name__}', f"{t}\n{log_params}, error_type={type(e).__name__}", exc_info=False, params=log_params, tag=log_tag)
 
     return response
 
 
-@sensitive_variables()
+@sensitive_variables(
+    'domain', 'api_method', 'auth_token', 'web_hook_auth', 'params',
+    'payload', 'hook_key', 'url', 'message', 'json_response',
+)
 def api_call_v3(
     domain: str,
     api_method: str,
@@ -313,7 +324,7 @@ def api_call_v3(
     """
 
     log_tag = 'integration_utils.bitrix24.functions.api_call.api_call_v3'
-    log_params = _log_context(domain, api_method)
+    log_params = log_context(domain, api_method)
 
     if not isinstance(domain, str) or not domain:
         raise ValueError("must provide domain as a non-empty string")
@@ -372,11 +383,11 @@ def api_call_v3(
 
     t = time.time()
 
-    ilogger.info('bitrix_request', f'{t}\nparameter_count={len(payload)}, webhook={bool(web_hook_auth)}', params=log_params, tag=log_tag)
+    ilogger.info('bitrix_request', f"{t}\n{log_params}, parameter_count={len(payload)}, webhook={bool(web_hook_auth)}", params=log_params, tag=log_tag)
 
     try:
-        ilogger.info('bitrix_response', f'{t}\n{_response_log_metadata(response)}', params=log_params, tag=log_tag)
+        ilogger.info('bitrix_response', f"{t}\n{log_params}, {response_log_metadata(response)}", params=log_params, tag=log_tag)
     except Exception as e:
-        ilogger.error('bitrix_response', f'{t}\n{type(e).__name__}', params=log_params, tag=log_tag)
+        ilogger.error(f'bitrix_response_{type(e).__name__}', f"{t}\n{log_params}, error_type={type(e).__name__}", exc_info=False, params=log_params, tag=log_tag)
 
     return json_response

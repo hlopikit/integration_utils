@@ -8,7 +8,7 @@ from django.conf import settings
 
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.exceptions import BatchApiCallError
-from .call_list_method import _check_filter_by_id_only, _generate_filter_id_methods_for_batch
+from .call_list_method import check_filter_by_id_only, generate_filter_id_methods_for_batch
 
 if TYPE_CHECKING:
     from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
@@ -268,7 +268,7 @@ def iter_result_by_filter_ids(
     # Сортируем ID до разбиения на чанки, чтобы сохранить общий порядок результата.
     filter_ids = sorted(filter_ids, key=int, reverse=descending)
     fields = _deep_merge(params, order_by)
-    methods = _generate_filter_id_methods_for_batch(
+    methods = generate_filter_id_methods_for_batch(
         method=method,
         fields=fields,
         filter_key=filter_key,
@@ -368,7 +368,7 @@ def call_list_fast(
         params = _deep_merge(params)
 
     # Фильтр только по ID разбиваем на batch-команды.
-    filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(params)
+    filter_key, filter_id_key, filter_ids = check_filter_by_id_only(params)
 
     if filter_ids is not None:
         if not filter_ids:

@@ -7,7 +7,7 @@ import six
 from django.views.decorators.debug import sensitive_variables
 
 from settings import ilogger
-from integration_utils.bitrix24.functions._log_metadata import _log_context, _response_log_metadata
+from integration_utils.bitrix24.functions.log_metadata import log_context, response_log_metadata
 from .api_call import (
     api_call,
     convert_params,
@@ -71,6 +71,7 @@ class BatchResultDict(OrderedDict):
         )
 
 
+@sensitive_variables()
 def convert_methods(methods):
     # type: (List[Tuple[str, str, ApiParams]]) -> List[Tuple[str, RawStringParam]]
     """
@@ -147,8 +148,13 @@ def to_chunks(lst, chunk_size=50):
     return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
-@sensitive_variables()
-def _batch_api_call(
+@sensitive_variables(
+    'bitrix_user_token', 'domain', 'methods', 'auth_token', 'params',
+    'normalized_methods', 'maybe_named_method', 'converted_requests',
+    'parts_methods', 'part', 'data', 'result_time', 'operating', 'responses',
+    'name', 'seen_keys', 'safe_methods', '_',
+)
+def batch_api_call(
             methods,  # type: Methods
             bitrix_user_token,  # type: BitrixUserToken
             halt=0,  # type: int
@@ -235,8 +241,8 @@ def _batch_api_call(
     if not domain:
         domain = bitrix_user_token.user.portal.domain
 
-    log_tag = 'integration_utils.bitrix24.functions.batch_api_call._batch_api_call'
-    log_params = _log_context(domain, 'batch')
+    log_tag = 'integration_utils.bitrix24.functions.batch_api_call.batch_api_call'
+    log_params = log_context(domain, 'batch')
 
     if bitrix_user_token.web_hook_auth:
         auth_token = bitrix_user_token.web_hook_auth
@@ -277,9 +283,14 @@ def _batch_api_call(
     converted_requests = convert_methods(methods)
     # Получаем список срезов, по 50 штук
     parts_methods = to_chunks(converted_requests, chunk_size=chunk_size)
+    safe_methods = {
+        name: log_context(domain, method).get('method_name', '[invalid-method]')
+        for name, method, _ in normalized_methods
+    }
 
     responses = BatchResultDict()  # Список ответов и данных
 
+    @sensitive_variables()
     def add_response(part_request_names, part_resp):  # type: (List[str], dict) -> None
         # Добавляем запросы в словарь ответов
         res = part_resp['result']
@@ -307,6 +318,11 @@ def _batch_api_call(
 
     # Берем по chunk_size методов и отправляем запросы
     for part in parts_methods:
+        method_counts = {}
+        for name, _ in part:
+            method = safe_methods[name]
+            method_counts[method] = method_counts.get(method, 0) + 1
+        part_log_params = dict(log_params, method_counts=method_counts)
         response = api_call(
             domain=domain,
             api_method='batch',
@@ -333,19 +349,19 @@ def _batch_api_call(
 
                 if operating > 300:
                     log_method = ilogger.info if operating < 400 else ilogger.warning
-                    log_method('method_operating', f'operating={operating}', params=log_params, tag=log_tag)
+                    log_method('method_operating', f"{part_log_params}, operating={operating}", params=part_log_params, tag=log_tag)
                     time.sleep(operating - 300)
 
             except Exception as e:
-                ilogger.error('method_operating_exception', type(e).__name__, params=log_params, tag=log_tag)
+                ilogger.error(f'method_operating_exception_{type(e).__name__}', f"{part_log_params}, error_type={type(e).__name__}", exc_info=False, params=part_log_params, tag=log_tag)
 
         except ValueError:  # response - не json
-            ilogger.warning(f'{log_prefix}json_decode_batch_failed', str(_response_log_metadata(response)), params=log_params, tag=log_tag)
+            ilogger.warning(f'{log_prefix}json_decode_batch_failed', f"{part_log_params}, {response_log_metadata(response)}", params=part_log_params, tag=log_tag)
 
             # Нет смысла возвращать None, т.к.:
             # - либо вызов проигнорируют и будет ошибка в бизнес-логике
             # - либо будут ожидать словарь и будет TypeError
-            raise JsonDecodeBatchFailed(reason=response)
+            raise JsonDecodeBatchFailed(reason=response) from None
 
         else:  # response - json
             error = data.get('error')
@@ -355,7 +371,7 @@ def _batch_api_call(
 
                 if bitrix_user_token.refresh(timeout=timeout):
                     # Если обновление токена прошло успешно, повторить запрос
-                    return _batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout,
+                    return batch_api_call(methods, bitrix_user_token, halt=halt, chunk_size=chunk_size, timeout=timeout,
                                            log_prefix=log_prefix, refresh=False)
             if error:
                 raise BatchApiCallError(reason=response)
@@ -366,4 +382,5 @@ def _batch_api_call(
     return responses
 
 
-batch_api_call = _batch_api_call
+# Совместимость с прежними импортами из bitrix_utils и других приложений.
+_batch_api_call = batch_api_call

@@ -22,7 +22,7 @@ class BaseBitrixToken:
     def get_auth(self):
         return (self.web_hook_auth or self.auth_token), bool(self.web_hook_auth)
 
-    @sensitive_variables()
+    @sensitive_variables('self', 'params')
     def call_api_method(
             self,
             api_method: str,
@@ -30,7 +30,7 @@ class BaseBitrixToken:
             timeout: Optional[int] = DEFAULT_TIMEOUT,
             retry_settings: Optional[RetryDecorator] = None,
     ) -> dict:
-        @sensitive_variables()
+        @sensitive_variables('self', 'params', 'auth', 'message', 'json_response')
         def _call_method() -> dict:
             auth, webhook = self.get_auth()
             response = api_call(
@@ -48,9 +48,9 @@ class BaseBitrixToken:
             # Пробуем раскодировать json
             try:
                 json_response = response.json()
-            except ValueError as e:
-                # Ранее здесь был BitrixApiError("error": "json ValueError", status_code=601)
-                raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from e
+            except ValueError:
+                # Кадры JSON-парсера содержат полное тело ответа.
+                raise BitrixApiServerError(has_resp='deprecated', json_response=None, status_code=status_code, message=message) from None
 
             if status_code in [200, 201] and not json_response.get('error'):
                 return json_response
@@ -68,6 +68,7 @@ class BaseBitrixToken:
 
     call_api_method_v2 = call_api_method
 
+    @sensitive_variables('self', 'params')
     def call_api_method_v3(
             self,
             api_method: str,
@@ -85,6 +86,7 @@ class BaseBitrixToken:
         :raise ValueError: Неправильное значение аргумента.
         :raise BitrixApiException: Ошибка при работе с API Битрикс.
         """
+        @sensitive_variables('self', 'params')
         def _call_method() -> dict:
             return api_call_v3(
                 domain=self.domain,
@@ -102,6 +104,7 @@ class BaseBitrixToken:
 
     call_method = call_api_method_v3
 
+    @sensitive_variables('self', 'methods')
     def batch_api_call(
         self,
         methods: Union[list, dict],
@@ -115,6 +118,7 @@ class BaseBitrixToken:
         """:rtype: bitrix_utils.bitrix_auth.functions.batch_api_call3.BatchResultDict
         """
 
+        @sensitive_variables('self', 'methods')
         def _call_method() -> Any:
             from .functions.batch_api_call import batch_api_call
             # TODO: Поправить типизацию bitrix_user_token (через Protocol?)

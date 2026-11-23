@@ -8,6 +8,8 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 from django.http import JsonResponse
 from django.utils import timezone
 
+from integration_utils.bitrix24.functions.log_metadata import batch_error_details
+
 from integration_utils.bitrix24.functions.api_call import DEFAULT_TIMEOUT
 from integration_utils.bitrix24.functions.batch_api_call import BatchResultDict
 from settings import ilogger
@@ -65,6 +67,14 @@ class CallListException(Exception):
         super(CallListException, self).__init__(*args)
         self.error = args[0] if args else None
 
+    def __str__(self):
+        if isinstance(self.error, Mapping):
+            return str(batch_error_details(self.error))
+        return super().__str__()
+
+    def __repr__(self):
+        return f'{type(self).__name__}({str(self)!r})'
+
     def dict(self) -> dict[str, Any]:
         if isinstance(self.error, dict):
             return self.error
@@ -73,7 +83,7 @@ class CallListException(Exception):
     def json_response(self, status: int = 500) -> JsonResponse:
         json_error_response = JsonResponse(self.dict(), status=status)
         if status >= 500:
-            # skip django reports for 5xx responses
+            # Не создаём отчёты Django для ответов с кодом 5xx.
             json_error_response._has_been_logged = True
         return json_error_response
 
@@ -109,7 +119,7 @@ def unwrap_batch_res(
     return result
 
 
-def _check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str], Optional[list[Any]]]:
+def check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str], Optional[list[Any]]]:
     """
     Проверяет, можно ли разбить переданный список ID на batch-команды.
 
@@ -165,7 +175,7 @@ def _check_filter_by_id_only(params: Any) -> tuple[Optional[str], Optional[str],
     return filter_key, filter_id_key, filter_ids
 
 
-def _generate_filter_id_methods_for_batch(
+def generate_filter_id_methods_for_batch(
         method: str,
         fields: dict[str, Any],
         filter_key: Optional[str],
@@ -397,11 +407,11 @@ def call_list_method(
         raise ValueError('limit must be greater than 0')
 
     if force_total:
-        ilogger.warning('deprecated_force_total', 'deprecated_force_total')
+        ilogger.warning('deprecated_force_total', "deprecated_force_total")
         limit = force_total
 
     if v == 0:
-        ilogger.warning('call_list_method_incorrect_using', 'use BitrixUserToken.call_list_method instead')
+        ilogger.warning('call_list_method_incorrect_using', "use BitrixUserToken.call_list_method instead")
 
     assert 1 <= batch_size <= 50, 'check: 1 <= batch_size <= 50'
     fields = check_params(method, fields)
@@ -413,7 +423,7 @@ def call_list_method(
         if filter_key and isinstance(fields[filter_key], dict):
             fields[filter_key] = fields[filter_key].copy()
 
-    filter_key, filter_id_key, filter_ids = _check_filter_by_id_only(fields)
+    filter_key, filter_id_key, filter_ids = check_filter_by_id_only(fields)
 
     if filter_ids is not None:
         if not filter_ids:
@@ -424,7 +434,7 @@ def call_list_method(
 
         assert isinstance(fields, dict)
         assert filter_id_key is not None
-        methods = _generate_filter_id_methods_for_batch(
+        methods = generate_filter_id_methods_for_batch(
             method=method,
             fields=fields,
             filter_key=filter_key,
@@ -523,14 +533,14 @@ def call_list_method(
 
     if batch_start and time_spent > ALLOWABLE_TIME:
         # записать время выполнения в лог, если batch_api_call был вызван и выполнялся дольше 2 секунд
-        ilogger.info('call_bx_list_method_time_log', '\n'.join(time_log))
+        ilogger.info('call_bx_list_method_time_log', "\n".join(time_log))
 
     if allowable_error is not None and not limit:
         result_length = len(result)
         length_error = abs(result_length - total_param)
         if length_error > allowable_error:
             ilogger.warning(u'%scall_bx_list_method_length_error' % log_prefix,
-                            u'total: %s, result length: %s, allowable_error: %s'
+                            u"total: %s, result length: %s, allowable_error: %s"
                             % (total_param, result_length, allowable_error))
 
             raise CallListException(u'Количество элементов изменилось за время выполнения запроса на %s (допустимо %s)' % (
