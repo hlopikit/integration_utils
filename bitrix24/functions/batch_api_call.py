@@ -380,3 +380,7 @@ def batch_api_call(
                          part_resp=data)
 
     return responses
+
+
+# Совместимость с прежними импортами из bitrix_utils и других приложений.
+_batch_api_call = batch_api_call

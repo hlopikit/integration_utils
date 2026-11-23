@@ -55,6 +55,17 @@ class TransportLoggingTests(SimpleTestCase):
             self.assertNotIn(secret, captured)
         self.assertNotIn('exc_info=True', captured)
 
+    def test_previous_batch_import_calls_the_same_transport(self):
+        from integration_utils.bitrix24.functions.batch_api_call import _batch_api_call
+
+        token = SimpleNamespace(domain='portal.example.test', auth_token=self.access, web_hook_auth=None, application=None)
+        response = self._response({'result': {'result': {'data_0': True}, 'result_error': {}}})
+        with patch.object(batch, 'api_call', return_value=response) as api_call:
+            result = _batch_api_call([('profile', {})], token, timeout=7)
+        self.assertIs(_batch_api_call, batch.batch_api_call)
+        self.assertTrue(result['data_0']['result'])
+        self.assertEqual(api_call.call_args.kwargs['timeout'], 7)
+
     def test_oauth_and_webhook_requests_keep_payload_but_do_not_log_any_values(self):
         params = {'password': self.password, 'unknown_field': self.custom, 'nested': {'refresh_token': self.refresh}}
         payload = {'result': {'access_token': self.access, 'arbitrary': self.custom}, 'time': {'operating': 301}}
