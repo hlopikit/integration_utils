@@ -5,11 +5,11 @@ class InvalidHeader(Exception):
     pass
 
 
-def get_bitrix_user_token_from_header(request):
+def get_bitrix_user_token_from_header(request, max_age=None):
     bitrix_user_token_signed_pk = request.headers.get('X-Bitrix-Signed-Token')
 
     if bitrix_user_token_signed_pk:
-        request.bitrix_user_token = BitrixUserToken.get_by_signed_pk(bitrix_user_token_signed_pk)
+        request.bitrix_user_token = BitrixUserToken.get_by_signed_pk(bitrix_user_token_signed_pk, max_age=max_age)
         request.bitrix_user = request.bitrix_user_token.user
         request.bitrix_user_is_new = False
         return request.bitrix_user_token
