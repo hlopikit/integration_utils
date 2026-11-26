@@ -178,6 +178,7 @@ class BitrixApiError(BitrixApiException):
             self.is_mysql_query_error,
             self.is_portal_blocked_by_license_scanner,
             self.is_internal_error_adding_list_element,
+            self.is_message_not_added,
         ]):
             return True
         return False
